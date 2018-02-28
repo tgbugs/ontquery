@@ -4,6 +4,10 @@ from setuptools import setup, find_packages
 
 # since setuptools cannot actually exclude files so just grab the ones we want
 
+files = [
+    'ontquery/__init__.py',
+]
+
 try:
     os.mkdir('export')
     for f in files:
