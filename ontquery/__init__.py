@@ -1,5 +1,6 @@
-class OntCuries:
-    pass
+class OntCurie:
+    def __init__(self, prefix, namespace):
+        pass
 
 
 class OntService:
@@ -58,11 +59,12 @@ class InterLexRemote(OntService):  # note to self
 
 
 class rdflibLocal(OntService):  # reccomended for local default implementation
-    graph = rdflib.Graph()
+    #graph = rdflib.Graph()  # TODO pull this out into ../plugins? package as ontquery-plugins?
     # if loading if the default set of ontologies is too slow, it is possible to
     # dump loaded graphs to a pickle gzip and distribute that with a release...
 
     def add(self, iri, format):
+        pass
 
     def setup(self):
         pass  # graph added at class level
@@ -85,7 +87,8 @@ class OntQuery:
     def __iter__(self):  # make it easier to init filtered queries
         yield from self.services
 
-    def __call__(term=None,      # put this first so that the happy path query('brain') can be used, matches synonyms
+    def __call__(self,
+                 term=None,      # put this first so that the happy path query('brain') can be used, matches synonyms
                  prefix=None,    # limit search within this prefix
                  category=None,  # like prefix but works on predefined categories of things like 'anatomical entity' or 'species'
                  label=None,     # exact matches only
@@ -93,7 +96,7 @@ class OntQuery:
                  search=None,    # hits a lucene index, not very high quality
                  id=None,        # alternatly `local_id` to clarify that 
                  curie=None,     # if you are querying you can probably just use OntTerm directly and it will error when it tries to look up
-                 limit=10)
+                 limit=10):
         kwargs = dict(term=term,
                       prefix=prefix,
                       category=category,
@@ -114,7 +117,15 @@ class OntQuery:
             for term in out:
                 print(term)
             raise ValueError('More than one result')
-        else return out[0]
+        else:
+            return out[0]
+
+
+class OntID(str):  # superclass is a suggestion
+    def __init__(self, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
+       # logic to construct iri or expand from curie to iri or just be an iri
+       super().__init__(iri)
+
 
 class OntTerm(OntID):
     # TODO need a nice way to pass in the ontology query interface to the class at run time to enable dynamic repr if all information did not come back at the same time
@@ -133,10 +144,6 @@ class OntTerm(OntID):
     def __repr__(self):  # TODO fun times here
        pass
 
-class OntID(rdflib.URIRef):  # superclass is a suggestion
-    def __init__(self, curie_or_iri=None, prefix=None, id=None, curie=None, iri=None, **kwargs)
-       # logic to construct iri or expand from curie to iri or just be an iri
-       super().__init__(uri)
 
 class Graph():
     """ I can be pickled! And I can be loaded from a pickle dumped from a graph loaded via rdflib. """
@@ -154,7 +161,7 @@ class Graph():
     def predicate_objects(subject):  # this is sufficient to let OntTerm work as desired
         for s, p, o in self.store:
             if subject == None or subject == s:
-                yeild p, o
+                yield p, o
 
 class BasicService(OntService):
     """ A very simple services for local use only """
