@@ -1,0 +1,11 @@
+[requires]
+python_version = '3.6'  # also works with pypy3
+
+[dev-packages]
+# rdflib = {git = 'https://github.com/tgbugs/rdflib.git', ref = 'v5.0.0-dev-tgbugs-b4'}  # try without this first
+pyontutils = {git = 'https://github.com/tgbugs/pyontutiles.git'}
+"e1839a8" = {path = ".", extras = ["dev"], editable = true}
+
+[packages]
+"e1839a8" = {path = ".", editable = true}
+
