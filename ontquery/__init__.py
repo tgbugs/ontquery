@@ -2,6 +2,39 @@ from collections import UserDict
 from six import text_type
 from inspect import signature
 
+def cullNone(**kwargs):
+    return {k:v for k, v in kwargs.items() if v is not None}
+
+class QueryResult:
+    """ Encapsulate query results and allow for clear and clean documentation
+        of how a particular service maps their result terminology onto the
+        ontquery keyword api. """
+    def __init__(self,
+                 iri=None,
+                 curie=None,
+                 label=None,
+                 abbrev=None,  # TODO
+                 acronym=None,  # TODO
+                 definition=None,
+                 synonyms=None,
+                 subClassOf=None,
+                 prefix=None,
+                 category=None,):
+        for k, v in cullNone(iri=iri,
+                             curie=curie,
+                             label=label,
+                             definition=definition,
+                             synonyms=synonyms,
+                             subClassOf=subClassOf).items():
+            self.__dict__[k] = v
+
+    def __getitem__(self, key):
+        return self.__dict__[key]
+
+    def __setitem__(self, key, value):
+        raise ValueError('Cannot set results of a query.')
+
+
 class OntCuries:
     """ A bad implementation of a singleton dictionary based namespace.
         Probably better to use metaclass= to init this so types can be tracked.
@@ -24,6 +57,7 @@ class OntCuries:
 
 
 class OntId(text_type):  # TODO all terms singletons to prevent nastyness
+    _namespaces = OntCuries  # overwrite when subclassing to switch curies...
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
                       ('iri',))
@@ -47,7 +81,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                 curie_or_iri.startswith('https://') or 
                 curie_or_iri.startswith('file://')):
                 iri_ci = curie_or_iri
-                curie_ci = OntCuries.qname(iri_ci)
+                curie_ci = cls._namespaces.qname(iri_ci)
                 prefix, suffix = curie_ci.split(':')
             else:
                 curie_ci = curie_or_iri
@@ -59,7 +93,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             iri_c = cls._make_iri(prefix, suffix)
 
         if iri is not None:
-            curie_i = OntCuries.qname(iri)
+            curie_i = cls._namespaces.qname(iri)
             prefix, suffix = curie_i.split(':')
 
         iris = iri_ps, iri_ci, iri_c, iri
@@ -76,6 +110,16 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         return self
 
     @property
+    def namespaces(self):
+        return self._namespaces()
+
+    @namespaces.setter
+    def namespaces(self, value):
+        self.__class__._namespaces = value
+        # TODO recompute prefix and suffix for the new namespaces for all subclasses.
+        # even though this is a property
+
+    @property
     def curie(self):
         return ':'.join((self.prefix, self.suffix))
 
@@ -85,12 +129,11 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
 
     @classmethod
     def _make_iri(cls, prefix, suffix):
-        namespaces = OntCuries()
+        namespaces = cls._namespaces()
         if prefix in namespaces:
             return namespaces[prefix] + suffix
         else:
             raise KeyError(f'Unknown curie prefix: {prefix}.')
-
 
     @classmethod
     def repr_level(cls):  # FIXME naming
@@ -191,6 +234,63 @@ class OntTerm(OntId):
         return super().__repr__()
 
 
+class OntQuery:
+    def __init__(self, *services, prefix=None, category=None):  # services from OntServices
+        # check to make sure that prefix valid for ontologies
+        # more config
+        self.services = services
+
+    def __iter__(self):  # make it easier to init filtered queries
+        yield from self.services
+
+    def __call__(self,
+                 term=None,           # put this first so that the happy path query('brain') can be used, matches synonyms
+                 prefix=None,         # limit search within this prefix
+                 category=None,       # like prefix but works on predefined categories of things like 'anatomical entity' or 'species'
+                 label=None,          # exact matches only
+                 abbrev=None,         # alternately `abbr` as you have
+                 search=None,         # hits a lucene index, not very high quality
+                 suffix=None,         # suffix is 1234567 in PREFIX:1234567
+                 curie=None,          # if you are querying you can probably just use OntTerm directly and it will error when it tries to look up
+                 iri=None,            # the most important one
+                 predicates=tuple(),  # provided with an iri or a curie to extract more specific triple information
+                 limit=10):
+        qualifiers = cullNone(prefix=prefix,
+                              category=category)
+        queries = cullNone(abbrev=abbrev,
+                           label=label,
+                           term=term,
+                           search=search)
+        identifiers = cullNone(suffix=suffix,
+                               curie=curie,
+                               iri=iri)
+        if queries and identifiers:
+            print(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')
+            queries = {}
+        if 'suffix' in identifiers and 'prefix' not in qualifiers:
+            raise ValueError('Queries using suffix= must also include an explicit prefix.')
+        if len(queries) > 1:
+            raise ValueError('Queries only accept a single non-qualifier argument. Qualifiers are prefix=, category=.')
+        # TODO more conditions here...
+
+        # TODO? this is one place we could normalize queries as well instead of having
+        # to do it for every single OntService
+        kwargs = {**qualifiers, **queries, **identifiers}
+        out = []
+        for service in self.services:
+            # TODO query keyword precedence if there is more than one
+            print(kwargs)
+            for result in service.query(**kwargs):
+                out.append(OntTerm(results['iri']))  # FIXME
+                #out.append(OntTerm(query=service.query, **result))
+        if len(out) > 1:
+            for term in out:
+                print(term)
+            raise ValueError('Query returned more than one result. Please review.')
+        else:
+            return out[0]
+
+
 class OntService:
     """ Base class for ontology wrappers that define setup, dispatch, query,
         add ontology, and list ontologies methods for a given type of endpoint. """
@@ -209,55 +309,8 @@ class OntService:
     def setup(self):
         raise NotImplementedError()
 
-    def dispatch(self, prefix=None, category=None):  # return True if the filters pass
-        raise NotImplementedError()
-
     def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature
         raise NotImplementedError()
-        pass
-
-
-class OntQuery:
-    def __init__(self, *services, prefix=None, category=None):  # services from OntServices
-        # check to make sure that prefix valid for ontologies
-        # more config
-        self.services = services
-
-    def __iter__(self):  # make it easier to init filtered queries
-        yield from self.services
-
-    def __call__(self,
-                 term=None,      # put this first so that the happy path query('brain') can be used, matches synonyms
-                 prefix=None,    # limit search within this prefix
-                 category=None,  # like prefix but works on predefined categories of things like 'anatomical entity' or 'species'
-                 label=None,     # exact matches only
-                 abbrev=None,    # alternately `abbr` as you have
-                 search=None,    # hits a lucene index, not very high quality
-                 id=None,        # alternatly `local_id` to clarify that 
-                 curie=None,     # if you are querying you can probably just use OntTerm directly and it will error when it tries to look up
-                 limit=10):
-        kwargs = dict(term=term,
-                      prefix=prefix,
-                      category=category,
-                      label=label,
-                      abbrev=abbrev,
-                      search=search,
-                      id=id,
-                      curie=curie)
-        # TODO? this is one place we could normalize queries as well instead of having
-        # to do it for every single OntService
-        out = []
-        for service in self.onts:
-            if service.dispatch(prefix=prefix, category=category):
-                # TODO query keyword precedence if there is more than one
-                for result in service.query(**kwawrgs):
-                    out.append(OntTerm(query=service.query, **result))
-        if len(out) > 1:
-            for term in out:
-                print(term)
-            raise ValueError('More than one result')
-        else:
-            return out[0]
 
 
 # helpers
@@ -305,30 +358,63 @@ class BasicService(OntService):
         # and managed with python TypeErrors on kwarg mismatches to the service `query` method
         # like the one implemented here.
 
-
+from pyontutils import scigraph_client
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
+    cache = True
     def add(self, iri):  # TODO implement with setter/appender?
-        raise TypeError('Cannot add ontology to Remote')
+        raise TypeError('Cannot add ontology to remote service.')
 
     def setup(self):
-        self.sgv = scigraph_client.Vocabulary()
-        self.sgg = scigraph_client.Graph()
-        self.sgc = scigraph_client.Cyper()
-        self.curies = sgc.getCuries()  # TODO can be used to provide curies...
-        self.categories = sgv.getCategories()
-        self._onts = self.sgg.getEdges(relationType='owl:Ontology')  # TODO incomplete and not sure if this works...
+        self.sgv = scigraph_client.Vocabulary(cache=self.cache)
+        self.sgg = scigraph_client.Graph(cache=self.cache)
+        self.sgc = scigraph_client.Cypher(cache=self.cache)
+        self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
+        self.categories = self.sgv.getCategories()
+        self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
 
-    def dispatch(self, prefix=None, category=None):  # return True if the filters pass
-        # FIXME? alternately all must be true instead of any being true?
-        if prefix is not None and prefix in self.curies:
-            return True
-        if categories is not None and prefix in self.categories:
-            return True
-        return False
+    def query(self, iri=None, curie=None, label=None, term=None, search=None, prefix=None, category=None, predicates=tuple()):
+        # use explicit keyword arguments to dispatch on type
+        if prefix is not None and prefix not in self.curies:
+            raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
+        if category is not None and category not in self.categories:
+            raise ValueError(f'{category} not in {self.__class__.__name__}.categories')
+        quanlifiers = cullNone(prefix=prefix, category=category)
 
-    def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature
-        # TODO
-        pass
+        identifiers = cullNone(iri=iri, curie=curie)
+        if identifiers:
+            identifier = next(iter(identifiers.values()))  # WARNING: only takes the first if there is more than one...
+            result = self.sgv.findById(identifier)  # in theory could pass qualifiers here, but seems like it could be abused
+            if predicates:  # TODO incoming/outgoing
+                for predicate in predicates:
+                    # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
+                    d_nodes_edges = sgg.getNeighbors(identifier, relationshipType=predicate, depth=1)  # TODO
+        elif term:
+            result = sgv.findByTerm(term, searchSynonyms=True)
+        elif label:
+            result = sgv.findByTerm(term, searchSynonyms=False)
+        elif search:
+            result = sgv.searchByTerm(term)
+        else:
+            raise ValueError('No query prarmeters provided!')
+
+        # TODO deprecated handling
+
+        # TODO transform result to expected
+        print(result)
+        ni = lambda i: next(iter(i)) if i else None
+        qr = QueryResult(iri=result['iri'],
+                         curie=result['curie'],
+                         label=ni(result['labels']),
+                         definition=ni(result['definitions']),
+                         synonyms=result['synonyms'],
+                         acronym=result['acronyms'],
+                         abbrev=result['abbreviations'],
+                         prefix=result['curie'].split(':')[0],
+                         category=ni(result['categories']),
+
+
+                         )
+        return qr
 
 
 class InterLexRemote(OntService):  # note to self
@@ -361,6 +447,8 @@ from IPython import embed
 from pyontutils.core import PREFIXES as uPREFIXES
 curies = OntCuries(uPREFIXES)
 #print(curies)
+query = OntQuery(SciGraphRemote())
+OntTerm.query = query
 def test(func):
     #expected fails
     #func(prefix='definition'),
@@ -372,7 +460,7 @@ def test(func):
         func('http://purl.obolibrary.org/obo/IAO_0000115'),
         func(iri='http://purl.obolibrary.org/obo/IAO_0000115'),
         )
-    print(asdf)
+    [print(repr(_)) for _ in asdf]
     return asdf
 
 test(OntId)
