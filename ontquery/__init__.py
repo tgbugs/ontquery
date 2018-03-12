@@ -20,19 +20,52 @@ class QueryResult:
                  subClassOf=None,
                  prefix=None,
                  category=None,):
+        self.__dict = {}
         for k, v in cullNone(iri=iri,
                              curie=curie,
                              label=label,
                              definition=definition,
                              synonyms=synonyms,
                              subClassOf=subClassOf).items():
-            self.__dict__[k] = v
+            # this must return the empty values for all keys
+            # so that users don't have to worry about hasattring
+            # to make sure they aren't about to step into a typeless void
+            setattr(self, k, v)
+            self.__dict[k] = v
+            #self.__dict__[k] = v
+
+    def asTerm(self):
+        return OntTerm(iri=self.iri)  # TODO works best with a cache
+
+    def keys(self):
+        yield from self.__dict.keys()
+
+    def values(self):
+        yield from self.__dict.values()
+
+    def items(self):
+        yield from self.__dict.items()
+
+    def __iter__(self):
+        yield from self.__dict
 
     def __getitem__(self, key):
-        return self.__dict__[key]
+        try:
+            return self.__dict[key]
+        except KeyError as e:
+            self.__missing__(key, e)
+
+    def __contains__(self, key):
+        return key in self.__dict
+
+    def __missing__(self, key, e=None):
+        raise KeyError(f'{key} {type(key)}') from e
 
     def __setitem__(self, key, value):
         raise ValueError('Cannot set results of a query.')
+
+    def __repr__(self):
+        return f'QueryResult({self.__dict!r})'
 
 
 class OntCuries:
@@ -148,6 +181,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         first_done = False
         firsts = getattr(self.__class__, f'_{self.__class__.__name__}__firsts')
         for arg in self.repr_arg_order[getattr(self.__class__, f'_{self.__class__.__name__}__repr_level')]:
+            if not hasattr(self, arg):  # allow repr of uninitialized classes
+                continue
             is_arg = False
             if not first_done:
                 if arg in firsts:
@@ -170,6 +205,10 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
     @property
     def _repr_args(self):
         return {kwarg:repr(getattr(self, kwarg)) for kwarg, p in self._repr_include_args}
+
+    def __str__(self):
+        id_ = self.curie if hasattr(self, 'curie') else super().__repr__()
+        return f"{self.__class__.__name__}('{id_}')"
 
     def __repr__(self):
         return self._repr_base.format(**self._repr_args)
@@ -209,7 +248,9 @@ class OntTerm(OntId):
                 if unverified and keyword in kwargs and kwargs[keyword] != value:
                     raise ValueError(f'Unverified value {keyword}=\'{kwargs[keyword]}\' '
                                      'does not match ontology value {value} for {results["iri"]}')
-                setattr(self, keyword, value)  # TODO value lists...
+                #print(keyword, value)
+                if keyword not in ('iri', 'curie'):  # already managed by OntId
+                    setattr(self, keyword, value)  # TODO value lists...
             self.unverified = False
         else:
             self.unverified = True
@@ -264,6 +305,7 @@ class OntQuery:
         identifiers = cullNone(suffix=suffix,
                                curie=curie,
                                iri=iri)
+        control = dict(limit=limit)
         if queries and identifiers:
             print(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')
             queries = {}
@@ -275,13 +317,15 @@ class OntQuery:
 
         # TODO? this is one place we could normalize queries as well instead of having
         # to do it for every single OntService
-        kwargs = {**qualifiers, **queries, **identifiers}
+        kwargs = {**qualifiers, **queries, **identifiers, **control}
         out = []
         for service in self.services:
             # TODO query keyword precedence if there is more than one
-            print(kwargs)
+            #print(kwargs)
             for result in service.query(**kwargs):
-                out.append(OntTerm(results['iri']))  # FIXME
+                #print(result)
+                out.append(result)
+                #out.append(OntTerm(result.iri))  # FIXME
                 #out.append(OntTerm(query=service.query, **result))
         if len(out) > 1:
             for term in out:
@@ -310,6 +354,7 @@ class OntService:
         raise NotImplementedError()
 
     def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature
+        yield 'Queries should return an iterable'
         raise NotImplementedError()
 
 
@@ -321,12 +366,12 @@ class Graph():
 
     def add(triple):
         self.store += triple
-    
+
     def subjects(self, predicate, object):  # this method by iteself is sufficient to build a keyword based query interface via query(predicate='object')
         for s, p, o in self.store:
             if (predicate is None or predicate == p) and (object == None or object == o):
                 yield s
-    
+
     def predicate_objects(subject):  # this is sufficient to let OntTerm work as desired
         for s, p, o in self.store:
             if subject == None or subject == s:
@@ -361,60 +406,66 @@ class BasicService(OntService):
 from pyontutils import scigraph_client
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
+    verbose = False
     def add(self, iri):  # TODO implement with setter/appender?
         raise TypeError('Cannot add ontology to remote service.')
 
     def setup(self):
-        self.sgv = scigraph_client.Vocabulary(cache=self.cache)
-        self.sgg = scigraph_client.Graph(cache=self.cache)
-        self.sgc = scigraph_client.Cypher(cache=self.cache)
+        self.sgv = scigraph_client.Vocabulary(cache=self.cache, verbose=self.verbose)
+        self.sgg = scigraph_client.Graph(cache=self.cache, verbose=self.verbose)
+        self.sgc = scigraph_client.Cypher(cache=self.cache, verbose=self.verbose)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.categories = self.sgv.getCategories()
         self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
 
-    def query(self, iri=None, curie=None, label=None, term=None, search=None, prefix=None, category=None, predicates=tuple()):
+    def query(self, iri=None, curie=None, label=None, term=None, search=None, prefix=None, category=None, predicates=tuple(), limit=10):
         # use explicit keyword arguments to dispatch on type
         if prefix is not None and prefix not in self.curies:
             raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
         if category is not None and category not in self.categories:
             raise ValueError(f'{category} not in {self.__class__.__name__}.categories')
-        quanlifiers = cullNone(prefix=prefix, category=category)
+        qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
 
         identifiers = cullNone(iri=iri, curie=curie)
         if identifiers:
             identifier = next(iter(identifiers.values()))  # WARNING: only takes the first if there is more than one...
-            result = self.sgv.findById(identifier)  # in theory could pass qualifiers here, but seems like it could be abused
+            result = self.sgv.findById(identifier)  # this does not accept qualifiers
             if predicates:  # TODO incoming/outgoing
                 for predicate in predicates:
                     # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
                     d_nodes_edges = sgg.getNeighbors(identifier, relationshipType=predicate, depth=1)  # TODO
+                    edges = d_nodes_edges['edges']
+                    objects = (e['obj'] for e in edges if e['subj'] == identifier)  # FIXME need the curie?
+                    result[predicate] = tuple(objects)
+            results = result,
         elif term:
-            result = sgv.findByTerm(term, searchSynonyms=True)
+            results = self.sgv.findByTerm(term, searchSynonyms=True, **qualifiers)
         elif label:
-            result = sgv.findByTerm(term, searchSynonyms=False)
+            results = self.sgv.findByTerm(label, searchSynonyms=False, **qualifiers)
         elif search:
-            result = sgv.searchByTerm(term)
+            results = self.sgv.searchByTerm(search, **qualifiers)
         else:
             raise ValueError('No query prarmeters provided!')
 
         # TODO deprecated handling
 
         # TODO transform result to expected
-        print(result)
-        ni = lambda i: next(iter(i)) if i else None
-        qr = QueryResult(iri=result['iri'],
-                         curie=result['curie'],
-                         label=ni(result['labels']),
-                         definition=ni(result['definitions']),
-                         synonyms=result['synonyms'],
-                         acronym=result['acronyms'],
-                         abbrev=result['abbreviations'],
-                         prefix=result['curie'].split(':')[0],
-                         category=ni(result['categories']),
+        for result in results:
+            #print(result)
+            ni = lambda i: next(iter(i)) if i else None
+            qr = QueryResult(iri=result['iri'],
+                             curie=result['curie'],
+                             label=ni(result['labels']),
+                             definition=ni(result['definitions']),
+                             synonyms=result['synonyms'],
+                             acronym=result['acronyms'],
+                             abbrev=result['abbreviations'],
+                             prefix=result['curie'].split(':')[0],
+                             category=ni(result['categories']),
 
 
-                         )
-        return qr
+                            )
+            yield qr
 
 
 class InterLexRemote(OntService):  # note to self
@@ -449,6 +500,10 @@ curies = OntCuries(uPREFIXES)
 #print(curies)
 query = OntQuery(SciGraphRemote())
 OntTerm.query = query
+qr = query(label='brain', prefix='UBERON')
+t = qr.asTerm()
+print(t)
+print(repr(t))
 def test(func):
     #expected fails
     #func(prefix='definition'),
