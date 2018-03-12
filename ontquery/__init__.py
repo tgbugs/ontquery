@@ -228,6 +228,8 @@ class OntTerm(OntId):
                       ('iri', 'label', 'definition', 'curie'),
                       ('iri', 'label', 'definition'),)
 
+    _cache = {}
+
     @staticmethod
     def query(*args, **kwargs): return tuple()
 
@@ -259,6 +261,11 @@ class OntTerm(OntId):
             result = None
 
         self = super().__new__(cls, **kwargs)
+
+        if self.iri in cls._cache:  # FIXME __cache
+            return cls._cache[self.iri]
+        else:
+            cls._cache[self.iri] = self
 
         self.kwargs = kwargs
         if query is not None:
