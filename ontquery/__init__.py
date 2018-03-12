@@ -184,7 +184,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         first_done = False
         firsts = getattr(self.__class__, f'_{self.__class__.__name__}__firsts')
         for arg in self.repr_arg_order[getattr(self.__class__, f'_{self.__class__.__name__}__repr_level')]:
-            if not hasattr(self, arg):  # allow repr of uninitialized classes
+            if not hasattr(self, arg) or getattr(self, arg) is None:  # allow repr of uninitialized classes
                 continue
             is_arg = False
             if not first_done:
@@ -219,7 +219,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
 
 class OntTerm(OntId):
     # TODO need a nice way to pass in the ontology query interface to the class at run time to enable dynamic repr if all information did not come back at the same time
-    repr_arg_order = (('curie', 'label', 'definition'),
+    repr_arg_order = (('curie', 'label', 'synonyms', 'definition'),
+                      ('curie', 'label', 'synonyms'),
                       ('curie', 'label'),
                       ('label',),
                       ('curie',),
@@ -288,6 +289,8 @@ class OntTerm(OntId):
                     value = None
                 setattr(self, keyword, value)
 
+            print(red.format('WARNING:'), repr(self), '\n')
+
         if fail:
             print(red.format(repr(self)))
             self.repr_level()
@@ -351,15 +354,15 @@ class OntQuery:
         out = []
         for service in self.services:
             # TODO query keyword precedence if there is more than one
-            #print(kwargs)
+            #print(red.format(str(kwargs)))
             for result in service.query(**kwargs):
-                #print(result)
+                #print(red.format('AAAAAAAAAA'), result)
                 out.append(result)
                 #out.append(OntTerm(result.iri))  # FIXME
                 #out.append(OntTerm(query=service.query, **result))
-        if not out:
-            raise ValueError(f'Query {kwargs} returned no result.')
-        elif len(out) > 1:
+        #if not out:
+            #raise ValueError(f'Query {kwargs} returned no result.')
+        if len(out) > 1:
             for result in out:
                 print(repr(result.asTerm()), '\n')
             raise ValueError(f'Query {kwargs} returned more than one result. Please review.')
@@ -462,6 +465,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if identifiers:
             identifier = next(iter(identifiers.values()))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
+            if result is None:
+                yield result
+                raise StopIteration
+
             if predicates:  # TODO incoming/outgoing
                 for predicate in predicates:
                     # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
@@ -469,6 +476,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     edges = d_nodes_edges['edges']
                     objects = (e['obj'] for e in edges if e['subj'] == identifier)  # FIXME need the curie?
                     result[predicate] = tuple(objects)
+
             results = result,
         elif term:
             results = self.sgv.findByTerm(term, searchSynonyms=True, **qualifiers)
