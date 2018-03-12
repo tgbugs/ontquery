@@ -1,6 +1,7 @@
 from collections import UserDict
 from six import text_type
 from inspect import signature
+from urllib import parse
 
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
@@ -235,13 +236,34 @@ class OntTerm(OntId):
                 unverified=None, query=None, **kwargs):
         kwargs['curie_or_iri'] = curie_or_iri
         kwargs['label'] = label
+        kwargs['term'] = term
+        kwargs['search'] = search
         cls.__repr_level = 0
+
+        # FIXME not clear if we really want to do this because it can let
+        # unverified terms creep in...
+        fail = False
+        if curie_or_iri is None and 'curie' not in kwargs and 'iri' not in kwargs and 'suffix' not in kwargs:
+            fail = True
+            nargs = cullNone(**kwargs)
+            if query is not None:
+                result = query(**nargs)
+            else:
+                result = cls.query(**nargs)
+
+            kwargs.update(result)
+        else:
+            result = None
+
         self = super().__new__(cls, **kwargs)
+
         self.kwargs = kwargs
         if query is not None:
             self.query = query
 
-        result = self.query(iri=self)
+        if result is None:
+            result = self.query(iri=self)
+
         if result:
             for keyword, value in result.items():
                 # TODO open vs closed world
@@ -263,6 +285,11 @@ class OntTerm(OntId):
                 else:
                     value = None
                 setattr(self, keyword, value)
+
+        if fail:
+            self.repr_level()
+            raise ValueError(f'Your term as specified does not have a valid identifier.\nPlease replace it with {self!r}')
+
         return self
 
     # use properties to query for various things to repr
@@ -328,9 +355,9 @@ class OntQuery:
                 #out.append(OntTerm(result.iri))  # FIXME
                 #out.append(OntTerm(query=service.query, **result))
         if len(out) > 1:
-            for term in out:
-                print(term)
-            raise ValueError('Query returned more than one result. Please review.')
+            for result in out:
+                print(repr(result.asTerm()), '\n')
+            raise ValueError(f'Query {kwargs} returned more than one result. Please review.')
         else:
             return out[0]
 
@@ -424,8 +451,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
         if category is not None and category not in self.categories:
             raise ValueError(f'{category} not in {self.__class__.__name__}.categories')
-        qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
 
+        qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
         if identifiers:
             identifier = next(iter(identifiers.values()))  # WARNING: only takes the first if there is more than one...
@@ -454,16 +481,14 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             #print(result)
             ni = lambda i: next(iter(i)) if i else None
             qr = QueryResult(iri=result['iri'],
-                             curie=result['curie'],
+                             curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
                              label=ni(result['labels']),
                              definition=ni(result['definitions']),
                              synonyms=result['synonyms'],
                              acronym=result['acronyms'],
                              abbrev=result['abbreviations'],
-                             prefix=result['curie'].split(':')[0],
+                             prefix=result['curie'].split(':')[0] if 'curie' in result else None,
                              category=ni(result['categories']),
-
-
                             )
             yield qr
 
@@ -493,33 +518,49 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
 
 def main():
-    pass
-from IPython import embed
-from pyontutils.core import PREFIXES as uPREFIXES
-curies = OntCuries(uPREFIXES)
-#print(curies)
-query = OntQuery(SciGraphRemote())
-OntTerm.query = query
-qr = query(label='brain', prefix='UBERON')
-t = qr.asTerm()
-print(t)
-print(repr(t))
-def test(func):
-    #expected fails
-    #func(prefix='definition'),
-    #func(suffix=''),
-    asdf = (
-        func('definition:'),
-        func(prefix='definition', suffix=''),
-        func(curie='definition:'),
-        func('http://purl.obolibrary.org/obo/IAO_0000115'),
-        func(iri='http://purl.obolibrary.org/obo/IAO_0000115'),
-        )
-    [print(repr(_)) for _ in asdf]
-    return asdf
+    red = '\x1b[91m{}\x1b[0m'
+    from IPython import embed
+    from pyontutils.core import PREFIXES as uPREFIXES
+    curies = OntCuries(uPREFIXES)
+    #print(curies)
+    query = OntQuery(SciGraphRemote())
+    OntTerm.query = query
 
-test(OntId)
-asdf = test(OntTerm)
+    # direct use of query instead of via OntTerm, users should never have to do this
+    qr = query(label='brain', prefix='UBERON')
+    t = qr.asTerm()  # creation of a term using QueryResult.asTerm
+    t1 = OntTerm(**qr)  # creation of a term by passing a QueryResult instance to OntTerm as a dictionary
+
+    # query enabled OntTerm, throws a ValueError if there is no identifier
+    try:
+        t2 = OntTerm(term='brain', prefix='UBERON')
+    except ValueError as e:
+        print(red.format(e))
+    try:
+        t2 = OntTerm(label='brain', prefix='UBERON')
+    except ValueError as e:
+        print(red.format(e))
+    t2 = OntTerm('UBERON:0000955', label='brain')
+
+    print(repr(t))
+    #*(print(repr(_)) for _ in (t, t1, t2)),
+
+    def test(func):
+        #expected fails
+        #func(prefix='definition'),
+        #func(suffix=''),
+        asdf = (
+            func('definition:'),
+            func(prefix='definition', suffix=''),
+            func(curie='definition:'),
+            func('http://purl.obolibrary.org/obo/IAO_0000115'),
+            func(iri='http://purl.obolibrary.org/obo/IAO_0000115'),
+            )
+        [print(repr(_)) for _ in asdf]
+        return asdf
+
+    test(OntId)
+    asdf = test(OntTerm)
 
 if __name__ == '__main__':
     main()
