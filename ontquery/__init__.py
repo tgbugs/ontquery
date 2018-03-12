@@ -3,6 +3,8 @@ from six import text_type
 from inspect import signature
 from urllib import parse
 
+red = '\x1b[91m{}\x1b[0m'
+
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
 
@@ -207,7 +209,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
     def _repr_args(self):
         return {kwarg:repr(getattr(self, kwarg)) for kwarg, p in self._repr_include_args}
 
-    def __str__(self):
+    def _no__str__(self):  # don't use this -- we need sane serialization as the iri
         id_ = self.curie if hasattr(self, 'curie') else super().__repr__()
         return f"{self.__class__.__name__}('{id_}')"
 
@@ -287,8 +289,9 @@ class OntTerm(OntId):
                 setattr(self, keyword, value)
 
         if fail:
+            print(red.format(repr(self)))
             self.repr_level()
-            raise ValueError(f'Your term as specified does not have a valid identifier.\nPlease replace it with {self!r}')
+            raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
 
         return self
 
@@ -354,7 +357,9 @@ class OntQuery:
                 out.append(result)
                 #out.append(OntTerm(result.iri))  # FIXME
                 #out.append(OntTerm(query=service.query, **result))
-        if len(out) > 1:
+        if not out:
+            raise ValueError(f'Query {kwargs} returned no result.')
+        elif len(out) > 1:
             for result in out:
                 print(repr(result.asTerm()), '\n')
             raise ValueError(f'Query {kwargs} returned more than one result. Please review.')
@@ -479,6 +484,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         # TODO transform result to expected
         for result in results:
             #print(result)
+            if result['deprecated']:
+                continue
             ni = lambda i: next(iter(i)) if i else None
             qr = QueryResult(iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
@@ -518,7 +525,6 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
 
 def main():
-    red = '\x1b[91m{}\x1b[0m'
     from IPython import embed
     from pyontutils.core import PREFIXES as uPREFIXES
     curies = OntCuries(uPREFIXES)
