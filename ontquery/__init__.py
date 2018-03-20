@@ -121,7 +121,10 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                 prefix, suffix = curie_ci.split(':')
             else:
                 curie_ci = curie_or_iri
-                prefix, suffix = curie_ci.split(':')
+                try:
+                    prefix, suffix = curie_ci.split(':')
+                except ValueError as e:
+                    raise ValueError(f'Could not split cuire {curie_ci!r} is it actually an identifier?') from e
                 iri_ci = cls._make_iri(prefix, suffix)
 
         if curie is not None:
@@ -373,8 +376,10 @@ class OntQuery:
             for result in out:
                 print(repr(result.asTerm()), '\n')
             raise ValueError(f'Query {kwargs} returned more than one result. Please review.')
-        else:
+        elif len(out) == 1:
             return out[0]
+        else:
+            raise ValueError(f'Query {kwargs} returned no results. Please change your query.')
 
 
 class OntService:
