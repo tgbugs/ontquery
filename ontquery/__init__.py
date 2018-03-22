@@ -454,13 +454,17 @@ from pyontutils import scigraph_client
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
+    def __init__(self, api_key=None):
+        self.api_key = api_key
+        super().__init__()
+
     def add(self, iri):  # TODO implement with setter/appender?
         raise TypeError('Cannot add ontology to remote service.')
 
     def setup(self):
-        self.sgv = scigraph_client.Vocabulary(cache=self.cache, verbose=self.verbose)
-        self.sgg = scigraph_client.Graph(cache=self.cache, verbose=self.verbose)
-        self.sgc = scigraph_client.Cypher(cache=self.cache, verbose=self.verbose)
+        self.sgv = scigraph_client.Vocabulary(cache=self.cache, verbose=self.verbose, key=self.api_key)
+        self.sgg = scigraph_client.Graph(cache=self.cache, verbose=self.verbose, key=self.api_key)
+        self.sgc = scigraph_client.Cypher(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.categories = self.sgv.getCategories()
         self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
@@ -545,11 +549,13 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
 
 def main():
+    import os
     from IPython import embed
     from pyontutils.core import PREFIXES as uPREFIXES
     curies = OntCuries(uPREFIXES)
     #print(curies)
-    query = OntQuery(SciGraphRemote())
+    api_key = os.environ['SCICRUNCH_API_KEY']
+    query = OntQuery(SciGraphRemote(api_key=api_key))
     OntTerm.query = query
 
     # direct use of query instead of via OntTerm, users should never have to do this
