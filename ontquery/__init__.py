@@ -37,8 +37,8 @@ class QueryResult:
             self.__dict[k] = v
             #self.__dict__[k] = v
 
-    def asTerm(self):
-        return OntTerm(iri=self.iri)  # TODO works best with a cache
+    def asTerm(self):  # FIXME does not work as desired
+        return self.__TermClass(iri=self.iri)  # TODO works best with a cache
 
     def keys(self):
         yield from self.__dict.keys()
@@ -99,12 +99,11 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                       ('iri',))
     __firsts = 'curie', 'iri'
     def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
-        #_kwargs = dict(curie_or_iri=curie_or_iri,
-                       #prefix=prefix,
-                       #suffix=suffix,
-                       #curie=curie,
-                       #iri=iri)
-        cls.__repr_level = 0
+
+        if not hasattr(cls, f'_{cls.__name__}__repr_level'):
+            cls.__repr_level = 0
+            if not hasattr(cls, 'repr_args'):
+                cls.repr_args = cls.repr_arg_order[0]
 
         iri_ps, iri_ci, iri_c = None, None, None
 
@@ -176,17 +175,33 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
 
     @classmethod
     def repr_level(cls):  # FIXME naming
+        if not hasattr(cls, f'_{cls.__name__}__repr_level'):
+            setattr(cls, f'_{cls.__name__}__repr_level', 0)
+            #cls.__repr_level = 0 # how is this different....
         current = getattr(cls, f'_{cls.__name__}__repr_level')
         nargs = len(cls.repr_arg_order)
         next = (current + 1) % nargs
-        print(cls.__name__, 'will now repr with', cls.repr_arg_order[next])
+        cls.repr_args = self.repr_arg_order[next]
+        print(self.__name__, 'will now repr with', cls.repr_args)
         setattr(cls, f'_{cls.__name__}__repr_level', next)
+
+    @property
+    def _repr_level(self):
+        if not hasattr(self, f'_{self.__class__.__name__}__repr_level'):
+            setattr(self, f'_{self.__class__.__name__}__repr_level', 0)
+        current = getattr(self.__class__, f'_{cls.__class__.__name__}__repr_level')
+        nargs = len(self.repr_arg_order)
+        next = (current + 1) % nargs
+        self.__class__.repr_args = self.repr_arg_order[next]
+        print(self.__name__, 'will now repr with', self.repr_args)
+        setattr(self.__class__, f'_{self.__class__.__name__}__repr_level', next)
+
 
     @property
     def _repr_include_args(self):
         first_done = False
         firsts = getattr(self.__class__, f'_{self.__class__.__name__}__firsts')
-        for arg in self.repr_arg_order[getattr(self.__class__, f'_{self.__class__.__name__}__repr_level')]:
+        for arg in self.__class__.repr_args:  # always use class repr args
             if not hasattr(self, arg) or getattr(self, arg) is None:  # allow repr of uninitialized classes
                 continue
             is_arg = False
@@ -241,12 +256,18 @@ class OntTerm(OntId):
                 label=None,
                 term=None,
                 search=None,
-                unverified=None, query=None, **kwargs):
+                unverified=None,
+                query=None,
+                **kwargs):
+        kwargs['upstream'] = cls  # FIXME not a good way to do this
         kwargs['curie_or_iri'] = curie_or_iri
         kwargs['label'] = label
         kwargs['term'] = term
         kwargs['search'] = search
-        cls.__repr_level = 0
+        if not hasattr(cls, f'_{cls.__name__}__repr_level'):
+            cls.__repr_level = 0
+            if not hasattr(cls, 'repr_args'):
+                cls.repr_args = cls.repr_arg_order[0]
 
         # FIXME not clear if we really want to do this because it can let
         # unverified terms creep in...
@@ -303,7 +324,6 @@ class OntTerm(OntId):
 
         if fail:
             print(red.format(repr(self)))
-            self.repr_level()
             raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
 
         return self
@@ -319,10 +339,11 @@ class OntTerm(OntId):
 
 
 class OntQuery:
-    def __init__(self, *services, prefix=None, category=None):  # services from OntServices
+    def __init__(self, *services, prefix=None, category=None, upstream=OntTerm):  # services from OntServices
         # check to make sure that prefix valid for ontologies
         # more config
         self.services = services
+        self.upstream = upstream
 
     def __iter__(self):  # make it easier to init filtered queries
         yield from self.services
@@ -338,7 +359,9 @@ class OntQuery:
                  curie=None,          # if you are querying you can probably just use OntTerm directly and it will error when it tries to look up
                  iri=None,            # the most important one
                  predicates=tuple(),  # provided with an iri or a curie to extract more specific triple information
-                 limit=10):
+                 limit=10,
+                 upstream=None,  # FIXME this is NOT a happy way to do this
+                ):
         qualifiers = cullNone(prefix=prefix,
                               category=category)
         queries = cullNone(abbrev=abbrev,
@@ -363,6 +386,8 @@ class OntQuery:
         kwargs = {**qualifiers, **queries, **identifiers, **control}
         out = []
         for service in self.services:
+            if not service.started:
+                service.setup()
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             for result in service.query(**kwargs):
@@ -373,13 +398,26 @@ class OntQuery:
         #if not out:
             #raise ValueError(f'Query {kwargs} returned no result.')
         if len(out) > 1:
-            for result in out:
-                print(repr(result.asTerm()), '\n')
-            raise ValueError(f'Query {kwargs} returned more than one result. Please review.')
+            if upstream is not None:
+                def func(result): return upstream(**result)
+            elif self.upstream is not None:
+                def func(result): return self.upstream(**result)
+            else:
+                func = lambda r: r
+            terms = '\n\n'.join(repr(func(result)) for result in out)
+            message = f'Query {kwargs} returned more than one result. Please review.\n\n' + terms
+            if upstream is not None:
+                raise ValueError(message)
+            else:
+                print(message)
         elif len(out) == 1:
             return out[0]
         else:
-            raise ValueError(f'Query {kwargs} returned no results. Please change your query.')
+            message = f'Query {kwargs} returned no results. Please change your query.'
+            if upstream is not None:
+                raise ValueError(message)
+            else:
+                print(message)
 
 
 class OntService:
@@ -387,7 +425,7 @@ class OntService:
         add ontology, and list ontologies methods for a given type of endpoint. """
     def __init__(self):
         self._onts = []
-        self.setup()
+        self.started = False
 
     def add(self, iri):  # TODO implement with setter/appender?
         self._onts.append(iri)
@@ -398,7 +436,8 @@ class OntService:
         yield from self._onts
 
     def setup(self):
-        raise NotImplementedError()
+        self.started = True
+        return self
 
     def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature
         yield 'Queries should return an iterable'
@@ -468,6 +507,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.categories = self.sgv.getCategories()
         self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
+        super().setup()
 
     def query(self, iri=None, curie=None, label=None, term=None, search=None, prefix=None, category=None, predicates=tuple(), limit=10):
         # use explicit keyword arguments to dispatch on type
