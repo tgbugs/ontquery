@@ -22,8 +22,13 @@ class QueryResult:
                  synonyms=None,
                  subClassOf=None,
                  prefix=None,
-                 category=None,):
+                 category=None,
+                 upstream=None):
         self.__dict = {}
+        if upstream is None:
+            self.__upstream = OntTerm
+        else:
+            self.__upstream = upstream
         for k, v in cullNone(iri=iri,
                              curie=curie,
                              label=label,
@@ -38,7 +43,7 @@ class QueryResult:
             #self.__dict__[k] = v
 
     def asTerm(self):  # FIXME does not work as desired
-        return self.__TermClass(iri=self.iri)  # TODO works best with a cache
+        return self.__upstream(iri=self.iri)  # TODO works best with a cache
 
     def keys(self):
         yield from self.__dict.keys()
@@ -388,6 +393,7 @@ class OntQuery:
         for service in self.services:
             if not service.started:
                 service.setup()
+                service.upstream = self.upstream
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             for result in service.query(**kwargs):
@@ -493,6 +499,7 @@ from pyontutils import scigraph_client
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
+    upstream = OntTerm
     def __init__(self, api_key=None):
         self.api_key = api_key
         super().__init__()
@@ -560,7 +567,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              abbrev=result['abbreviations'],
                              prefix=result['curie'].split(':')[0] if 'curie' in result else None,
                              category=ni(result['categories']),
-                            )
+                             upstream=self.upstream)
             yield qr
 
 
