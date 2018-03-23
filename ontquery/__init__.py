@@ -23,6 +23,7 @@ class QueryResult:
                  subClassOf=None,
                  prefix=None,
                  category=None,
+                 predicates=None,
                  upstream=None):
         self.__dict = {}
         if upstream is None:
@@ -34,7 +35,8 @@ class QueryResult:
                              label=label,
                              definition=definition,
                              synonyms=synonyms,
-                             subClassOf=subClassOf).items():
+                             subClassOf=subClassOf,
+                             predicates=predicates).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
             # to make sure they aren't about to step into a typeless void
@@ -301,7 +303,7 @@ class OntTerm(OntId):
             self.query = query
 
         if result is None:
-            result = self.query(iri=self)
+            result = self.query(iri=self, upstream=cls)
 
         if result:
             for keyword, value in result.items():
@@ -373,6 +375,7 @@ class OntQuery:
                            label=label,
                            term=term,
                            search=search)
+        graph_queries = cullNone(predicates=(OntId(p) for p in predicates))
         identifiers = cullNone(suffix=suffix,
                                curie=curie,
                                iri=iri)
@@ -388,7 +391,7 @@ class OntQuery:
 
         # TODO? this is one place we could normalize queries as well instead of having
         # to do it for every single OntService
-        kwargs = {**qualifiers, **queries, **identifiers, **control}
+        kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
         out = []
         for service in self.services:
             if not service.started:
@@ -399,17 +402,16 @@ class OntQuery:
             for result in service.query(**kwargs):
                 #print(red.format('AAAAAAAAAA'), result)
                 out.append(result)
-                #out.append(OntTerm(result.iri))  # FIXME
-                #out.append(OntTerm(query=service.query, **result))
-        #if not out:
-            #raise ValueError(f'Query {kwargs} returned no result.')
+
+        # do not use these funcs to set the return values, only the error messages
+        if upstream is not None:
+            def func(result): return upstream(**result)
+        elif self.upstream is not None:
+            def func(result): return self.upstream(**result)
+        else:
+            func = lambda r: r
+
         if len(out) > 1:
-            if upstream is not None:
-                def func(result): return upstream(**result)
-            elif self.upstream is not None:
-                def func(result): return self.upstream(**result)
-            else:
-                func = lambda r: r
             terms = '\n\n'.join(repr(func(result)) for result in out)
             message = f'Query {kwargs} returned more than one result. Please review.\n\n' + terms
             if upstream is not None:
@@ -500,8 +502,12 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
     upstream = OntTerm
+    known_inverses = ('partOf:', 'hasPart:'),
     def __init__(self, api_key=None):
         self.api_key = api_key
+        self.inverses = {OntId(k):OntId(v)
+                         for _k, _v in self.known_inverses
+                         for k, v in ((_k, _v), (_v, _k))}
         super().__init__()
 
     def add(self, iri):  # TODO implement with setter/appender?
@@ -516,7 +522,18 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
         super().setup()
 
-    def query(self, iri=None, curie=None, label=None, term=None, search=None, prefix=None, category=None, predicates=tuple(), limit=10):
+    def _graphQuery(self, identifier, predicate, depth=1, inverse=False):
+        # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
+        # TODO how to handle depth? this is not an obvious or friendly way to do this
+        d_nodes_edges = self.sgg.getNeighbors(identifier, relationshipType=predicate, depth=depth)  # TODO
+        edges = d_nodes_edges['edges']
+        s, o = 'sub', 'obj'
+        if inverse:
+            s, o = o, s
+        objects = (e[o] for e in edges if e[s] == identifier.curie)  # FIXME need the curie?
+        yield from objects
+
+    def query(self, iri=None, curie=None, label=None, term=None, search=None, prefix=None, category=None, predicates=tuple(), depth=1, limit=10):
         # use explicit keyword arguments to dispatch on type
         if prefix is not None and prefix not in self.curies:
             raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
@@ -525,8 +542,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
+        predicates = tuple(OntId(p) for p in predicates)
         if identifiers:
-            identifier = next(iter(identifiers.values()))  # WARNING: only takes the first if there is more than one...
+            identifier = OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
             if result is None:
                 yield result
@@ -534,11 +552,12 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
             if predicates:  # TODO incoming/outgoing
                 for predicate in predicates:
-                    # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
-                    d_nodes_edges = sgg.getNeighbors(identifier, relationshipType=predicate, depth=1)  # TODO
-                    edges = d_nodes_edges['edges']
-                    objects = (e['obj'] for e in edges if e['subj'] == identifier)  # FIXME need the curie?
-                    result[predicate] = tuple(objects)
+                    values = tuple(self._graphQuery(identifier, predicate, depth=depth))
+                    result[predicate] = values
+                    if predicate in self.inverses:
+                        p = self.inverses[predicate]
+                        values = tuple(self._graphQuery(identifier, p, depth=depth, inverse=True))
+                        result[predicate] += values
 
             results = result,
         elif term:
@@ -554,10 +573,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         # TODO transform result to expected
         for result in results:
-            #print(result)
             if result['deprecated']:
                 continue
             ni = lambda i: next(iter(i)) if i else None
+            predicate_results = {OntId(predicate).curie.strip(':'):result[predicate] for predicate in predicates}
             qr = QueryResult(iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
                              label=ni(result['labels']),
@@ -567,6 +586,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              abbrev=result['abbreviations'],
                              prefix=result['curie'].split(':')[0] if 'curie' in result else None,
                              category=ni(result['categories']),
+                             predicates=predicate_results,
                              upstream=self.upstream)
             yield qr
 
@@ -598,17 +618,20 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 def main():
     import os
     from IPython import embed
-    from pyontutils.core import PREFIXES as uPREFIXES
+    from pyontutils.core import get_api_key, PREFIXES as uPREFIXES
     curies = OntCuries(uPREFIXES)
     #print(curies)
-    api_key = os.environ['SCICRUNCH_API_KEY']
-    query = OntQuery(SciGraphRemote(api_key=api_key))
+    query = OntQuery(SciGraphRemote(api_key=get_api_key()))
     OntTerm.query = query
 
     # direct use of query instead of via OntTerm, users should never have to do this
     qr = query(label='brain', prefix='UBERON')
     t = qr.asTerm()  # creation of a term using QueryResult.asTerm
     t1 = OntTerm(**qr)  # creation of a term by passing a QueryResult instance to OntTerm as a dictionary
+
+    # predicates query
+    pqr = query(iri='UBERON:0000955', predicates=('hasPart:',))
+    pt = pqr.asTerm()
 
     # query enabled OntTerm, throws a ValueError if there is no identifier
     try:
