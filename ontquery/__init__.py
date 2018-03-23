@@ -546,8 +546,22 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         s, o = 'sub', 'obj'
         if inverse:
             s, o = o, s
-        objects = (e[o] for e in edges if e[s] == subject.curie)  # FIXME need the curie?
-        yield from objects
+        if depth > 1:
+            subjects = set(subject.curie)
+            for e in edges:
+                # FIXME need to actually get the transitive closure, this doesn't actually work
+                #if e[s] in subjects:
+                    #subjects.add(object.curie)
+                object = e[o]
+                yield object
+                continue  # FIXME TODO this is _very_ inefficient for multiple lookups...
+                u = self.upstream(object)
+                print(repr(u))
+                yield u
+        else:
+            #objects = (self.upstream(e[o]) for e in edges if e[s] == subject.curie)  # TODO efficiency
+            objects = (e[o] for e in edges if e[s] == subject.curie)
+            yield from objects
 
     def query(self, iri=None, curie=None,
               label=None, term=None, search=None,
@@ -593,7 +607,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         # TODO transform result to expected
         for result in results:
-            if result['deprecated']:
+            if result['deprecated'] and not identifiers:
                 continue
             ni = lambda i: next(iter(i)) if i else None
             predicate_results = {OntId(predicate).curie:result[predicate] for predicate in predicates}
