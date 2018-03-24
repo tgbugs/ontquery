@@ -38,7 +38,10 @@ OntTerm('BIRNLEX:167', label='Mouse', synonyms=['mouse', 'Mus musculus', 'house 
 
 The one we are looking for are `Mus musculus`, and we can select that with `OntTerm(label='Mus musculus')` or with `OntTerm(curie='NCBITaxon:10090')`.
 
-This workflow works for species (e.g. 'mouse', 'rat', 'rhesus macaque') and brain area (e.g. 'hippocampus', 'CA1', 'S1').
+This workflow works for:
+* species (e.g. 'mouse', 'rat', 'rhesus macaque')
+* brain area (e.g. 'hippocampus', 'CA1', 'S1')
+* cell type (e.g. 'mossy cell', 'pyramidal cell')
 
 
 # Related issues
