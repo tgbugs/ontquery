@@ -19,6 +19,5 @@ install:
   - pipenv install --dev --system --skip-lock
 
 script:
-  - pipenv shell
-  - PYTHONWARNINGS=default nosetests --with-coverage --cover-tests --cover-package=ontquery
+  - PYTHONWARNINGS=default pipenv run nosetests --with-coverage --cover-tests --cover-package=ontquery
 
