@@ -2,6 +2,7 @@ from collections import UserDict
 from six import text_type
 from inspect import signature
 from urllib import parse
+from IPython import embed
 
 red = '\x1b[91m{}\x1b[0m'
 
@@ -13,6 +14,7 @@ class QueryResult:
         of how a particular service maps their result terminology onto the
         ontquery keyword api. """
     def __init__(self,
+                 query_args,
                  iri=None,
                  curie=None,
                  label=None,
@@ -20,23 +22,22 @@ class QueryResult:
                  acronym=None,  # TODO
                  definition=None,
                  synonyms=None,
-                 subClassOf=None,
                  prefix=None,
                  category=None,
                  predicates=None,
                  upstream=None):
+        self.__query_args = query_args  # for debug
         self.__dict = {}
         if upstream is None:
             self.__upstream = OntTerm
         else:
             self.__upstream = upstream
-        for k, v in cullNone(iri=iri,
-                             curie=curie,
-                             label=label,
-                             definition=definition,
-                             synonyms=synonyms,
-                             subClassOf=subClassOf,
-                             predicates=predicates).items():
+        for k, v in dict(iri=iri,
+                         curie=curie,
+                         label=label,
+                         definition=definition,
+                         synonyms=synonyms,
+                         predicates=predicates).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
             # to make sure they aren't about to step into a typeless void
@@ -133,7 +134,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                     raise ValueError(f'Could not split cuire {curie_ci!r} is it actually an identifier?') from e
                 iri_ci = cls._make_iri(prefix, suffix)
 
-        if curie is not None:
+        if curie is not None and curie != iri:
             prefix, suffix = curie.split(':')
             iri_c = cls._make_iri(prefix, suffix)
 
@@ -178,7 +179,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         if prefix in namespaces:
             return namespaces[prefix] + suffix
         else:
-            raise KeyError(f'Unknown curie prefix: {prefix}.')
+            raise KeyError(f'Unknown curie prefix: {prefix}')
 
     @classmethod
     def repr_level(cls):  # FIXME naming
@@ -256,7 +257,10 @@ class OntTerm(OntId):
     _cache = {}
 
     @staticmethod
-    def query(*args, **kwargs): return tuple()
+    def query(*args, **kwargs):
+        print(red.format('WARNING:'), 'no query provided to OntTerm')
+        # FIXME deal with args
+        return QueryResult(query_args=kwargs)
 
     __firsts = 'curie', 'iri'
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
@@ -341,12 +345,35 @@ class OntTerm(OntId):
         qr = self.query(iri=self, predicates=predicates, depth=depth)
         return qr.predicates
 
-    @property
-    def subClassOf(self):
-       return self.query(self.curie, 'subClassOf')  # TODO
-
     def __repr__(self):  # TODO fun times here
         return super().__repr__()
+
+
+class OntComplete(OntTerm):
+    """ EXPERIMENTAL OntTerm that populates properties from OntQuery """
+
+    class _fakeQuery:
+        def __call__(self, *args, **kwargs):
+            raise NotImplementedError('Set OntComplete.query = OntQuery(...)')
+
+        @property
+        def predicates(self):
+            raise NotImplementedError('Set OntComplete.query = OntQuery(...)')
+
+    query = _fakeQuery()
+
+    def __new__(cls, *args, **kwargs):
+        for predicate in cls.query.predicates:
+            p = OntId(predicate)
+            name = p.suffix if p.suffix else p.prefix  # partOf:
+
+            def _prop(self, *predicates, depth=1):
+                return cls.__call__(self, *predicates, depth=depth)
+
+            prop = property(_prop)
+            setattr(cls, name, prop)
+
+        return super().__new__(*args, **kwargs)
 
 
 class OntQuery:
@@ -355,6 +382,15 @@ class OntQuery:
         # more config
         self.services = services
         self.upstream = upstream
+
+    @property
+    def predicates(self):
+        unique_predicates = set()
+        for service in self.services:
+            for predicate in service.predicates:
+                unique_predicates.add(predicate)
+
+        yield from sorted(unique_predicates)
 
     def __iter__(self):  # make it easier to init filtered queries
         yield from self.services
@@ -437,6 +473,7 @@ class OntQuery:
 class OntService:
     """ Base class for ontology wrappers that define setup, dispatch, query,
         add ontology, and list ontologies methods for a given type of endpoint. """
+
     def __init__(self):
         self._onts = []
         self.started = False
@@ -448,6 +485,10 @@ class OntService:
     @property
     def onts(self):
         yield from self._onts
+
+    @property
+    def predicates(self):
+        raise NotImplementedError()
 
     def setup(self):
         self.started = True
@@ -472,6 +513,11 @@ class Graph():
             if (predicate is None or predicate == p) and (object == None or object == o):
                 yield s
 
+    def predicates(self, subject, object):
+        for s, p, o in self.store:
+            if (subject is None or subject == s) and (object == None or object == o):
+                yield p
+
     def predicate_objects(subject):  # this is sufficient to let OntTerm work as desired
         for s, p, o in self.store:
             if subject == None or subject == s:
@@ -483,6 +529,11 @@ class BasicService(OntService):
     """ A very simple services for local use only """
     graph = Graph()
     predicate_mapping = {'label':'http://www.w3.org/2000/01/rdf-schema#label'}  # more... from OntQuery.__call__ and can have more than one...
+
+    @property
+    def predicates(self):
+        yield from sorted(set(self.graph.predicates(None, None)))
+
     def add(self, triples):
         for triple in triples:
             self.graph.add(triple)
@@ -509,7 +560,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     verbose = False
     upstream = OntTerm
     known_inverses = ('partOf:', 'hasPart:'),
-    def __init__(self, api_key=None):
+    def __init__(self, api_key=None, apiEndpoint='https://scicrunch.org/api/1/scigraph'):
+        self.basePath = apiEndpoint
         self.api_key = api_key
         self.inverses = {OntId(k):OntId(v)
                          for _k, _v in self.known_inverses
@@ -519,12 +571,19 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def add(self, iri):  # TODO implement with setter/appender?
         raise TypeError('Cannot add ontology to remote service.')
 
+    @property
+    def predicates(self):
+        yield from self._predicates
+
     def setup(self):
+        # TODO make it possible to set these properties dynamically
+        # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
         self.sgv = scigraph_client.Vocabulary(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.sgg = scigraph_client.Graph(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.sgc = scigraph_client.Cypher(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.categories = self.sgv.getCategories()
+        self._predicates = sorted(set(self.sgg.getRelationships()))
         self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
         super().setup()
 
@@ -564,7 +623,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             yield from objects
 
     def query(self, iri=None, curie=None,
-              label=None, term=None, search=None,
+              label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
               prefix=None, category=None,
               predicates=tuple(), depth=1,
               limit=10):
@@ -600,6 +659,11 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             results = self.sgv.findByTerm(label, searchSynonyms=False, **qualifiers)
         elif search:
             results = self.sgv.searchByTerm(search, **qualifiers)
+        elif abbrev:
+            results = self.sgv.findByTerm(abbrev, searchSynonyms=True,
+                                          searchAbbreviations=True,
+                                          searchAcronyms=True,
+                                          **qualifiers)
         else:
             raise ValueError('No query prarmeters provided!')
 
@@ -611,7 +675,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 continue
             ni = lambda i: next(iter(i)) if i else None
             predicate_results = {OntId(predicate).curie:result[predicate] for predicate in predicates}
-            qr = QueryResult(iri=result['iri'],
+            qr = QueryResult(query_args={**qualifiers, **identifiers, predicates:predicates},
+                             iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
                              label=ni(result['labels']),
                              definition=ni(result['definitions']),
