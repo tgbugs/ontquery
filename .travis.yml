@@ -1,4 +1,4 @@
-# http://travis-ci.org/#!/RDFLib/rdflib
+# https://travis-ci.org/tgbugs/ontquery
 sudo: false
 language: python
 env:
@@ -11,13 +11,13 @@ branches:
   git:
     depth: 3
 
-    python:
-      - 3.6
+python:
+  - 3.6
 
-    install:
-      - pipenv install --dev --system --skip-lock
+install:
+  - pipenv install --dev --system --skip-lock
 
-    script:
-      - pipenv shell
-      - PYTHONWARNINGS=default nosetests --with-coverage --cover-tests --cover-package=ontquery
+script:
+  - pipenv shell
+  - PYTHONWARNINGS=default nosetests --with-coverage --cover-tests --cover-package=ontquery
 
