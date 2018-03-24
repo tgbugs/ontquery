@@ -36,7 +36,7 @@ OntTerm('NCBITaxon:10088', label='Mus <mouse, genus>', synonyms=['mouse', 'Mus',
 OntTerm('BIRNLEX:167', label='Mouse', synonyms=['mouse', 'Mus musculus', 'house mouse'])
 ```
 
-The one we are looking for are `Mus musculus`, and we can select that with `OntTerm(label='Mus musculus')` or with `OntTerm(curie='NCBITaxon:10090')`.
+The one we are looking for is `Mus musculus`, and we can select that with `OntTerm(label='Mus musculus')` or with `OntTerm(curie='NCBITaxon:10090')`.
 
 This workflow works for a variety of categories:
 * species (e.g. 'mouse', 'rat', 'rhesus macaque')
