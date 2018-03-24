@@ -541,7 +541,7 @@ class BasicService(OntService):
     def setup(self):  # inherit this as `class BasicLocalOntService(ontquery.BasicOntService): pass` and load the default graph during setup
         pass
 
-    def query(self, iri=None, label=None):  # right now we only support exact matches to labels
+    def query(self, iri=None, label=None, term=None, search=None):  # right now we only support exact matches to labels
         if iri is not None:
             yield from self.graph.predicate_objects(iri)
         else:

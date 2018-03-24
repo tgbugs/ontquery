@@ -1,3 +1,4 @@
+import os
 import unittest
 import ontquery
 from pyontutils import core
@@ -9,8 +10,14 @@ class TestAll(unittest.TestCase):
     def setUp(self):
         ontquery.OntCuries(core.PREFIXES)
         #self.query = OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as ontquery?
-        self.query = ontquery.OntQuery(ontquery.SciGraphRemote(apiEndpoint='http://localhost:9000/scigraph'),
-                                       upstream=OntTerm)
+        #bs = ontquery.BasicService()  # TODO
+        #self.query = ontquery.OntQuery(bs, upstream=OntTerm)
+        if 'SCICRUNCH_API_KEY' in os.environ:
+            self.query = ontquery.OntQuery(ontquery.SciGraphRemote(api_key=core.get_api_key()),
+                                           upstream=OntTerm)
+        else:
+            self.query = ontquery.OntQuery(ontquery.SciGraphRemote(apiEndpoint='http://localhost:9000/scigraph'),
+                                           upstream=OntTerm)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
     def test_query(self):
