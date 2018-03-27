@@ -12,12 +12,11 @@ class TestAll(unittest.TestCase):
         #self.query = OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as ontquery?
         #bs = ontquery.BasicService()  # TODO
         #self.query = ontquery.OntQuery(bs, upstream=OntTerm)
+        ontquery.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            self.query = ontquery.OntQuery(ontquery.SciGraphRemote(api_key=core.get_api_key()),
-                                           upstream=OntTerm)
+            self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(api_key=core.get_api_key()))
         else:
-            self.query = ontquery.OntQuery(ontquery.SciGraphRemote(apiEndpoint='http://localhost:9000/scigraph'),
-                                           upstream=OntTerm)
+            self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(apiEndpoint='http://localhost:9000/scigraph'))
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
     def test_query(self):
@@ -28,7 +27,7 @@ class TestAll(unittest.TestCase):
         self.query(search='thalamus')  # will probably fail with many results to choose from
         self.query(prefix='MBA', abbrev='TH')
 
-        uberon = ontquery.OntQuery(*self.query, prefix='UBERON')
+        uberon = ontquery.OntQueryCli(*self.query, prefix='UBERON')
         brain_result = uberon('brain')  # -> OntTerm('UBERON:0000955', label='brain')
 
         species = ontquery.OntQuery(*self.query, category='species')
@@ -49,7 +48,9 @@ class TestAll(unittest.TestCase):
         ontquery.OntId(prefix='UBERON', suffix='0000955')
 
     def test_predicates(self):
+        self.query.raw = True
         pqr = self.query(iri='UBERON:0000955', predicates=('hasPart:',))
-        pt = pqr.asTerm()
+        self.query.raw = False
+        pt = pqr.OntTerm
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')

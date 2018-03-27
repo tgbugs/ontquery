@@ -1,3 +1,4 @@
+from functools import wraps
 from collections import UserDict
 from six import text_type
 from inspect import signature
@@ -9,10 +10,23 @@ red = '\x1b[91m{}\x1b[0m'
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
 
+def mimicArgs(function_to_mimic):
+    def decorator(function):
+        @wraps(function_to_mimic)
+        def wrapper(*args, **kwargs):
+            return function(*args, **kwargs)
+        return wrapper
+    return decorator
+
 class QueryResult:
     """ Encapsulate query results and allow for clear and clean documentation
         of how a particular service maps their result terminology onto the
         ontquery keyword api. """
+
+    class _OntTerm:
+        def __new__(cls, *args, **kwargs):
+            raise TypeError('ontutils.QueryResult._OntTerm has not been set!')
+
     def __init__(self,
                  query_args,
                  iri=None,
@@ -24,14 +38,9 @@ class QueryResult:
                  synonyms=None,
                  prefix=None,
                  category=None,
-                 predicates=None,
-                 upstream=None):
+                 predicates=None):
         self.__query_args = query_args  # for debug
         self.__dict = {}
-        if upstream is None:
-            self.__upstream = OntTerm
-        else:
-            self.__upstream = upstream
         for k, v in dict(iri=iri,
                          curie=curie,
                          label=label,
@@ -45,8 +54,17 @@ class QueryResult:
             self.__dict[k] = v
             #self.__dict__[k] = v
 
-    def asTerm(self):  # FIXME does not work as desired
-        return self.__upstream(iri=self.iri)  # TODO works best with a cache
+    @property
+    def OntTerm(self):  # FIXME naming
+        return self._OntTerm(iri=self.iri)  # TODO works best with a cache
+
+    @property
+    def hasOntTerm(self):  # FIXME naming
+        try:
+            self.OntTerm
+            return True
+        except TypeError:
+            return False
 
     def keys(self):
         yield from self.__dict.keys()
@@ -256,11 +274,14 @@ class OntTerm(OntId):
 
     _cache = {}
 
-    @staticmethod
-    def query(*args, **kwargs):
-        print(red.format('WARNING:'), 'no query provided to OntTerm')
-        # FIXME deal with args
-        return QueryResult(query_args=kwargs)
+    class _Query:
+        services = tuple()
+        def __call__(self, *args, **kwargs):
+            print(red.format('\nWARNING:'), 'no query provided to ontquery.OntTerm\n')
+            raise StopIteration
+            yield
+
+    query = _Query()
 
     __firsts = 'curie', 'iri'
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
@@ -270,80 +291,102 @@ class OntTerm(OntId):
                 unverified=None,
                 query=None,
                 **kwargs):
-        kwargs['upstream'] = cls  # FIXME not a good way to do this
         kwargs['curie_or_iri'] = curie_or_iri
         kwargs['label'] = label
         kwargs['term'] = term
         kwargs['search'] = search
+        kwargs['unverified'] = unverified
+        kwargs['query'] = query
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
             if not hasattr(cls, 'repr_args'):
                 cls.repr_args = cls.repr_arg_order[0]
 
-        # FIXME not clear if we really want to do this because it can let
-        # unverified terms creep in...
-        fail = False
+        noId = False
         if curie_or_iri is None and 'curie' not in kwargs and 'iri' not in kwargs and 'suffix' not in kwargs:
-            fail = True
+            noId = True
             nargs = cullNone(**kwargs)
             if query is not None:
-                result = query(**nargs)
+                results_gen = query(**nargs)
             else:
-                result = cls.query(**nargs)
+                results_gen = cls.query(**nargs)
 
-            kwargs.update(result)
+            results_gen = tuple(results_gen)
+            if results_gen:
+                kwargs.update(results_gen)
         else:
-            result = None
+            results_gen = None
 
         self = super().__new__(cls, **kwargs)
-
-        if self.iri in cls._cache:  # FIXME __cache
-            return cls._cache[self.iri]
-        else:
-            cls._cache[self.iri] = self
-
         self.kwargs = kwargs
+
         if query is not None:
             self.query = query
 
-        if result is None:
-            result = self.query(iri=self, upstream=cls)
+        if self.iri not in cls._cache:  # FIXME __cache
+            self.__real_init__(unverified, results_gen, noId)
+            cls._cache[self.iri] = self
 
-        if result:
+        return cls._cache[self.iri]
+
+    def __init__(self, *args, **kwargs):
+        """ do nothing """
+
+    def __real_init__(self, unverified, results_gen, noId):
+        """ If we use __init__ here it has to accept args that we don't want. """
+
+        if results_gen is None:
+            results_gen = self.query(iri=self)
+        
+        i = None
+        print(results_gen)
+        for i, result in enumerate(results_gen):
+            if i > 0:
+                if i == 1:
+                    print(old_result)
+                print(result)
+                continue
+            if i == 0:
+                old_result = result
+
             for keyword, value in result.items():
                 # TODO open vs closed world
                 if unverified and keyword in kwargs and kwargs[keyword] != value:
                     raise ValueError(f'Unverified value {keyword}=\'{kwargs[keyword]}\' '
-                                     'does not match ontology value {value} for {results["iri"]}')
+                                    'does not match ontology value {value} for {results["iri"]}')
                 #print(keyword, value)
-                if keyword not in ('iri', 'curie'):  # already managed by OntId
+                if keyword not in self.__firsts:  # already managed by OntId
                     setattr(self, keyword, value)  # TODO value lists...
             self.unverified = False
-        else:
+
+        if i is None:
             self.unverified = True
-            for keyword in set(keyword
-                               for keywords in self.repr_arg_order
-                               for keyword in keywords
-                               if keyword not in cls.__firsts):
-                if keyword in kwargs:
-                    value = kwargs[keyword]
+            for keyword in set(keyword  # FIXME repr_arg_order should not be what is setting this?!?!
+                                for keywords in self.repr_arg_order
+                                for keyword in keywords
+                                if keyword not in self.__firsts):
+                if keyword in self.kwargs:
+                    value = self.kwargs[keyword]
                 else:
                     value = None
                 setattr(self, keyword, value)
 
             print(red.format('WARNING:'), repr(self), '\n')
-
-        if fail:
-            print(red.format(repr(self)))
+            for service in self.query.services:
+                self.termRequests = []
+                if hasattr(service, 'termRequest'):
+                    makeRequest = service.termRequest(self)
+                    termRequests.append(makeRequest)
+        elif i > 0:
+            raise ValueError(f'\nQuery {kwargs} returned more than one result. Please review.\n')
+        elif noId:
+            #print(red.format(repr(self)))
             raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
 
-        return self
-
-    # use properties to query for various things to repr
-
     def __call__(self, *predicates, depth=1):
-        qr = self.query(iri=self, predicates=predicates, depth=depth)
-        return qr.predicates
+        results_gen = self.query(iri=self, predicates=predicates, depth=depth)
+        for result in results_gen:  # FIXME should only be one?!
+            yield from result.predicates
 
     def __repr__(self):  # TODO fun times here
         return super().__repr__()
@@ -377,11 +420,10 @@ class OntComplete(OntTerm):
 
 
 class OntQuery:
-    def __init__(self, *services, prefix=None, category=None, upstream=OntTerm):  # services from OntServices
+    def __init__(self, *services, prefix=None, category=None):  # services from OntServices
         # check to make sure that prefix valid for ontologies
         # more config
         self.services = services
-        self.upstream = upstream
 
     @property
     def predicates(self):
@@ -407,9 +449,7 @@ class OntQuery:
                  iri=None,            # the most important one
                  predicates=tuple(),  # provided with an iri or a curie to extract more specific triple information
                  depth=1,
-                 limit=10,
-                 upstream=None,  # FIXME this is NOT a happy way to do this
-                ):
+                 limit=10,):
         qualifiers = cullNone(prefix=prefix,
                               category=category)
         queries = cullNone(abbrev=abbrev,
@@ -434,40 +474,52 @@ class OntQuery:
         # TODO? this is one place we could normalize queries as well instead of having
         # to do it for every single OntService
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
-        out = []
         for service in self.services:
             if not service.started:
                 service.setup()
-                service.upstream = self.upstream
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             for result in service.query(**kwargs):
                 #print(red.format('AAAAAAAAAA'), result)
-                out.append(result)
+                yield result
 
-        # do not use these funcs to set the return values, only the error messages
-        if upstream is not None:
-            def func(result): return upstream(**result)
-        elif self.upstream is not None:
-            def func(result): return self.upstream(**result)
-        else:
-            func = lambda r: r
 
-        if len(out) > 1:
-            terms = '\n\n'.join(repr(func(result)) for result in out)
-            message = f'Query {kwargs} returned more than one result. Please review.\n\n' + terms
-            if upstream is not None:
-                raise ValueError(message)
-            else:
-                print(message)
-        elif len(out) == 1:
-            return out[0]
+class OntQueryCli(OntQuery):
+    raw = False  # return raw QueryResults
+
+    def __init__(self, *services, prefix=None, category=None, query=None):
+        if query is not None:
+            if services:
+                raise ValueError('*services and query= are mutually exclusive arguments, please remove one')
+
+            self.services = query.services
         else:
-            message = f'Query {kwargs} returned no results. Please change your query.'
-            if upstream is not None:
-                raise ValueError(message)
+            self.services = services
+
+    @mimicArgs(OntQuery.__call__)
+    def __call__(self, *args, **kwargs):
+        def func(result):
+            if result.hasOntTerm and not self.raw:
+                return result.OntTerm
             else:
-                print(message)
+                return result
+
+        i = None
+        for i, result in enumerate(super().__call__(*args, **kwargs)):
+            if i > 0:
+                if i == 1:
+                    print(f'\n{func(old_result)!r}\n')
+                print(f'\n{func(result)!r}\n')
+                continue
+            if i == 0:
+                old_result = result
+
+        if i is None:
+            print(f'\nQuery {kwargs} returned no results. Please change your query.\n')
+        elif i > 0:
+            print(f'\nQuery {kwargs} returned more than one result. Please review.\n')
+        else:
+            return func(result)
 
 
 class OntService:
@@ -558,14 +610,14 @@ from pyontutils import scigraph_client
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
-    upstream = OntTerm
-    known_inverses = ('partOf:', 'hasPart:'),
-    def __init__(self, api_key=None, apiEndpoint='https://scicrunch.org/api/1/scigraph'):
+    known_inverses = ('', ''),
+    def __init__(self, api_key=None, apiEndpoint='http://localhost:9000/scigraph'):
         self.basePath = apiEndpoint
         self.api_key = api_key
         self.inverses = {OntId(k):OntId(v)
                          for _k, _v in self.known_inverses
-                         for k, v in ((_k, _v), (_v, _k))}
+                         for k, v in ((_k, _v), (_v, _k))
+                         if _k and _v}
         super().__init__()
 
     def add(self, iri):  # TODO implement with setter/appender?
@@ -612,14 +664,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 #if e[s] in subjects:
                     #subjects.add(object.curie)
                 object = e[o]
-                yield object
-                continue  # FIXME TODO this is _very_ inefficient for multiple lookups...
-                u = self.upstream(object)
-                print(repr(u))
-                yield u
+                # to make OntTerm(object) work we need to be able to use the 'meta' section...
+                yield object # FIXME TODO this is _very_ inefficient for multiple lookups...
         else:
-            #objects = (self.upstream(e[o]) for e in edges if e[s] == subject.curie)  # TODO efficiency
-            objects = (e[o] for e in edges if e[s] == subject.curie)
+            objects = (e[o] for e in edges if e[s] == subject.curie)  # TODO OntTerm(e[0])
             yield from objects
 
     def query(self, iri=None, curie=None,
@@ -640,7 +688,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             identifier = OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
             if result is None:
-                yield result
                 raise StopIteration
 
             if predicates:  # TODO incoming/outgoing
@@ -685,9 +732,47 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              abbrev=result['abbreviations'],
                              prefix=result['curie'].split(':')[0] if 'curie' in result else None,
                              category=ni(result['categories']),
-                             predicates=predicate_results,
-                             upstream=self.upstream)
+                             predicates=predicate_results)
             yield qr
+
+
+
+import requests
+class SciCrunchRemote(SciGraphRemote):
+    known_inverses = ('partOf:', 'hasPart:'),
+    defaultEndpoint = 'https://scicrunch.org/api/1/scigraph'
+    def __init__(self, api_key=None, apiEndpoint=defaultEndpoint):
+        if api_key is None and apiEndpoint == self.defaultEndpoint:
+            raise ValueError('You have not set an API key for the SciCrunch API!')
+        super().__init__(api_key=api_key, apiEndpoint=apiEndpoint)
+
+    def termRequest(self, term):
+        if not term.unverified:
+            raise TypeError('Can\'t add a term that already exists!')
+
+        print('It seems that you have found a terms that is not in your remote! '
+              'To request inclusion of this term please open the link in a browser or '
+              'run the function returned by this which can be found in the list at '
+              f'{term.__class__.__name__}.termRequests for this term {term!r}.')
+
+        class TermRequest(term.__class__):
+            # TODO iri, curie, prefix, label, etc.
+            # test to make sure that the term is not in the ontology
+            # and that it has not already been requested
+            post_url = 'https://ontology.neuinfo.org/term-request'  # TODO
+            def __init__(self):
+                self.__done = False
+                super().__init__(**term)
+            def __call__(self):
+                if not self.__done:
+                    resp = requests.post(post_url, data=self)  # TODO
+                    self.__done = True
+                    # TODO handle terms already requested but not in this session
+                else:
+                    print('This term has already been requested')
+
+            def url_link(self):
+                return post_template + 'TODO-TODO-TODO'
 
 
 class InterLexRemote(OntService):  # note to self
@@ -720,17 +805,20 @@ def main():
     from pyontutils.core import get_api_key, PREFIXES as uPREFIXES
     curies = OntCuries(uPREFIXES)
     #print(curies)
-    query = OntQuery(SciGraphRemote(api_key=get_api_key()))
-    OntTerm.query = query
+    services = SciGraphRemote(api_key=get_api_key()),
+    OntTerm.query = OntQuery(*services)
+    query = OntQueryCli(query=OntTerm.query)
+    query.raw = True  # for the demo here return raw query results
+    QueryResult._OntTerm = OntTerm
 
     # direct use of query instead of via OntTerm, users should never have to do this
     qr = query(label='brain', prefix='UBERON')
-    t = qr.asTerm()  # creation of a term using QueryResult.asTerm
+    t = qr.OntTerm  # creation of a term using QueryResult.OntTerm
     t1 = OntTerm(**qr)  # creation of a term by passing a QueryResult instance to OntTerm as a dictionary
 
     # predicates query
     pqr = query(iri='UBERON:0000955', predicates=('hasPart:',))
-    pt = pqr.asTerm()
+    pt = pqr.OntTerm
     preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
     preds1 = t('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
 
