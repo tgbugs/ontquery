@@ -339,7 +339,6 @@ class OntTerm(OntId):
             results_gen = self.query(iri=self)
         
         i = None
-        print(results_gen)
         for i, result in enumerate(results_gen):
             if i > 0:
                 if i == 1:
