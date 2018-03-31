@@ -11,6 +11,42 @@ For example in bash `export SCICRUNCH_API_KEY=my-api-key`.
 
 See https://github.com/tgbugs/ontquery/blob/db8cad7463704bce9010651c3744452aa5370114/ontquery/__init__.py#L557-L558 for how to pass the key in.
 
+# Usage
+```python
+from ontquery import OntQuery, SciGraphRemote, OntTerm, OntCuries
+
+import os
+from pyontutils.core import PREFIXES as uPREFIXES
+curies = OntCuries(uPREFIXES)
+api_key = os.environ['SCICRUNCH_API_KEY']
+query = OntQuery(SciGraphRemote(api_key=api_key))
+OntTerm.query = query
+```
+```python
+query('mouse')
+```
+3 potential matches are shown:
+```python
+Query {'term': 'mouse', 'limit': 10} returned more than one result. Please review.
+
+OntTerm('NCBITaxon:10090', label='Mus musculus', synonyms=['mouse', 'house mouse', 'mice C57BL/6xCBA/CaJ hybrid', 'Mus muscaris'])
+
+OntTerm('NCBITaxon:10088', label='Mus <mouse, genus>', synonyms=['mouse', 'Mus', 'mice'])
+
+OntTerm('BIRNLEX:167', label='Mouse', synonyms=['mouse', 'Mus musculus', 'house mouse'])
+```
+
+The one we are looking for is `Mus musculus`, and we can select that with `OntTerm(label='Mus musculus')` or with `OntTerm(curie='NCBITaxon:10090')`.
+
+This workflow works for a variety of categories:
+* species (e.g. 'mouse', 'rat', 'rhesus macaque')
+* brain area (e.g. 'hippocampus', 'CA1', 'S1')
+* cell type (e.g. 'mossy cell', 'pyramidal cell')
+* institution (e.g. 'UC San Francisco', 'Brown University')
+* disease (e.g. "Parkinson's Disease", 'ALS')
+
+
+
 # Related issues
 
 https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-368741867
