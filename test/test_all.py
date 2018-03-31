@@ -1,7 +1,7 @@
 import os
 import unittest
 import ontquery
-from pyontutils import core
+from pyontutils import core, config
 
 class OntTerm(ontquery.OntTerm):
     """ Test subclassing """
@@ -14,7 +14,7 @@ class TestAll(unittest.TestCase):
         #self.query = ontquery.OntQuery(bs, upstream=OntTerm)
         ontquery.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(api_key=core.get_api_key()))
+            self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(api_key=config.get_api_key()))
         else:
             self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(apiEndpoint='http://localhost:9000/scigraph'))
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))

@@ -605,12 +605,12 @@ class BasicService(OntService):
         # and managed with python TypeErrors on kwarg mismatches to the service `query` method
         # like the one implemented here.
 
-from pyontutils import scigraph_client
+from pyontutils import scigraph
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
     known_inverses = ('', ''),
-    def __init__(self, api_key=None, apiEndpoint='http://localhost:9000/scigraph'):
+    def __init__(self, api_key=None, apiEndpoint=None):  # apiEndpoint=None -> default from pyontutils.devconfig
         self.basePath = apiEndpoint
         self.api_key = api_key
         self.inverses = {OntId(k):OntId(v)
@@ -629,9 +629,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def setup(self):
         # TODO make it possible to set these properties dynamically
         # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
-        self.sgv = scigraph_client.Vocabulary(cache=self.cache, verbose=self.verbose, key=self.api_key)
-        self.sgg = scigraph_client.Graph(cache=self.cache, verbose=self.verbose, key=self.api_key)
-        self.sgc = scigraph_client.Cypher(cache=self.cache, verbose=self.verbose, key=self.api_key)
+        self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose, key=self.api_key)
+        self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose, key=self.api_key)
+        self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.categories = self.sgv.getCategories()
         self._predicates = sorted(set(self.sgg.getRelationships()))
@@ -801,7 +801,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 def main():
     import os
     from IPython import embed
-    from pyontutils.core import get_api_key, PREFIXES as uPREFIXES
+    from pyontutils.core import PREFIXES as uPREFIXES
+    from pyontutils.config import get_api_key
     curies = OntCuries(uPREFIXES)
     #print(curies)
     services = SciGraphRemote(api_key=get_api_key()),
