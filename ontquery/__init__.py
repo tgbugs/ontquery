@@ -17,6 +17,20 @@ def mimicArgs(function_to_mimic):
         return wrapper
     return decorator
 
+
+class dictclass(type):
+    def __setitem__(self, key, value):
+        if key not in self._dict:
+            self._dict[key] = value
+        elif self._dict[key] == value:
+            pass
+        else:
+            raise KeyError(f'{key} already set to {self._dict[key]}')
+
+    def __getitem__(self, key):
+        return self._dict[key]
+
+
 class QueryResult:
     """ Encapsulate query results and allow for clear and clean documentation
         of how a particular service maps their result terminology onto the
@@ -100,15 +114,6 @@ class QueryResult:
     def __repr__(self):
         return f'QueryResult({self.__dict!r})'
 
-
-class dictclass(type):
-    def __setitem__(self, key, value):
-        if key not in self._dict:
-            self._dict[key] = value
-        elif self._dict[key] == value:
-            pass
-        else:
-            raise KeyError(f'{key} already set to {self._dict[key]}')
 
 class OntCuries(metaclass=dictclass):
     """ A bad implementation of a singleton dictionary based namespace.

@@ -97,9 +97,16 @@ class TestAll(unittest.TestCase):
     def test_curies(self):
         ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
         ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
+        a = ontquery.OntCuries['new-prefix']
+        try:
+            b = ontquery.OntCuries['not-a-prefix']
+            assert False, 'should not get here'
+        except KeyError:
+            assert True, 'should fail'
+
         try:
             ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/fail/'
-            assert False, 'should not get here!'
+            assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
 
