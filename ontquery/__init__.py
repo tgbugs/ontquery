@@ -33,10 +33,11 @@ class QueryResult:
                  iri=None,
                  curie=None,
                  label=None,
+                 labels=tuple(),
                  abbrev=None,  # TODO
                  acronym=None,  # TODO
                  definition=None,
-                 synonyms=None,
+                 synonyms=tuple(),
                  prefix=None,
                  category=None,
                  predicates=None):
@@ -45,12 +46,14 @@ class QueryResult:
         for k, v in dict(iri=iri,
                          curie=curie,
                          label=label,
+                         labels=labels,
                          definition=definition,
                          synonyms=synonyms,
                          predicates=predicates).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
             # to make sure they aren't about to step into a typeless void
+
             setattr(self, k, v)
             self.__dict[k] = v
             #self.__dict__[k] = v
@@ -249,7 +252,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             yield arg, is_arg
 
         if hasattr(self, 'validated') and not self.validated:
-            yield 'verified', False
+            yield 'validated', False
 
     @property
     def _repr_base(self):
@@ -308,6 +311,8 @@ class OntTerm(OntId):
         kwargs['search'] = search
         kwargs['validated'] = validated
         kwargs['query'] = query
+        if curie_or_iri and 'labels' in kwargs:
+            raise ValueError('labels= is not a valid keyword for results not returned by a query')
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
             if not hasattr(cls, 'repr_args'):
@@ -374,6 +379,8 @@ class OntTerm(OntId):
                 # TODO open vs closed world
                 orig_value = self.orig_kwargs.get(keyword, None)
                 if orig_value is not None and orig_value != value:
+                    if keyword == 'label' and orig_value in result['labels']:
+                        continue
                     self.__class__.repr_args = 'curie', keyword
                     if validated == False:
                         raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
@@ -748,12 +755,13 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         for result in results:
             if result['deprecated'] and not identifiers:
                 continue
-            ni = lambda i: next(iter(i)) if i else None
+            ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
             predicate_results = {OntId(predicate).curie:result[predicate] for predicate in predicates}
             qr = QueryResult(query_args={**qualifiers, **identifiers, predicates:predicates},
                              iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
                              label=ni(result['labels']),
+                             labels=result['labels'],
                              definition=ni(result['definitions']),
                              synonyms=result['synonyms'],
                              acronym=result['acronyms'],

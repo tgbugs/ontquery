@@ -43,6 +43,8 @@ class TestAll(unittest.TestCase):
         brain = OntTerm('UBERON:0000955')
         brain = OntTerm(curie='UBERON:0000955')
         OntTerm('UBERON:0000955', label='brain')
+        OntTerm('NCBITaxon:2', label='Bacteria')
+        OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')
         try:
             OntTerm('UBERON:0000955', label='not actually the brain')
             assert False, 'should not get here'
