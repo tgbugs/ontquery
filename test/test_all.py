@@ -1,8 +1,18 @@
 import os
 import unittest
+from pyontutils import scigraph_client  # this must be imported first to preserve the original path
+
+orig_basepath = scigraph_client.BASEPATH
+
+from pyontutils import scigraph
+from pyontutils import config
+from pyontutils import core
 import ontquery
-from pyontutils import core, config
-from IPython import embed
+
+if 'SCICRUNCH_API_KEY' in os.environ:
+    scigraph.scigraph_client.BASEPATH = orig_basepath
+else:
+    scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
 
 class OntTerm(ontquery.OntTerm):
     """ Test subclassing """
