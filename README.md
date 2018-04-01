@@ -1,4 +1,6 @@
 # ontquery
+[![Build Status](https://travis-ci.org/tgbugs/ontquery.svg?branch=master)](https://travis-ci.org/tgbugs/ontquery)
+
 a framework querying ontology terms
 
 # SciCrunch api key
