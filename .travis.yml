@@ -15,8 +15,8 @@ python:
   - 3.6
 
 before_install:
-  - apt-get install hunspell
-  - apt-get install libhunspell-dev
+  - sudo apt-get install hunspell
+  - sudo apt-get install libhunspell-dev
 
 install:
   - pip install pipenv
