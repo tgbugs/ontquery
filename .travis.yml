@@ -14,6 +14,10 @@ branches:
 python:
   - 3.6
 
+before_install:
+  - apt-get install hunspell
+  - apt-get install libhunspell-dev
+
 install:
   - pip install pipenv
   - pipenv install --dev --system --skip-lock
