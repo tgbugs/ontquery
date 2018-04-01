@@ -2,6 +2,7 @@ import os
 import unittest
 import ontquery
 from pyontutils import core, config
+from IPython import embed
 
 class OntTerm(ontquery.OntTerm):
     """ Test subclassing """
@@ -14,9 +15,12 @@ class TestAll(unittest.TestCase):
         #self.query = ontquery.OntQuery(bs, upstream=OntTerm)
         ontquery.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(api_key=config.get_api_key()))
+            services = ontquery.SciCrunchRemote(api_key=config.get_api_key()),
         else:
-            self.query = ontquery.OntQueryCli(ontquery.SciCrunchRemote(apiEndpoint='http://localhost:9000/scigraph'))
+            services = ontquery.SciCrunchRemote(apiEndpoint='http://localhost:9000/scigraph'),
+
+        self.query = ontquery.OntQueryCli(*services)
+        ontquery.OntTerm.query = ontquery.OntQuery(*services)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
     def test_query(self):
@@ -39,8 +43,41 @@ class TestAll(unittest.TestCase):
         brain = OntTerm('UBERON:0000955')
         brain = OntTerm(curie='UBERON:0000955')
         OntTerm('UBERON:0000955', label='brain')
-        OntTerm('UBERON:0000955', label='not actually the brain')
-        OntTerm('UBERON:0000955', label='not actually the brain', unvalidated=True)
+        try:
+            OntTerm('UBERON:0000955', label='not actually the brain')
+            assert False, 'should not get here'
+        except ValueError:
+            assert True, 'expect to fail'
+
+        try:
+            OntTerm('UBERON:0000955', label='not actually the brain', validated=False)
+            assert False, 'should not get here'
+        except ValueError:
+            assert True, 'expect to fail'
+
+    def test_term_query(self):
+        _query = ontquery.OntTerm.query
+        ontquery.OntTerm.query = self.query
+        try:
+            OntTerm(label='brain')
+            assert False, 'should not get here!'
+        except TypeError:
+            assert True, 'fails as expected'
+
+        ontquery.OntTerm.query = _query
+
+        try:
+            OntTerm(label='brain')
+            assert False, 'should not get here!'
+        except ValueError:
+            assert True, 'fails as expected'
+
+        try:
+            OntTerm(label='dorsal plus ventral thalamus')
+            assert False, 'should not get here!'
+        except ValueError:
+            assert True, 'fails as expected'
+
 
     def test_id(self):
         ontquery.OntId('UBERON:0000955')
@@ -54,3 +91,15 @@ class TestAll(unittest.TestCase):
         pt = pqr.OntTerm
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
+
+    def test_curies(self):
+        ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
+        ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
+        try:
+            ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/fail/'
+            assert False, 'should not get here!'
+        except KeyError:
+            assert True, 'should fail'
+
+        ontquery.OntId('new-prefix:working')
+        

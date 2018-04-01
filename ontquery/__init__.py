@@ -3,7 +3,6 @@ from collections import UserDict
 from six import text_type
 from inspect import signature
 from urllib import parse
-from IPython import embed
 
 red = '\x1b[91m{}\x1b[0m'
 
@@ -23,9 +22,11 @@ class QueryResult:
         of how a particular service maps their result terminology onto the
         ontquery keyword api. """
 
-    class _OntTerm:
+    class _OntTerm_:
         def __new__(cls, *args, **kwargs):
             raise TypeError('ontutils.QueryResult._OntTerm has not been set!')
+
+    _OntTerm = _OntTerm_
 
     def __init__(self,
                  query_args,
@@ -60,11 +61,11 @@ class QueryResult:
 
     @property
     def hasOntTerm(self):  # FIXME naming
-        try:
-            self.OntTerm
-            return True
-        except TypeError:
+        # run against _OntTerm to prevent recursion
+        if self._OntTerm == self._OntTerm_:
             return False
+        else:
+            return True
 
     def keys(self):
         yield from self.__dict.keys()
@@ -97,21 +98,31 @@ class QueryResult:
         return f'QueryResult({self.__dict!r})'
 
 
-class OntCuries:
+class dictclass(type):
+    def __setitem__(self, key, value):
+        if key not in self._dict:
+            self._dict[key] = value
+        elif self._dict[key] == value:
+            pass
+        else:
+            raise KeyError(f'{key} already set to {self._dict[key]}')
+
+class OntCuries(metaclass=dictclass):
     """ A bad implementation of a singleton dictionary based namespace.
         Probably better to use metaclass= to init this so types can be tracked.
     """
     # TODO how to set an OntCuries as the default...
     def __new__(cls, *args, **kwargs):
-        if not hasattr(cls, '_' + cls.__name__ + '__dict'):
-            cls.__dict = {}
-        cls.__dict.update(dict(*args, **kwargs))
-        return cls.__dict
+        #if not hasattr(cls, '_' + cls.__name__ + '_dict'):
+        if not hasattr(cls, '_dict'):
+            cls._dict = {}
+        cls._dict.update(dict(*args, **kwargs))
+        return cls._dict
 
     @classmethod
     def qname(cls, iri):
         # sort in reverse to match longest matching namespace first TODO/FIXME trie
-        for prefix, namespace in sorted(cls.__dict.items(), key=lambda kv: len(kv[1]), reverse=True):
+        for prefix, namespace in sorted(cls._dict.items(), key=lambda kv: len(kv[1]), reverse=True):
             if iri.startswith(namespace):
                 suffix = iri[len(namespace):]
                 return ':'.join((prefix, suffix))
@@ -237,8 +248,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                     is_arg = True
             yield arg, is_arg
 
-        if hasattr(self, 'unverified') and self.unverified:
-            yield 'unverified', False
+        if hasattr(self, 'validated') and not self.validated:
+            yield 'verified', False
 
     @property
     def _repr_base(self):
@@ -288,19 +299,21 @@ class OntTerm(OntId):
                 label=None,
                 term=None,
                 search=None,
-                unverified=None,
+                validated=None,
                 query=None,
                 **kwargs):
         kwargs['curie_or_iri'] = curie_or_iri
         kwargs['label'] = label
         kwargs['term'] = term
         kwargs['search'] = search
-        kwargs['unverified'] = unverified
+        kwargs['validated'] = validated
         kwargs['query'] = query
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
             if not hasattr(cls, 'repr_args'):
                 cls.repr_args = cls.repr_arg_order[0]
+
+        orig_kwargs = {k:v for k, v in kwargs.items()}
 
         noId = False
         if curie_or_iri is None and 'curie' not in kwargs and 'iri' not in kwargs and 'suffix' not in kwargs:
@@ -313,18 +326,27 @@ class OntTerm(OntId):
 
             results_gen = tuple(results_gen)
             if results_gen:
-                kwargs.update(results_gen)
+                if len(results_gen) <= 1:
+                    kwargs.update(results_gen[0])
         else:
             results_gen = None
 
-        self = super().__new__(cls, **kwargs)
+        try:
+            self = super().__new__(cls, **kwargs)
+        except StopIteration:  # no iri found
+            self = text_type.__new__(cls, '')  # issue will be dealt with downstream
+
+        self.orig_kwargs = orig_kwargs
         self.kwargs = kwargs
 
         if query is not None:
             self.query = query
 
-        if self.iri not in cls._cache:  # FIXME __cache
-            self.__real_init__(unverified, results_gen, noId)
+        if hasattr(self.query, 'raw') and not self.query.raw:
+            raise TypeError(f'{self.query} result not set to raw, avoiding infinite recursion.')
+
+        if self.iri not in cls._cache or not validated:  # FIXME __cache
+            self.__real_init__(validated, results_gen, noId)
             cls._cache[self.iri] = self
 
         return cls._cache[self.iri]
@@ -332,7 +354,7 @@ class OntTerm(OntId):
     def __init__(self, *args, **kwargs):
         """ do nothing """
 
-    def __real_init__(self, unverified, results_gen, noId):
+    def __real_init__(self, validated, results_gen, noId):
         """ If we use __init__ here it has to accept args that we don't want. """
 
         if results_gen is None:
@@ -342,30 +364,37 @@ class OntTerm(OntId):
         for i, result in enumerate(results_gen):
             if i > 0:
                 if i == 1:
-                    print(old_result)
-                print(result)
+                    print(repr(self.__class__(**old_result)), '\n')
+                print(repr(self.__class__(**result)), '\n')
                 continue
             if i == 0:
                 old_result = result
 
             for keyword, value in result.items():
                 # TODO open vs closed world
-                if unverified and keyword in kwargs and kwargs[keyword] != value:
-                    raise ValueError(f'Unverified value {keyword}=\'{kwargs[keyword]}\' '
-                                    'does not match ontology value {value} for {results["iri"]}')
+                orig_value = self.orig_kwargs.get(keyword, None)
+                if orig_value is not None and orig_value != value:
+                    self.__class__.repr_args = 'curie', keyword
+                    if validated == False:
+                        raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
+                                         f'does not match {self.__class__(**result)!r}')
+                    else:
+                        raise ValueError(f'value {keyword}={orig_value!r} '
+                                         f'does not match {self.__class__(**result)!r}')
+                        
                 #print(keyword, value)
                 if keyword not in self.__firsts:  # already managed by OntId
                     setattr(self, keyword, value)  # TODO value lists...
-            self.unverified = False
+            self.validated = True
 
         if i is None:
-            self.unverified = True
+            self.validated = False
             for keyword in set(keyword  # FIXME repr_arg_order should not be what is setting this?!?!
                                 for keywords in self.repr_arg_order
                                 for keyword in keywords
                                 if keyword not in self.__firsts):
-                if keyword in self.kwargs:
-                    value = self.kwargs[keyword]
+                if keyword in self.orig_kwargs:
+                    value = self.orig_kwargs[keyword]
                 else:
                     value = None
                 setattr(self, keyword, value)
@@ -377,7 +406,7 @@ class OntTerm(OntId):
                     makeRequest = service.termRequest(self)
                     termRequests.append(makeRequest)
         elif i > 0:
-            raise ValueError(f'\nQuery {kwargs} returned more than one result. Please review.\n')
+            raise ValueError(f'\nQuery {self.orig_kwargs} returned more than one result. Please review.\n')
         elif noId:
             #print(red.format(repr(self)))
             raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
@@ -746,7 +775,7 @@ class SciCrunchRemote(SciGraphRemote):
         super().__init__(api_key=api_key, apiEndpoint=apiEndpoint)
 
     def termRequest(self, term):
-        if not term.unverified:
+        if term.validated:
             raise TypeError('Can\'t add a term that already exists!')
 
         print('It seems that you have found a terms that is not in your remote! '
