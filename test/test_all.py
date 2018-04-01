@@ -2,7 +2,10 @@ import os
 import unittest
 from pyontutils import scigraph_client  # this must be imported first to preserve the original path
 
-orig_basepath = scigraph_client.BASEPATH
+# orig_basepath = scigraph_client.BASEPATH
+# FIXME nosetests is somehow importing something at a point that I cannot detect
+# that overwrites this with the devconfig options, despite it working correctly with python -m unittest
+orig_basepath = 'https://scicrunch.org/api/1/scigraph'
 
 from pyontutils import scigraph
 from pyontutils import config
