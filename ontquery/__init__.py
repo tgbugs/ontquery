@@ -54,7 +54,8 @@ class QueryResult:
                  synonyms=tuple(),
                  prefix=None,
                  category=None,
-                 predicates=None):
+                 predicates=None,  # FIXME dict
+    ):
         self.__query_args = query_args  # for debug
         self.__dict = {}
         for k, v in dict(iri=iri,
@@ -297,7 +298,7 @@ class OntTerm(OntId):
         services = tuple()
         def __call__(self, *args, **kwargs):
             print(red.format('\nWARNING:'), 'no query provided to ontquery.OntTerm\n')
-            raise StopIteration
+            return
             yield
 
     query = _Query()
@@ -355,7 +356,7 @@ class OntTerm(OntId):
         if hasattr(self.query, 'raw') and not self.query.raw:
             raise TypeError(f'{self.query} result not set to raw, avoiding infinite recursion.')
 
-        if self.iri not in cls._cache or not validated:  # FIXME __cache
+        if self.iri not in cls._cache or not validated or 'predicates' in kwargs:  # FIXME __cache
             self.__real_init__(validated, results_gen, noId)
             cls._cache[self.iri] = self
 
@@ -368,7 +369,10 @@ class OntTerm(OntId):
         """ If we use __init__ here it has to accept args that we don't want. """
 
         if results_gen is None:
-            results_gen = self.query(iri=self)
+            extra_kwargs = {}
+            if 'predicates' in self.kwargs:
+                extra_kwargs['predicates'] = self.kwargs['predicates']
+            results_gen = self.query(iri=self, **extra_kwargs)
         
         i = None
         for i, result in enumerate(results_gen):
@@ -385,15 +389,18 @@ class OntTerm(OntId):
                 orig_value = self.orig_kwargs.get(keyword, None)
                 if orig_value is not None and orig_value != value:
                     if keyword == 'label' and orig_value in result['labels']:
-                        continue
-                    self.__class__.repr_args = 'curie', keyword
-                    if validated == False:
-                        raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
-                                         f'does not match {self.__class__(**result)!r}')
+                        pass
+                    elif keyword == 'predicates':
+                        pass  # query will not match result
                     else:
-                        raise ValueError(f'value {keyword}={orig_value!r} '
-                                         f'does not match {self.__class__(**result)!r}')
-                        
+                        self.__class__.repr_args = 'curie', keyword
+                        if validated == False:
+                            raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
+                                            f'does not match {self.__class__(**result)!r}')
+                        else:
+                            raise ValueError(f'value {keyword}={orig_value!r} '
+                                            f'does not match {self.__class__(**result)!r}')
+
                 #print(keyword, value)
                 if keyword not in self.__firsts:  # already managed by OntId
                     setattr(self, keyword, value)  # TODO value lists...
@@ -425,8 +432,12 @@ class OntTerm(OntId):
 
     def __call__(self, *predicates, depth=1):
         results_gen = self.query(iri=self, predicates=predicates, depth=depth)
+        out = {}
         for result in results_gen:  # FIXME should only be one?!
-            yield from result.predicates
+            for k, v in result.predicates.items():
+                out[k] = v  # FIXME last one wins?!?!
+        self.predicates.update(out)  # FIXME klobbering issues
+        return out
 
     def __repr__(self):  # TODO fun times here
         return super().__repr__()
@@ -693,7 +704,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             if inverse:
                 predicate = self.inverses[predicate]
             print(f'{subject.curie} has no edges with predicate {predicate.curie} ')
-            raise StopIteration
+            return
         s, o = 'sub', 'obj'
         if inverse:
             s, o = o, s
@@ -728,7 +739,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             identifier = OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
             if result is None:
-                raise StopIteration
+                return
 
             if predicates:  # TODO incoming/outgoing
                 for predicate in predicates:
@@ -761,7 +772,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             if result['deprecated'] and not identifiers:
                 continue
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
-            predicate_results = {OntId(predicate).curie:result[predicate] for predicate in predicates}
+            predicate_results = {predicate.curie:result[predicate] for predicate in predicates}  # FIXME hasheqv on OntId
+            print(red.format('PR:'), predicate_results, result)
             qr = QueryResult(query_args={**qualifiers, **identifiers, predicates:predicates},
                              iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...

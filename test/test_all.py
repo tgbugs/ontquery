@@ -106,6 +106,17 @@ class TestAll(unittest.TestCase):
         pt = pqr.OntTerm
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        preds2 = OntTerm('UBERON:0000955')(core.rdfs.subClassOf)
+
+        assert pqr.predicates
+        assert preds
+        assert preds1
+        assert preds2
+
+        assert isinstance(pqr.predicates, dict)
+        assert isinstance(preds, dict)
+        assert isinstance(preds1, dict)
+        assert isinstance(preds2, dict)
 
     def test_curies(self):
         ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
