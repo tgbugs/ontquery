@@ -773,7 +773,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 continue
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
             predicate_results = {predicate.curie:result[predicate] for predicate in predicates}  # FIXME hasheqv on OntId
-            print(red.format('PR:'), predicate_results, result)
+            # print(red.format('PR:'), predicate_results, result)
             qr = QueryResult(query_args={**qualifiers, **identifiers, predicates:predicates},
                              iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
