@@ -4,7 +4,7 @@ from six import text_type
 from inspect import signature
 from urllib import parse
 
-red = '\x1b[91m{}\x1b[0m'
+red = '\x1b[31m{}\x1b[0m'
 
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
