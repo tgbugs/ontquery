@@ -52,6 +52,7 @@ class QueryResult:
                  acronym=None,  # TODO
                  definition=None,
                  synonyms=tuple(),
+                 deprecated=None,
                  prefix=None,
                  category=None,
                  predicates=None,  # FIXME dict
@@ -64,6 +65,7 @@ class QueryResult:
                          labels=labels,
                          definition=definition,
                          synonyms=synonyms,
+                         deprecated=deprecated,
                          predicates=predicates).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
@@ -430,7 +432,8 @@ class OntTerm(OntId):
             #print(red.format(repr(self)))
             raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
 
-    def __call__(self, *predicates, depth=1):
+    def __call__(self, predicate, *predicates, depth=1):
+        predicates = (predicate,) + predicates  # ensure at least one
         results_gen = self.query(iri=self, predicates=predicates, depth=depth)
         out = {}
         for result in results_gen:  # FIXME should only be one?!
@@ -781,6 +784,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              labels=result['labels'],
                              definition=ni(result['definitions']),
                              synonyms=result['synonyms'],
+                             deprecated=result['deprecated'],
                              acronym=result['acronyms'],
                              abbrev=result['abbreviations'],
                              prefix=result['curie'].split(':')[0] if 'curie' in result else None,
