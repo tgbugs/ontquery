@@ -432,9 +432,9 @@ class OntTerm(OntId):
             #print(red.format(repr(self)))
             raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
 
-    def __call__(self, predicate, *predicates, depth=1):
+    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING'):
         predicates = (predicate,) + predicates  # ensure at least one
-        results_gen = self.query(iri=self, predicates=predicates, depth=depth)
+        results_gen = self.query(iri=self, predicates=predicates, depth=depth, direction=direction)
         out = {}
         for result in results_gen:  # FIXME should only be one?!
             for k, v in result.predicates.items():
@@ -503,6 +503,7 @@ class OntQuery:
                  iri=None,            # the most important one
                  predicates=tuple(),  # provided with an iri or a curie to extract more specific triple information
                  depth=1,
+                 direction='OUTGOING',
                  limit=10,):
         qualifiers = cullNone(prefix=prefix,
                               category=category)
@@ -511,7 +512,8 @@ class OntQuery:
                            term=term,
                            search=search)
         graph_queries = cullNone(predicates=(OntId(p) for p in predicates),
-                                 depth=depth)
+                                 depth=depth,
+                                 direction=direction)
         identifiers = cullNone(suffix=suffix,
                                curie=curie,
                                iri=iri)
@@ -693,14 +695,14 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
         super().setup()
 
-    def _graphQuery(self, subject, predicate, depth=1, inverse=False):
+    def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
         # TODO how to handle depth? this is not an obvious or friendly way to do this
         if predicate.prefix in ('owl', 'rdfs'):
             p = predicate.suffix
         else:
             p = predicate
-        d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=p, depth=depth)  # TODO
+        d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=p, depth=depth, direction=direction)  # TODO
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
         else:
@@ -728,7 +730,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
               prefix=None, category=None,
               predicates=tuple(), depth=1,
-              limit=10):
+              direction='OUTGOING', limit=10):
         # use explicit keyword arguments to dispatch on type
         if prefix is not None and prefix not in self.curies:
             raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
@@ -746,11 +748,11 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
             if predicates:  # TODO incoming/outgoing
                 for predicate in predicates:
-                    values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth)))
+                    values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth, direction=direction)))
                     result[predicate] = values
                     if predicate in self.inverses:
                         p = self.inverses[predicate]
-                        values = tuple(sorted(self._graphQuery(identifier, p, depth=depth, inverse=True)))
+                        values = tuple(sorted(self._graphQuery(identifier, p, depth=depth, direction=direction, inverse=True)))
                         result[predicate] += values
 
             results = result,
