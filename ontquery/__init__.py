@@ -191,6 +191,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             iri = next(iter(unique_iris))
 
         self = super().__new__(cls, iri)
+        # FIXME these assignments prevent updates when OntCuries changes
         self.prefix = prefix
         self.suffix = suffix
         return self
