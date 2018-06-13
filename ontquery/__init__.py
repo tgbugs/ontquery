@@ -229,8 +229,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         current = getattr(cls, f'_{cls.__name__}__repr_level')
         nargs = len(cls.repr_arg_order)
         next = (current + 1) % nargs
-        cls.repr_args = self.repr_arg_order[next]
-        print(self.__name__, 'will now repr with', cls.repr_args)
+        cls.repr_args = cls.repr_arg_order[next]
+        print(cls.__name__, 'will now repr with', cls.repr_args)
         setattr(cls, f'_{cls.__name__}__repr_level', next)
 
     @property
