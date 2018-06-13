@@ -145,7 +145,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
                       ('iri',))
-    __firsts = 'curie', 'iri'
+    __firsts = 'curie', 'iri'  # FIXME bad for subclassing __repr__ behavior :/
     def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
 
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
@@ -535,6 +535,7 @@ class OntQuery:
                 service.setup()
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
+            # TODO don't pass empty kwargs to services that can't handle them?
             for result in service.query(**kwargs):
                 #print(red.format('AAAAAAAAAA'), result)
                 yield result
