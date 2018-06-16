@@ -360,6 +360,7 @@ class OntTerm(OntId):
             raise TypeError(f'{self.query} result not set to raw, avoiding infinite recursion.')
 
         if self.iri not in cls._cache or not validated or 'predicates' in kwargs:  # FIXME __cache
+            # FIXME if results_gen returns > 1 result this goes infinite
             self.__real_init__(validated, results_gen, noId)
             cls._cache[self.iri] = self
 
@@ -478,7 +479,10 @@ class OntQuery:
     def __init__(self, *services, prefix=None, category=None):  # services from OntServices
         # check to make sure that prefix valid for ontologies
         # more config
-        self.services = services
+        self._services = services
+
+    def add(self, *services):
+        self._services += services
 
     @property
     def predicates(self):
@@ -488,6 +492,10 @@ class OntQuery:
                 unique_predicates.add(predicate)
 
         yield from sorted(unique_predicates)
+
+    @property
+    def services(self):
+        return self._services
 
     def __iter__(self):  # make it easier to init filtered queries
         yield from self.services
@@ -539,7 +547,9 @@ class OntQuery:
             # TODO don't pass empty kwargs to services that can't handle them?
             for result in service.query(**kwargs):
                 #print(red.format('AAAAAAAAAA'), result)
-                yield result
+                if result:
+                    yield result
+                    return  # FIXME order services based on which you want first for now, will work on merging later
 
 
 class OntQueryCli(OntQuery):
@@ -550,9 +560,9 @@ class OntQueryCli(OntQuery):
             if services:
                 raise ValueError('*services and query= are mutually exclusive arguments, please remove one')
 
-            self.services = query.services
+            self._services = query.services
         else:
-            self.services = services
+            self._services = services
 
     @mimicArgs(OntQuery.__call__)
     def __call__(self, *args, **kwargs):
@@ -845,19 +855,56 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     # if loading if the default set of ontologies is too slow, it is possible to
     # dump loaded graphs to a pickle gzip and distribute that with a release...
 
+    def __init__(self, graph):
+        import rdflib
+        from pyontutils.core import NIFRID
+        self.NIFRID = NIFRID
+        self.rdflib = rdflib
+        self.graph = graph
+        self.predicate_mapping = {'label':rdflib.RDFS.label,}
+        super().__init__()
+
     def add(self, iri, format):
         pass
 
     def setup(self):
-        pass  # graph added at class level
+        # graph is already set up...
+        super().setup()
 
     def dispatch(self, prefix=None, category=None):  # return True if the filters pass
         # TODO
         raise NotImplementedError()
 
-    def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature
-        # TODO
-        pass
+    def query(self, curie=None, iri=None, label=None, term=None, search=None, **kwargs):
+        # right now we only support exact matches to labels FIXME
+        if iri is not None or curie is not None:
+            out = {}
+            identifier = OntId(curie=curie, iri=iri)
+            gen = self.graph.predicate_objects(self.rdflib.URIRef(identifier))
+            out['curie'] = identifier.curie
+            out['iri'] = identifier.iri
+            translate = {self.rdflib.RDFS.label:'label',
+                         self.rdflib.RDFS.subClassOf:'subClassOf',
+                         self.rdflib.RDF.type:'type',
+                         #self.rdflib.OWL.disjointWith:'disjointWith',
+                         self.NIFRID.definingCitation:'definingCitation',
+                        }
+            for p, o in gen:
+                pn = translate.get(p, None)
+                if isinstance(o, self.rdflib.Literal):
+                    o = o.toPython()
+                if pn is None:
+                    print(red.format('WARNING:'), 'untranslated predicate', p)
+                else:
+                    out[pn] = o
+
+            yield out
+        else:
+            for keyword, object in kwargs.items():
+                predicate = self.predicate_mapping(keyword)
+                gen = self.graph.subjects(predicate, self.rdflib.Literal(object))
+                for subject in gen:
+                    yield self.query(iri=subject)
 
 
 def main():
