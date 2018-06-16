@@ -491,7 +491,7 @@ class OntQuery:
             for predicate in service.predicates:
                 unique_predicates.add(predicate)
 
-        yield from sorted(unique_predicates)
+        return tuple(sorted(unique_predicates))  # this needs to be returned as thing of known size not a generator
 
     @property
     def services(self):
@@ -520,7 +520,7 @@ class OntQuery:
                            label=label,
                            term=term,
                            search=search)
-        graph_queries = cullNone(predicates=(OntId(p) for p in predicates),
+        graph_queries = cullNone(predicates=tuple(OntId(p) for p in predicates),  # size must be known no generator
                                  depth=depth,
                                  direction=direction)
         identifiers = cullNone(suffix=suffix,
@@ -666,8 +666,8 @@ class BasicService(OntService):
             yield from self.graph.predicate_objects(iri)
         else:
             for keyword, object in kwargs.items():
-                predicate = self.predicate_mapping(keyword)
-                yield from self.graph.subjects(predicate, object)
+                predicate = self.predicate_mapping[keyword]
+                yield from self.graph.subjects(predicate, object)  # FIXME bad result structure
 
         # Dispatching as describe previously is dispatch on type where the type is the set of query
         # features supported by a given OntService. The dispatch method can be dropped from OntQuery
@@ -679,10 +679,11 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
     known_inverses = ('', ''),
-    def __init__(self, api_key=None, apiEndpoint=None):  # apiEndpoint=None -> default from pyontutils.devconfig
+    def __init__(self, api_key=None, apiEndpoint=None, OntId=OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
         self.basePath = apiEndpoint
         self.api_key = api_key
-        self.inverses = {OntId(k):OntId(v)
+        self.OntId = OntId
+        self.inverses = {self.OntId(k):self.OntId(v)
                          for _k, _v in self.known_inverses
                          for k, v in ((_k, _v), (_v, _k))
                          if _k and _v}
@@ -751,9 +752,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
-        predicates = tuple(OntId(p) for p in predicates)
+        predicates = tuple(self.OntId(p) for p in predicates)
         if identifiers:
-            identifier = OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
+            identifier = self.OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
             if result is None:
                 return
@@ -807,15 +808,14 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             yield qr
 
 
-
 import requests
 class SciCrunchRemote(SciGraphRemote):
     known_inverses = ('partOf:', 'hasPart:'),
     defaultEndpoint = 'https://scicrunch.org/api/1/scigraph'
-    def __init__(self, api_key=None, apiEndpoint=defaultEndpoint):
+    def __init__(self, api_key=None, apiEndpoint=defaultEndpoint, OntId=OntId):
         if api_key is None and apiEndpoint == self.defaultEndpoint:
             raise ValueError('You have not set an API key for the SciCrunch API!')
-        super().__init__(api_key=api_key, apiEndpoint=apiEndpoint)
+        super().__init__(api_key=api_key, apiEndpoint=apiEndpoint, OntId=OntId)
 
     def termRequest(self, term):
         if term.validated:
@@ -855,7 +855,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     # if loading if the default set of ontologies is too slow, it is possible to
     # dump loaded graphs to a pickle gzip and distribute that with a release...
 
-    def __init__(self, graph):
+    def __init__(self, graph, OntId=OntId):
+        self.OntId = OntId
         import rdflib
         from pyontutils.core import NIFRID
         self.NIFRID = NIFRID
@@ -871,40 +872,54 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         # graph is already set up...
         super().setup()
 
-    def dispatch(self, prefix=None, category=None):  # return True if the filters pass
-        # TODO
-        raise NotImplementedError()
+    @property
+    def predicates(self):
+        yield from sorted(set(self.graph.predicates()))
 
-    def query(self, curie=None, iri=None, label=None, term=None, search=None, **kwargs):
+    def query(self, curie=None, iri=None, label=None, **kwargs):
         # right now we only support exact matches to labels FIXME
+        kwargs['curie'] = curie
+        kwargs['iri'] = iri
+        kwargs['label'] = label
+        #kwargs['term'] = term
+        #kwargs['search'] = search
+        #supported = sorted(QueryResult(kwargs))
         if iri is not None or curie is not None:
-            out = {}
-            identifier = OntId(curie=curie, iri=iri)
+            out = {'predicates':{}}
+            identifier = self.OntId(curie=curie, iri=iri)
             gen = self.graph.predicate_objects(self.rdflib.URIRef(identifier))
             out['curie'] = identifier.curie
             out['iri'] = identifier.iri
             translate = {self.rdflib.RDFS.label:'label',
-                         self.rdflib.RDFS.subClassOf:'subClassOf',
-                         self.rdflib.RDF.type:'type',
+                         #self.rdflib.RDFS.subClassOf:'subClassOf',
+                         #self.rdflib.RDF.type:'type',
                          #self.rdflib.OWL.disjointWith:'disjointWith',
-                         self.NIFRID.definingCitation:'definingCitation',
+                         #self.NIFRID.definingCitation:'definingCitation',
                         }
             for p, o in gen:
                 pn = translate.get(p, None)
                 if isinstance(o, self.rdflib.Literal):
                     o = o.toPython()
                 if pn is None:
-                    print(red.format('WARNING:'), 'untranslated predicate', p)
+                    # TODO translation and support for query result structure
+                    # FIXME lists instead of klobbering results with mulitple predicates
+                    if isinstance(o, self.rdflib.URIRef):
+                        o = self.OntId(o)  # FIXME we we try to use OntTerm directly everything breaks
+                        # FIXME these OntIds also do not derive from rdflib... sigh
+                    out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
+                    #print(red.format('WARNING:'), 'untranslated predicate', p)
                 else:
                     out[pn] = o
 
-            yield out
+            yield QueryResult(kwargs, **out)  # if you yield here you have to yield from below
         else:
             for keyword, object in kwargs.items():
-                predicate = self.predicate_mapping(keyword)
-                gen = self.graph.subjects(predicate, self.rdflib.Literal(object))
-                for subject in gen:
-                    yield self.query(iri=subject)
+                if keyword in self.predicate_mapping:
+                    predicate = self.predicate_mapping[keyword]
+                    gen = self.graph.subjects(predicate, self.rdflib.Literal(object))
+                    for subject in gen:
+                        yield from self.query(iri=subject)
+                        return  # FIXME we can only search one thing at a time... first wins
 
 
 def main():
