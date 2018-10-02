@@ -56,6 +56,7 @@ class QueryResult:
                  prefix=None,
                  category=None,
                  predicates=None,  # FIXME dict
+                 source=None,
     ):
         self.__query_args = query_args  # for debug
         self.__dict = {}
@@ -66,7 +67,8 @@ class QueryResult:
                          definition=definition,
                          synonyms=synonyms,
                          deprecated=deprecated,
-                         predicates=predicates).items():
+                         predicates=predicates,
+                         source=source).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
             # to make sure they aren't about to step into a typeless void
@@ -376,14 +378,23 @@ class OntTerm(OntId):
             extra_kwargs = {}
             if 'predicates' in self.kwargs:
                 extra_kwargs['predicates'] = self.kwargs['predicates']
-            results_gen = self.query(iri=self, **extra_kwargs)
+            # can't gurantee that all endpoints work on the expanded iri
+            print('__real_init__', self.iri, self.curie)
+            a = str(self.iri)
+            b = str(self.curie)
+            results_gen = self.query(iri=a, curie=b, **extra_kwargs)
         
         i = None
         for i, result in enumerate(results_gen):
             if i > 0:
                 if i == 1:
-                    print(repr(self.__class__(**old_result)), '\n')
-                print(repr(self.__class__(**result)), '\n')
+                    pass
+                    #print(repr(self.__class__(**old_result)), '\n')
+                    # FIXME these causes infinite recursion
+                    # how did this every work!?!
+                    # I think this worked because it assumed that
+                    # a service would only ever return a single result
+                #print(repr(self.__class__(**result)), '\n')
                 continue
             if i == 0:
                 old_result = result
@@ -513,7 +524,9 @@ class OntQuery:
                  predicates=tuple(),  # provided with an iri or a curie to extract more specific triple information
                  depth=1,
                  direction='OUTGOING',
-                 limit=10,):
+                 limit=10,
+                 wut=[0]
+    ):
         qualifiers = cullNone(prefix=prefix,
                               category=category)
         queries = cullNone(abbrev=abbrev,
@@ -539,17 +552,21 @@ class OntQuery:
         # TODO? this is one place we could normalize queries as well instead of having
         # to do it for every single OntService
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
-        for service in self.services:
+        #raise BaseException('wtf')
+        wut[0] = wut[0] + 1
+        for j, service in enumerate(self.services):
             if not service.started:
+                print('WAIT!')
                 service.setup()
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             # TODO don't pass empty kwargs to services that can't handle them?
-            for result in service.query(**kwargs):
-                #print(red.format('AAAAAAAAAA'), result)
+            for i, result in enumerate(service.query(**kwargs)):
+                print(wut[0], j, i, red.format('AAAAAAAAAA'), result)
                 if result:
                     yield result
-                    return  # FIXME order services based on which you want first for now, will work on merging later
+                    # FIXME WHY DOES THIS RUN FOREVER IF WE DONT RETURN!??!
+                    #return  # FIXME order services based on which you want first for now, will work on merging later
 
 
 class OntQueryCli(OntQuery):
@@ -792,7 +809,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
             predicate_results = {predicate.curie:result[predicate] for predicate in predicates}  # FIXME hasheqv on OntId
             # print(red.format('PR:'), predicate_results, result)
-            qr = QueryResult(query_args={**qualifiers, **identifiers, predicates:predicates},
+            qr = QueryResult(query_args={**qualifiers, **identifiers, 'predicates':predicates},
                              iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
                              label=ni(result['labels']),
@@ -804,7 +821,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              abbrev=result['abbreviations'],
                              prefix=result['curie'].split(':')[0] if 'curie' in result else None,
                              category=ni(result['categories']),
-                             predicates=predicate_results)
+                             predicates=predicate_results,
+                             source=self)
             yield qr
 
 
@@ -847,9 +865,67 @@ class SciCrunchRemote(SciGraphRemote):
 
 
 class InterLexRemote(OntService):  # note to self
-    pass
+    host = 'localhost'
+    port = '8505'
+    def __init__(self, *args, **kwargs):
+        import rdflib  # FIXME
+        self.Graph = rdflib.Graph
+        self.RDF = rdflib.RDF
+        self.OWL = rdflib.OWL
+        self.URIRef = rdflib.URIRef
+        #self.curies = requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
+        # here we see that the original model for curies doesn't quite hold up
+        # we need to accept local curies, but we also have to have them
+        # probably best to let the user populate their curies from interlex
+        # at the start, rather than having it be completely wild
+        # FIXME can't do this at the moment because interlex itself calls this --- WHOOPS
+        super().__init__(*args, **kwargs)
 
+    def query(self, iri=None, curie=None, label=None, predicates=None, **_):
+        print('WAT', repr(iri), repr(curie))
+        if curie is None:
+            raise BaseException('please help me!')
+        def get(url, headers={'Content-Type':'text/turtle'}):
+            with requests.Session() as s:
+                s.headers.update(headers)
+                resp = s.get(url, allow_redirects=False)
+                while resp.is_redirect and resp.status_code < 400:  # FIXME redirect loop issue
+                    # using send means that our headers don't show up in every request
+                    resp = s.get(resp.next.url, allow_redirects=False)
+                    if not resp.is_redirect:
+                        break
 
+            return resp
+
+        def isAbout(g):
+            ontid, *r1 = g[:self.RDF.type:self.OWL.Ontology]
+            o, *r2 = g[ontid:self.URIRef('http://purl.obolibrary.org/obo/IAO_0000136')]
+            if r1 or r2:
+                raise ValueError(f'NonUnique value for ontology {r1} or about {r2}')
+            return o
+
+        if curie:
+            url = f'http://{self.host}:{self.port}/base/curies/{curie}?local=True'
+        elif label:
+            url = f'http://{self.host}:{self.port}/base/lexical/{label}'
+        else:
+            return None
+
+        print(url)
+        resp = get(url)
+        print(resp)
+        if not resp.ok:
+            return None
+        ttl = resp.content
+        g = self.Graph().parse(data=ttl, format='turtle')
+        ia_iri = isAbout(g)
+
+        rdll = rdflibLocal(g)
+        yield from rdll.query(curie=curie, label=label, predicates=predicates)
+        yield from rdll.query(iri=ia_iri, label=label, predicates=predicates)  # FIXME this causes double
+        #embed()
+
+from IPython import embed
 class rdflibLocal(OntService):  # reccomended for local default implementation
     #graph = rdflib.Graph()  # TODO pull this out into ../plugins? package as ontquery-plugins?
     # if loading if the default set of ontologies is too slow, it is possible to
@@ -876,7 +952,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def predicates(self):
         yield from sorted(set(self.graph.predicates()))
 
-    def query(self, curie=None, iri=None, label=None, **kwargs):
+    def query(self, iri=None, curie=None, label=None, predicates=None, **kwargs):
         # right now we only support exact matches to labels FIXME
         kwargs['curie'] = curie
         kwargs['iri'] = iri
@@ -896,6 +972,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                          #self.rdflib.OWL.disjointWith:'disjointWith',
                          #self.NIFRID.definingCitation:'definingCitation',
                         }
+            o = None
             for p, o in gen:
                 pn = translate.get(p, None)
                 if isinstance(o, self.rdflib.Literal):
@@ -911,7 +988,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 else:
                     out[pn] = o
 
-            yield QueryResult(kwargs, **out)  # if you yield here you have to yield from below
+            if o is not None:
+                yield QueryResult(kwargs, **out, source=self)  # if you yield here you have to yield from below
         else:
             for keyword, object in kwargs.items():
                 if keyword in self.predicate_mapping:
@@ -925,12 +1003,21 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 def main():
     import os
     from IPython import embed
-    from pyontutils.core import PREFIXES as uPREFIXES
+    from pyontutils.namespaces import PREFIXES as uPREFIXES
     from pyontutils.config import get_api_key
     curies = OntCuries(uPREFIXES)
     #print(curies)
-    services = SciGraphRemote(api_key=get_api_key()),
+    i = InterLexRemote()
+    services = SciGraphRemote(api_key=get_api_key()), i
     OntTerm.query = OntQuery(*services)
+    #out = list(i.query('NLX:143939'))
+    #sout = list(OntTerm.query(curie='NLX:143939'))
+
+    q = list(i.query(curie='ILX:0300352'))
+    qq = list(OntTerm.query(curie='ILX:0300352'))
+    print(q, qq)
+    #embed()
+    return
     query = OntQueryCli(query=OntTerm.query)
     query.raw = True  # for the demo here return raw query results
     QueryResult._OntTerm = OntTerm

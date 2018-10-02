@@ -7,6 +7,7 @@ from pyontutils import scigraph_client  # this must be imported first to preserv
 # that overwrites this with the devconfig options, despite it working correctly with python -m unittest
 orig_basepath = 'https://scicrunch.org/api/1/scigraph'
 
+from pyontutils import namespaces
 from pyontutils import scigraph
 from pyontutils import config
 from pyontutils import core
@@ -22,7 +23,7 @@ class OntTerm(ontquery.OntTerm):
 
 class TestAll(unittest.TestCase):
     def setUp(self):
-        ontquery.OntCuries(core.PREFIXES)
+        ontquery.OntCuries(namespaces.PREFIXES)
         #self.query = OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as ontquery?
         #bs = ontquery.BasicService()  # TODO
         #self.query = ontquery.OntQuery(bs, upstream=OntTerm)
@@ -57,7 +58,7 @@ class TestAll(unittest.TestCase):
         brain = OntTerm(curie='UBERON:0000955')
         OntTerm('UBERON:0000955', label='brain')
         OntTerm('NCBITaxon:2', label='Bacteria')
-        OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')
+        #OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')  # gone in latest
         try:
             OntTerm('UBERON:0000955', label='not actually the brain')
             assert False, 'should not get here'
@@ -92,7 +93,6 @@ class TestAll(unittest.TestCase):
             assert False, 'should not get here!'
         except ValueError:
             assert True, 'fails as expected'
-
 
     def test_id(self):
         ontquery.OntId('UBERON:0000955')
@@ -135,4 +135,3 @@ class TestAll(unittest.TestCase):
             assert True, 'should fail'
 
         ontquery.OntId('new-prefix:working')
-        
