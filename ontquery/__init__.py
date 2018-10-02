@@ -389,12 +389,12 @@ class OntTerm(OntId):
             if i > 0:
                 if i == 1:
                     pass
-                    #print(repr(self.__class__(**old_result)), '\n')
+                    print(repr(SafeRepr(**old_result)), '\n')
                     # FIXME these causes infinite recursion
                     # how did this every work!?!
                     # I think this worked because it assumed that
                     # a service would only ever return a single result
-                #print(repr(self.__class__(**result)), '\n')
+                print(repr(SafeRepr(**result)), '\n')
                 continue
             if i == 0:
                 old_result = result
@@ -457,6 +457,40 @@ class OntTerm(OntId):
 
     def __repr__(self):  # TODO fun times here
         return super().__repr__()
+
+
+class SafeRepr(OntTerm):
+    repr_arg_order = (('curie', 'label', 'synonyms'),)
+    __firsts = 'curie', 'iri'
+
+    def __new__(cls, *args, **kwargs):
+        iri = kwargs['iri']
+        self = str.__new__(cls, iri)
+        return self
+
+    def __init__(self, *args, **kwargs):
+        self.iri = kwargs['iri']
+        self.curie = kwargs['curie']
+        self.label = kwargs['label']
+
+    @property
+    def curie(self):
+        return self._curie
+
+    @curie.setter
+    def curie(self, value):
+        self._curie = value
+
+    @property
+    def iri(self):
+        return self._iri
+
+    @iri.setter
+    def iri(self, value):
+        self._iri = value
+
+
+SafeRepr.repr_level()
 
 
 class OntComplete(OntTerm):
@@ -552,21 +586,17 @@ class OntQuery:
         # TODO? this is one place we could normalize queries as well instead of having
         # to do it for every single OntService
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
-        #raise BaseException('wtf')
-        wut[0] = wut[0] + 1
         for j, service in enumerate(self.services):
             if not service.started:
-                print('WAIT!')
                 service.setup()
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             # TODO don't pass empty kwargs to services that can't handle them?
             for i, result in enumerate(service.query(**kwargs)):
-                print(wut[0], j, i, red.format('AAAAAAAAAA'), result)
+                #print(red.format('AAAAAAAAAA'), result)
                 if result:
                     yield result
-                    # FIXME WHY DOES THIS RUN FOREVER IF WE DONT RETURN!??!
-                    #return  # FIXME order services based on which you want first for now, will work on merging later
+                    return  # FIXME order services based on which you want first for now, will work on merging later
 
 
 class OntQueryCli(OntQuery):
@@ -882,9 +912,6 @@ class InterLexRemote(OntService):  # note to self
         super().__init__(*args, **kwargs)
 
     def query(self, iri=None, curie=None, label=None, predicates=None, **_):
-        print('WAT', repr(iri), repr(curie))
-        if curie is None:
-            raise BaseException('please help me!')
         def get(url, headers={'Content-Type':'text/turtle'}):
             with requests.Session() as s:
                 s.headers.update(headers)
@@ -921,11 +948,13 @@ class InterLexRemote(OntService):  # note to self
         ia_iri = isAbout(g)
 
         rdll = rdflibLocal(g)
-        yield from rdll.query(curie=curie, label=label, predicates=predicates)
-        yield from rdll.query(iri=ia_iri, label=label, predicates=predicates)  # FIXME this causes double
-        #embed()
+        a = list(rdll.query(curie=curie, label=label, predicates=predicates))  # TODO cases where ilx is preferred will be troublesome
+        if a:
+            yield from a
+        else:
+            yield from rdll.query(iri=ia_iri, label=label, predicates=predicates)  # FIXME this causes double
 
-from IPython import embed
+
 class rdflibLocal(OntService):  # reccomended for local default implementation
     #graph = rdflib.Graph()  # TODO pull this out into ../plugins? package as ontquery-plugins?
     # if loading if the default set of ontologies is too slow, it is possible to
