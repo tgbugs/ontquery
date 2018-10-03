@@ -9,6 +9,7 @@ red = '\x1b[31m{}\x1b[0m'
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
 
+
 def mimicArgs(function_to_mimic):
     def decorator(function):
         @wraps(function_to_mimic)
@@ -56,6 +57,7 @@ class QueryResult:
                  prefix=None,
                  category=None,
                  predicates=None,  # FIXME dict
+                 _graph=None,
                  source=None,
     ):
         self.__query_args = query_args  # for debug
@@ -68,6 +70,7 @@ class QueryResult:
                          synonyms=synonyms,
                          deprecated=deprecated,
                          predicates=predicates,
+                         _graph=_graph,
                          source=source).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
@@ -225,7 +228,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             raise KeyError(f'Unknown curie prefix: {prefix}')
 
     @classmethod
-    def repr_level(cls):  # FIXME naming
+    def repr_level(cls, verbose=True):  # FIXME naming
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             setattr(cls, f'_{cls.__name__}__repr_level', 0)
             #cls.__repr_level = 0 # how is this different....
@@ -233,7 +236,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         nargs = len(cls.repr_arg_order)
         next = (current + 1) % nargs
         cls.repr_args = cls.repr_arg_order[next]
-        print(cls.__name__, 'will now repr with', cls.repr_args)
+        if verbose:
+            print(cls.__name__, 'will now repr with', cls.repr_args)
         setattr(cls, f'_{cls.__name__}__repr_level', next)
 
     @property
@@ -379,22 +383,15 @@ class OntTerm(OntId):
             if 'predicates' in self.kwargs:
                 extra_kwargs['predicates'] = self.kwargs['predicates']
             # can't gurantee that all endpoints work on the expanded iri
-            print('__real_init__', self.iri, self.curie)
-            a = str(self.iri)
-            b = str(self.curie)
-            results_gen = self.query(iri=a, curie=b, **extra_kwargs)
+            results_gen = self.query(iri=self.iri, curie=self.curie, **extra_kwargs)
         
         i = None
         for i, result in enumerate(results_gen):
             if i > 0:
                 if i == 1:
                     pass
-                    print(repr(SafeRepr(**old_result)), '\n')
-                    # FIXME these causes infinite recursion
-                    # how did this every work!?!
-                    # I think this worked because it assumed that
-                    # a service would only ever return a single result
-                print(repr(SafeRepr(**result)), '\n')
+                    print(repr(TermRepr(**old_result)), '\n')
+                print(repr(TermRepr(**result)), '\n')
                 continue
             if i == 0:
                 old_result = result
@@ -411,10 +408,10 @@ class OntTerm(OntId):
                         self.__class__.repr_args = 'curie', keyword
                         if validated == False:
                             raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
-                                            f'does not match {self.__class__(**result)!r}')
+                                             f'does not match {self.__class__(**result)!r}')
                         else:
                             raise ValueError(f'value {keyword}={orig_value!r} '
-                                            f'does not match {self.__class__(**result)!r}')
+                                             f'does not match {self.__class__(**result)!r}')
 
                 #print(keyword, value)
                 if keyword not in self.__firsts:  # already managed by OntId
@@ -459,7 +456,7 @@ class OntTerm(OntId):
         return super().__repr__()
 
 
-class SafeRepr(OntTerm):
+class TermRepr(OntTerm):
     repr_arg_order = (('curie', 'label', 'synonyms'),)
     __firsts = 'curie', 'iri'
 
@@ -490,7 +487,7 @@ class SafeRepr(OntTerm):
         self._iri = value
 
 
-SafeRepr.repr_level()
+TermRepr.repr_level(verbose=False)
 
 
 class OntComplete(OntTerm):
@@ -932,15 +929,17 @@ class InterLexRemote(OntService):  # note to self
             return o
 
         if curie:
-            url = f'http://{self.host}:{self.port}/base/curies/{curie}?local=True'
+            if curie.startswith('ILX:') and iri:
+                # FIXME hack, can replace once the new resolver is up
+                url = iri.replace('uri.interlex.org', f'{self.host}:{self.port}')
+            else:
+                url = f'http://{self.host}:{self.port}/base/curies/{curie}?local=True'
         elif label:
             url = f'http://{self.host}:{self.port}/base/lexical/{label}'
         else:
             return None
 
-        print(url)
         resp = get(url)
-        print(resp)
         if not resp.ok:
             return None
         ttl = resp.content
@@ -948,11 +947,11 @@ class InterLexRemote(OntService):  # note to self
         ia_iri = isAbout(g)
 
         rdll = rdflibLocal(g)
-        a = list(rdll.query(curie=curie, label=label, predicates=predicates))  # TODO cases where ilx is preferred will be troublesome
-        if a:
-            yield from a
+        maybe_out = list(rdll.query(curie=curie, label=label, predicates=predicates))  # TODO cases where ilx is preferred will be troublesome
+        if maybe_out:
+            yield from maybe_out
         else:
-            yield from rdll.query(iri=ia_iri, label=label, predicates=predicates)  # FIXME this causes double
+            yield from rdll.query(iri=ia_iri, label=label, predicates=predicates)
 
 
 class rdflibLocal(OntService):  # reccomended for local default implementation
@@ -1018,7 +1017,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     out[pn] = o
 
             if o is not None:
-                yield QueryResult(kwargs, **out, source=self)  # if you yield here you have to yield from below
+                yield QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
         else:
             for keyword, object in kwargs.items():
                 if keyword in self.predicate_mapping:
