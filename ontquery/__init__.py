@@ -892,8 +892,10 @@ class SciCrunchRemote(SciGraphRemote):
 
 
 class InterLexRemote(OntService):  # note to self
-    host = 'localhost'
-    port = '8505'
+    host = 'uri.interlex.org'
+    port = ''
+    host_port = f'{host}:{port}' if port else host
+
     def __init__(self, *args, **kwargs):
         import rdflib  # FIXME
         self.Graph = rdflib.Graph
@@ -909,7 +911,7 @@ class InterLexRemote(OntService):  # note to self
         super().__init__(*args, **kwargs)
 
     def query(self, iri=None, curie=None, label=None, predicates=None, **_):
-        def get(url, headers={'Content-Type':'text/turtle'}):
+        def get(url, headers={'Accept':'application/n-triples'}):
             with requests.Session() as s:
                 s.headers.update(headers)
                 resp = s.get(url, allow_redirects=False)
@@ -933,9 +935,9 @@ class InterLexRemote(OntService):  # note to self
                 # FIXME hack, can replace once the new resolver is up
                 url = iri.replace('uri.interlex.org', f'{self.host}:{self.port}')
             else:
-                url = f'http://{self.host}:{self.port}/base/curies/{curie}?local=True'
+                url = f'http://{self.host_port}/base/curies/{curie}?local=True'
         elif label:
-            url = f'http://{self.host}:{self.port}/base/lexical/{label}'
+            url = f'http://{self.host_port}/base/lexical/{label}'
         else:
             return None
 
