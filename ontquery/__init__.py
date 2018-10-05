@@ -443,7 +443,10 @@ class OntTerm(OntId):
             raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
 
     def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING'):
-        predicates = (predicate,) + predicates  # ensure at least one
+        if predicate is None:
+            predicates = self.query.predicates
+        else:
+            predicates = (predicate,) + predicates  # ensure at least one
         results_gen = self.query(iri=self, predicates=predicates, depth=depth, direction=direction)
         out = {}
         for result in results_gen:  # FIXME should only be one?!
@@ -530,6 +533,8 @@ class OntQuery:
     def predicates(self):
         unique_predicates = set()
         for service in self.services:
+            if not service.started:
+                service.setup()
             for predicate in service.predicates:
                 unique_predicates.add(predicate)
 
@@ -564,7 +569,8 @@ class OntQuery:
                            label=label,
                            term=term,
                            search=search)
-        graph_queries = cullNone(predicates=tuple(OntId(p) for p in predicates),  # size must be known no generator
+        graph_queries = cullNone(predicates=tuple(OntId(p) if ':' in p else
+                                                  p for p in predicates),  # size must be known no generator
                                  depth=depth,
                                  direction=direction)
         identifiers = cullNone(suffix=suffix,
@@ -727,11 +733,16 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.basePath = apiEndpoint
         self.api_key = api_key
         self.OntId = OntId
-        self.inverses = {self.OntId(k):self.OntId(v)
-                         for _k, _v in self.known_inverses
-                         for k, v in ((_k, _v), (_v, _k))
-                         if _k and _v}
         super().__init__()
+
+    @property
+    def inverses(self):
+        inverses = {self.OntId(k):self.OntId(v)
+                    for _k, _v in self.known_inverses
+                    for k, v in ((_k, _v), (_v, _k))
+                    if _k and _v}
+
+        return inverses
 
     def add(self, iri):  # TODO implement with setter/appender?
         raise TypeError('Cannot add ontology to remote service.')
@@ -749,13 +760,13 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.categories = self.sgv.getCategories()
         self._predicates = sorted(set(self.sgg.getRelationships()))
-        self._onts = self.sgg.getEdges('owl:Ontology')  # TODO incomplete and not sure if this works...
+        self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))
         super().setup()
 
     def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
         # TODO how to handle depth? this is not an obvious or friendly way to do this
-        if predicate.prefix in ('owl', 'rdfs'):
+        if ':' in predicate and predicate.prefix in ('owl', 'rdfs'):
             p = predicate.suffix
         else:
             p = predicate
@@ -796,21 +807,28 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
-        predicates = tuple(self.OntId(p) for p in predicates)
+        predicates = tuple(self.OntId(p) if ':' in p else
+                           p for p in predicates)
         if identifiers:
             identifier = self.OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
             if result is None:
                 return
 
-            if predicates:  # TODO incoming/outgoing
+            if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 for predicate in predicates:
                     values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth, direction=direction)))
-                    result[predicate] = values
+                    if values:
+                        result[predicate] = values
+
                     if predicate in self.inverses:
                         p = self.inverses[predicate]
-                        values = tuple(sorted(self._graphQuery(identifier, p, depth=depth, direction=direction, inverse=True)))
-                        result[predicate] += values
+                        inv_direction = 'OUTGOING' if direction == 'INCOMING' else ('INCOMING' if direction == 'OUTGOING' else direction)
+                        inv_values = tuple(sorted(self._graphQuery(identifier, p, depth=depth, direction=inv_direction, inverse=True)))
+                        if values or predicate in result:
+                            result[predicate] += inv_values
+                        elif inv_values:
+                            result[predicate] = inv_values
 
             results = result,
         elif term:
@@ -834,7 +852,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             if result['deprecated'] and not identifiers:
                 continue
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
-            predicate_results = {predicate.curie:result[predicate] for predicate in predicates}  # FIXME hasheqv on OntId
+            predicate_results = {predicate.curie if ':' in predicate else predicate:result[predicate]  # FIXME hack
+                                 for predicate in predicates  # TODO depth=1 means go ahead and retrieve?
+                                 if predicate in result}  # FIXME hasheqv on OntId
             # print(red.format('PR:'), predicate_results, result)
             qr = QueryResult(query_args={**qualifiers, **identifiers, 'predicates':predicates},
                              iri=result['iri'],
@@ -892,9 +912,10 @@ class SciCrunchRemote(SciGraphRemote):
 
 
 class InterLexRemote(OntService):  # note to self
-    host = 'uri.interlex.org'
-    port = ''
+    host = 'localhost'
+    port = '8505'
     host_port = f'{host}:{port}' if port else host
+    known_inverses = ('', ''),
 
     def __init__(self, *args, **kwargs):
         import rdflib  # FIXME
@@ -909,6 +930,10 @@ class InterLexRemote(OntService):  # note to self
         # at the start, rather than having it be completely wild
         # FIXME can't do this at the moment because interlex itself calls this --- WHOOPS
         super().__init__(*args, **kwargs)
+
+    @property
+    def predicates(self):
+        return {}  # TODO
 
     def query(self, iri=None, curie=None, label=None, predicates=None, **_):
         def get(url, headers={'Accept':'application/n-triples'}):
