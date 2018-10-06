@@ -936,7 +936,7 @@ class InterLexRemote(OntService):  # note to self
         return {}  # TODO
 
     def query(self, iri=None, curie=None, label=None, predicates=None, **_):
-        def get(url, headers={'Accept':'application/n-triples'}):
+        def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
             with requests.Session() as s:
                 s.headers.update(headers)
                 resp = s.get(url, allow_redirects=False)
