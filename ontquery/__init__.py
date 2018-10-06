@@ -912,8 +912,8 @@ class SciCrunchRemote(SciGraphRemote):
 
 
 class InterLexRemote(OntService):  # note to self
-    host = 'localhost'
-    port = '8505'
+    host = 'uri.interlex.org'
+    port = ''
     host_port = f'{host}:{port}' if port else host
     known_inverses = ('', ''),
 
