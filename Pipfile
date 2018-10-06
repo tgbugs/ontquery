@@ -2,9 +2,8 @@
 python_version = '3.6'  # also works with pypy3
 
 [dev-packages]
-pyontutils = {git = 'https://github.com/tgbugs/pyontutils.git', editable = true, ref = 'master' }
+pyontutils = {git = "https://github.com/tgbugs/pyontutils.git", editable = true, ref = "master"}
 "e1839a8" = {path = ".", extras = ["dev"], editable = true}
 
 [packages]
 "e1839a8" = {path = ".", editable = true}
-
