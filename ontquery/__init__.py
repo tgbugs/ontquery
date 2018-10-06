@@ -32,6 +32,22 @@ class dictclass(type):
         return self._dict[key]
 
 
+class OntQueryError(Exception):
+    pass
+
+
+class NotFoundError(OntQueryError):
+    pass
+
+
+class ManyResultsError(OntQueryError):
+    pass
+
+
+class NoExplicitIdError(OntQueryError):
+    pass
+
+
 class QueryResult:
     """ Encapsulate query results and allow for clear and clean documentation
         of how a particular service maps their result terminology onto the
@@ -155,6 +171,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
 
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
+            cls._oneshot_old_repr_args = None
             if not hasattr(cls, 'repr_args'):
                 cls.repr_args = cls.repr_arg_order[0]
 
@@ -213,7 +230,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
 
     @property
     def curie(self):
-        return ':'.join((self.prefix, self.suffix))
+        if self.prefix or self.suffix:
+            return ':'.join((self.prefix, self.suffix))
 
     @property
     def iri(self):
@@ -240,6 +258,10 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             print(cls.__name__, 'will now repr with', cls.repr_args)
         setattr(cls, f'_{cls.__name__}__repr_level', next)
 
+    def set_next_repr(self, *repr_args):
+        self._oneshot_old_repr_args = self.repr_args
+        self.repr_args = repr_args
+
     @property
     def _repr_level(self):
         if not hasattr(self, f'_{self.__class__.__name__}__repr_level'):
@@ -250,7 +272,6 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         self.__class__.repr_args = self.repr_arg_order[next]
         print(self.__name__, 'will now repr with', self.repr_args)
         setattr(self.__class__, f'_{self.__class__.__name__}__repr_level', next)
-
 
     @property
     def _repr_include_args(self):
@@ -287,7 +308,12 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         return f"{self.__class__.__name__}('{id_}')"
 
     def __repr__(self):
-        return self._repr_base.format(**self._repr_args)
+        out = self._repr_base.format(**self._repr_args)
+        if self._oneshot_old_repr_args is not None:
+            self.repr_args = self._oneshot_old_repr_args
+            self._oneshot_old_repr_args = None
+
+        return out
 
 
 class OntTerm(OntId):
@@ -402,7 +428,8 @@ class OntTerm(OntId):
                 if orig_value is not None and orig_value != value:
                     if str(orig_value) == value:
                         pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
-                    elif keyword == 'label' and orig_value in result['labels']:
+                    elif (keyword == 'label' and
+                          (orig_value in result['labels'] or orig_value.lower() == value.lower())):
                         pass
                     elif keyword == 'predicates':
                         pass  # query will not match result
@@ -423,26 +450,40 @@ class OntTerm(OntId):
         if i is None:
             self.validated = False
             for keyword in set(keyword  # FIXME repr_arg_order should not be what is setting this?!?!
-                                for keywords in self.repr_arg_order
-                                for keyword in keywords
-                                if keyword not in self.__firsts):
+                               for keywords in self.repr_arg_order
+                               for keyword in keywords
+                               if keyword not in self.__firsts):
                 if keyword in self.orig_kwargs:
                     value = self.orig_kwargs[keyword]
                 else:
                     value = None
+                print(keyword)
                 setattr(self, keyword, value)
 
-            print(red.format('WARNING:'), repr(self), '\n')
+            self.set_next_repr(*(a for a in self.orig_kwargs if a not in ('validated', 'query')))
+            if not self.iri:
+                raise NotFoundError(f'No results for {self!r}')
+            else:
+                print(red.format('WARNING:'), repr(self), '\n')
+
+            return
+            # TODO this needs to go in a separate place, not here
+            # and it needs to be easy to take a constructed term
+            # and turn it into a term request
             for service in self.query.services:
                 self.termRequests = []
+                # FIXME configure a single term request service
                 if hasattr(service, 'termRequest'):
                     makeRequest = service.termRequest(self)
                     termRequests.append(makeRequest)
+
         elif i > 0:
-            raise ValueError(f'\nQuery {self.orig_kwargs} returned more than one result. Please review.\n')
+            raise ManyResultsError(f'\nQuery {self.orig_kwargs} returned more than one result. Please review.\n')
         elif noId:
             #print(red.format(repr(self)))
-            raise ValueError(f'Your term does not have a valid identifier.\nPlease replace it with {self!r}')
+            self.set_next_repr('curie', 'label')
+            raise NoExplicitIdError('Your term does not have a valid identifier.\n'
+                                    f'Please replace it with {self!r}')
 
     def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING'):
         if predicate is None:
@@ -961,12 +1002,20 @@ class InterLexRemote(OntService):  # note to self
                 raise ValueError(f'NonUnique value for ontology {r1} or about {r2}')
             return o
 
+        if iri:
+            icurie = OntCuries.qname(iri)
+            if curie and icurie != curie:
+                raise ValueError(f'curie and curied iri do not match {curie} {icurie}')
+            else:
+                curie = icurie
+
         if curie:
             if curie.startswith('ILX:') and iri:
                 # FIXME hack, can replace once the new resolver is up
-                url = iri.replace('uri.interlex.org', f'{self.host}:{self.port}')
+                url = iri.replace('uri.interlex.org', self.host_port)
             else:
                 url = f'http://{self.host_port}/base/curies/{curie}?local=True'
+
         elif label:
             url = f'http://{self.host_port}/base/lexical/{label}'
         else:

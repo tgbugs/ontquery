@@ -8,6 +8,7 @@ oq.OntCuries({'rdf': str(rdflib.RDF),
               'UBERON': 'http://purl.obolibrary.org/obo/UBERON_'})
 OntId = oq.OntId
 
+
 class ServiceBase:
     def setUp(self):
         _query = oq.OntQuery(self.remote)
@@ -18,19 +19,30 @@ class ServiceBase:
 
     def test_ontid(self):
         t = self.OntTerm(OntId('UBERON:0000955'))
+        assert t.label, repr(t)
 
     def test_curie(self):
         t = self.OntTerm(curie='UBERON:0000955')
+        assert t.iri, repr(t)
 
     def test_iri(self):
         t = self.OntTerm(iri='http://purl.obolibrary.org/obo/UBERON_0000955')
+        assert t.curie, repr(t)
 
     def test_uriref(self):
         t = self.OntTerm(iri=rdflib.URIRef('http://purl.obolibrary.org/obo/UBERON_0000955'))
+        assert t.curie, repr(t)
+
+    def test_label(self):
+        try:
+            t = self.OntTerm(label='diffuse')
+            raise AssertionError(f'should fail {t!r}')
+        except oq.OntQueryError as e:
+            pass
 
 
 class TestIlx(ServiceBase, unittest.TestCase):
-    remote = oq.InterLexRemote()
+    remote = oq.InterLexRemote(host='localhost', port='8505')
 
 
 class TestSciGraph(ServiceBase, unittest.TestCase):
