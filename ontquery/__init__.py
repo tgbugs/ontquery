@@ -914,12 +914,12 @@ class SciCrunchRemote(SciGraphRemote):
 
 
 class InterLexRemote(OntService):  # note to self
-    host = 'uri.interlex.org'
-    port = ''
-    host_port = f'{host}:{port}' if port else host
     known_inverses = ('', ''),
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, host='uri.interlex.org', port='', **kwargs):
+        self.host = host
+        self.port = port
+
         import rdflib  # FIXME
         self.Graph = rdflib.Graph
         self.RDF = rdflib.RDF
@@ -932,6 +932,10 @@ class InterLexRemote(OntService):  # note to self
         # at the start, rather than having it be completely wild
         # FIXME can't do this at the moment because interlex itself calls this --- WHOOPS
         super().__init__(*args, **kwargs)
+
+    @property
+    def host_port(self):
+        return f'{self.host}:{self.port}' if self.port else self.host
 
     @property
     def predicates(self):
