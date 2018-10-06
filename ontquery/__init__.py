@@ -457,7 +457,6 @@ class OntTerm(OntId):
                     value = self.orig_kwargs[keyword]
                 else:
                     value = None
-                print(keyword)
                 setattr(self, keyword, value)
 
             self.set_next_repr(*(a for a in self.orig_kwargs if a not in ('validated', 'query')))
