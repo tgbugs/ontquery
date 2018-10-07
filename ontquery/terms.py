@@ -378,6 +378,8 @@ class OntTerm(OntId):
 
     def debug(self):
         """ return debug information """
+        if self._graph:
+            print(self._graph.serialize(format='nifttl').decode())
 
     def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING', as_term=False):
         """ Retrieve additional metadata for the current term. If None is provided

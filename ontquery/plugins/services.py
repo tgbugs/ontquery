@@ -3,6 +3,7 @@ import requests
 from urllib.parse import quote
 from pyontutils import scigraph
 from pyontutils.utils import ordered
+from pyontutils.closed_namespaces import rdf, owl
 #from pyontutils.core import NIFRID
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
@@ -75,7 +76,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             #subjects = set(subject.curie)
             seen = {subject.curie}
             for i, e in enumerate(ordered(subject.curie, edges, inverse=inverse)):
-                print('record number:', i)  # FIXME
+                #print('record number:', i)  # FIXME
                 # FIXME need to actually get the transitive closure, this doesn't actually work
                 #if e[s] in subjects:
                     #subjects.add(object.curie)
@@ -250,6 +251,7 @@ class InterLexRemote(OntService):  # note to self
         return {}  # TODO
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None, **_):
+        kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
             with requests.Session() as s:
                 s.headers.update(headers)
@@ -302,20 +304,34 @@ class InterLexRemote(OntService):  # note to self
         ia_iri = isAbout(graph)
         rdll = rdflibLocal(graph)
 
-        # TODO cases where ilx is preferred will be troublesome
-        maybe_out = [r for r in rdll.query(curie=curie, label=label, predicates=predicates)]
-        if maybe_out:
-            out = maybe_out
-        else:
-            out = rdll.query(iri=ia_iri, label=label, predicates=predicates)
-            if curie:
-                for qr in out:
-                    yield QueryResult(qr._QueryResult__query_args,
-                                      curie=curie,
-                                      **{k:v for k, v in qr.items()
-                                         if k != 'curie' })
-                return
+        if True:
+            qrs = rdll.query(label=label, predicates=predicates, all_classes=True)
+            qrd = {'curie': curie, 'predicates': {}}
+            for qr in qrs:
+                # FIXME still last one wins behavior
+                qrc = cullNone(**qr)
+                n = {k:v for k, v in qrc.items()
+                     if k not in ('curie', 'predicates')}
+                qrd.update(n)
+                qrd['predicates'].update(cullNone(**qrc['predicates']))
 
+            yield QueryResult(kwargs, **qrd)
+
+        else:
+            # TODO cases where ilx is preferred will be troublesome
+            maybe_out = [r for r in rdll.query(curie=curie, label=label, predicates=predicates)]
+            if maybe_out:
+                out = maybe_out
+            else:
+                out = rdll.query(iri=ia_iri, label=label, predicates=predicates)
+                if curie:
+                    for qr in out:
+                        qr = cullNone(**qr)
+                        yield QueryResult(kwargs, #qr._QueryResult__query_args,
+                                          curie=curie,
+                                          **{k:v for k, v in qr.items()
+                                             if k != 'curie' })
+                    return
 
         yield from out
 
@@ -342,7 +358,42 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def predicates(self):
         yield from sorted(set(self.graph.predicates()))
 
-    def query(self, iri=None, curie=None, label=None, predicates=None, **kwargs):
+    def by_ident(self, iri, curie, kwargs):
+        out = {'predicates':{}}
+        identifier = self.OntId(curie=curie, iri=iri)
+        gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
+        out['curie'] = identifier.curie
+        out['iri'] = identifier.iri
+        translate = {rdflib.RDFS.label:'label',
+                        #rdflib.RDFS.subClassOf:'subClassOf',
+                        #rdflib.RDF.type:'type',
+                        #rdflib.OWL.disjointWith:'disjointWith',
+                        #NIFRID.definingCitation:'definingCitation',
+                    }
+        o = None
+        owlClass = None
+        for p, o in gen:
+            pn = translate.get(p, None)
+            if isinstance(o, rdflib.Literal):
+                o = o.toPython()
+            elif p == rdflib.RDF.type and o == rdflib.OWL.Class:
+                owlClass = True
+
+            if pn is None:
+                # TODO translation and support for query result structure
+                # FIXME lists instead of klobbering results with mulitple predicates
+                if isinstance(o, rdflib.URIRef):
+                    o = self.OntId(o)  # FIXME we we try to use OntTerm directly everything breaks
+                    # FIXME these OntIds also do not derive from rdflib... sigh
+                out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
+                #print(red.format('WARNING:'), 'untranslated predicate', p)
+            else:
+                out[pn] = o
+
+        if o is not None and owlClass is not None:
+            yield QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
+
+    def query(self, iri=None, curie=None, label=None, predicates=None, all_classes=False, **kwargs):
         # right now we only support exact matches to labels FIXME
         kwargs['curie'] = curie
         kwargs['iri'] = iri
@@ -350,40 +401,11 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         #kwargs['term'] = term
         #kwargs['search'] = search
         #supported = sorted(QueryResult(kwargs))
-        if iri is not None or curie is not None:
-            out = {'predicates':{}}
-            identifier = self.OntId(curie=curie, iri=iri)
-            gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
-            out['curie'] = identifier.curie
-            out['iri'] = identifier.iri
-            translate = {rdflib.RDFS.label:'label',
-                         #rdflib.RDFS.subClassOf:'subClassOf',
-                         #rdflib.RDF.type:'type',
-                         #rdflib.OWL.disjointWith:'disjointWith',
-                         #NIFRID.definingCitation:'definingCitation',
-                        }
-            o = None
-            owlClass = None
-            for p, o in gen:
-                pn = translate.get(p, None)
-                if isinstance(o, rdflib.Literal):
-                    o = o.toPython()
-                elif p == rdflib.RDF.type and o == rdflib.OWL.Class:
-                    owlClass = True
-
-                if pn is None:
-                    # TODO translation and support for query result structure
-                    # FIXME lists instead of klobbering results with mulitple predicates
-                    if isinstance(o, rdflib.URIRef):
-                        o = self.OntId(o)  # FIXME we we try to use OntTerm directly everything breaks
-                        # FIXME these OntIds also do not derive from rdflib... sigh
-                    out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
-                    #print(red.format('WARNING:'), 'untranslated predicate', p)
-                else:
-                    out[pn] = o
-
-            if o is not None and owlClass is not None:
-                yield QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
+        if all_classes:
+            for iri in self.graph[:rdf.type:owl.Class]:
+                yield from self.by_ident(iri, None, kwargs)
+        elif iri is not None or curie is not None:
+            yield from self.by_ident(iri, curie, kwargs)
         else:
             for keyword, object in kwargs.items():
                 if keyword in self.predicate_mapping:
