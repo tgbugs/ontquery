@@ -135,3 +135,8 @@ class TestAll(unittest.TestCase):
             assert True, 'should fail'
 
         ontquery.OntId('new-prefix:working')
+
+    def test_cache(self):
+        hrm = next(iter(OntTerm._cache.values()))
+        t = OntTerm._cache[hrm.iri]
+        assert hrm == t, 'hrm'

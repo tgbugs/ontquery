@@ -395,9 +395,10 @@ class OntTerm(OntId):
         if hasattr(self.query, 'raw') and not self.query.raw:
             raise TypeError(f'{self.query} result not set to raw, avoiding infinite recursion.')
 
-        if self.iri not in cls._cache or not validated or 'predicates' in kwargs:  # FIXME __cache
+        if self.iri not in cls._cache or validated == False or 'predicates' in kwargs:  # FIXME __cache
             # FIXME if results_gen returns > 1 result this goes infinite
             self.__real_init__(validated, results_gen, noId)
+            # returning without error does NOT imply validated
             cls._cache[self.iri] = self
 
         return cls._cache[self.iri]
