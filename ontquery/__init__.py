@@ -964,6 +964,7 @@ class InterLexRemote(OntService):  # note to self
     def __init__(self, *args, host='uri.interlex.org', port='', **kwargs):
         self.host = host
         self.port = port
+        self._not_ok_cache = set()
 
         import rdflib  # FIXME
         self.Graph = rdflib.Graph
@@ -1025,8 +1026,12 @@ class InterLexRemote(OntService):  # note to self
         else:
             return None
 
+        if url in self._not_ok_cache:
+            return None
+
         resp = get(url)
         if not resp.ok:
+            self._not_ok_cache.add(url)
             return None
         ttl = resp.content
         g = self.Graph().parse(data=ttl, format='turtle')
