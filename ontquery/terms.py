@@ -317,12 +317,12 @@ class OntTerm(OntId):
             for keyword, value in result.items():
                 # TODO open vs closed world
                 orig_value = self.orig_kwargs.get(keyword, None)
-                if orig_value is not None and orig_value != value:
+                if orig_value is not None and value is not None and orig_value != value:
                     if str(orig_value) == value:
                         pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
                     elif (keyword == 'label' and
                           (orig_value in result['labels'] or
-                           orig_value and (orig_value.lower() == value.lower()))):
+                           orig_value.lower() == value.lower())):
                         pass
                     elif keyword == 'predicates':
                         pass  # query will not match result
@@ -334,6 +334,13 @@ class OntTerm(OntId):
                         else:
                             raise ValueError(f'value {keyword}={orig_value!r} '
                                              f'does not match {keyword}={result[keyword]!r}')
+                elif orig_value is None and value is None:
+                    pass
+                #elif value is None:  # can't error here, need to continue
+                    #raise ValueError(f'Originally given {keyword}={orig_value!r} '
+                                     #f'but got {keyword}=None as a result!')
+                #elif orig_value is None:  # not an error
+                    #raise ValueError()
 
                 #print(keyword, value)
                 if keyword not in self.__firsts:  # already managed by OntId
