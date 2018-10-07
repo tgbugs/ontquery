@@ -803,6 +803,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose, key=self.api_key)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
+        self.prefixes = sorted(self.curies)
+        self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
         self.categories = self.sgv.getCategories()
         self._predicates = sorted(set(self.sgg.getRelationships()))
         self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))
@@ -849,6 +851,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
         if category is not None and category not in self.categories:
             raise ValueError(f'{category} not in {self.__class__.__name__}.categories')
+
+        if (prefix is None and any((label, term, search, abbrev)) and
+            self.prefixes != self.search_prefixes):
+            prefix = self.search_prefixes
 
         qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
