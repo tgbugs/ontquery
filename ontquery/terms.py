@@ -363,9 +363,12 @@ class OntTerm(OntId):
                 else:
                     value = None
                 setattr(self, keyword, value)
-
-            self.set_next_repr(*(a for a in self.orig_kwargs if a not in ('validated', 'query')))
+            rargs = {k:v for k, v in self.orig_kwargs.items()
+                     if k not in ('validated', 'query') and v is not None}
+            self.set_next_repr(*rargs)
             if not self.iri:
+                for k, v in rargs.items():
+                    setattr(self, k, v)
                 raise exc.NotFoundError(f'No results for {self!r}')
             else:
                 print(red.format('WARNING:'), repr(self), '\n')
