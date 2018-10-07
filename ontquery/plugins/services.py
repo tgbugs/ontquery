@@ -419,7 +419,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         #supported = sorted(QueryResult(kwargs))
         if all_classes:
             for iri in self.graph[:rdf.type:owl.Class]:
-                yield from self.by_ident(iri, None, kwargs)
+                if isinstance(iri, rdflib.URIRef):  # no BNodes
+                    yield from self.by_ident(iri, None, kwargs)
         elif iri is not None or curie is not None:
             yield from self.by_ident(iri, curie, kwargs)
         else:
