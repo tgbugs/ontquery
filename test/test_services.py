@@ -40,6 +40,10 @@ class ServiceBase:
         except oq.OntQueryError as e:
             pass
 
+    def test_cache(self):
+        t1 = self.OntTerm('BIRNLEX:796')
+        t2 = self.OntTerm('BIRNLEX:796')
+
 
 class TestIlx(ServiceBase, unittest.TestCase):
     remote = oq.InterLexRemote(host='localhost', port='8505')

@@ -38,7 +38,6 @@ class TestAll(unittest.TestCase):
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
     def test_query(self):
-
         self.query('brain')
         self.query(term='brain')
         #self.query(prefix='UBERON', suffix='0000955')  # only for OntId
@@ -60,7 +59,10 @@ class TestAll(unittest.TestCase):
         OntTerm('NCBITaxon:2', label='Bacteria')
         #OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')  # gone in latest
         try:
-            OntTerm('UBERON:0000955', label='not actually the brain')
+            l = 'not actually the brain'
+            t = OntTerm('UBERON:0000955', label=l)
+            from IPython import embed
+            embed()
             assert False, 'should not get here'
         except ValueError:
             assert True, 'expect to fail'
@@ -93,6 +95,11 @@ class TestAll(unittest.TestCase):
             assert False, 'should not get here!'
         except ontquery.NoExplicitIdError:
             assert True, 'fails as expected'
+
+        #t = next(OntTerm.query(term='midbrain reticular nucleus')).OntTerm
+        t = next(OntTerm.query(term='serotonin', prefix='CHEBI')).OntTerm
+        assert t != OntTerm
+
 
     def test_id(self):
         ontquery.OntId('UBERON:0000955')
@@ -135,8 +142,3 @@ class TestAll(unittest.TestCase):
             assert True, 'should fail'
 
         ontquery.OntId('new-prefix:working')
-
-    def test_cache(self):
-        hrm = next(iter(OntTerm._cache.values()))
-        t = OntTerm._cache[hrm.iri]
-        assert hrm == t, 'hrm'

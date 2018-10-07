@@ -399,9 +399,8 @@ class OntTerm(OntId):
             # FIXME if results_gen returns > 1 result this goes infinite
             self.__real_init__(validated, results_gen, noId)
             # returning without error does NOT imply validated
-            cls._cache[self.iri] = self
 
-        return cls._cache[self.iri]
+        return self
 
     def __init__(self, *args, **kwargs):
         """ do nothing """
@@ -608,7 +607,6 @@ class OntQuery:
                  depth=1,
                  direction='OUTGOING',
                  limit=10,
-                 wut=[0]
     ):
         qualifiers = cullNone(prefix=prefix,
                               category=category)
@@ -964,7 +962,7 @@ class InterLexRemote(OntService):  # note to self
     def __init__(self, *args, host='uri.interlex.org', port='', **kwargs):
         self.host = host
         self.port = port
-        self._not_ok_cache = set()
+        self._graph_cache = {}
 
         import rdflib  # FIXME
         self.Graph = rdflib.Graph
@@ -987,7 +985,7 @@ class InterLexRemote(OntService):  # note to self
     def predicates(self):
         return {}  # TODO
 
-    def query(self, iri=None, curie=None, label=None, predicates=None, **_):
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=None, **_):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
             with requests.Session() as s:
                 s.headers.update(headers)
@@ -997,7 +995,6 @@ class InterLexRemote(OntService):  # note to self
                     resp = s.get(resp.next.url, allow_redirects=False)
                     if not resp.is_redirect:
                         break
-
             return resp
 
         def isAbout(g):
@@ -1020,29 +1017,35 @@ class InterLexRemote(OntService):  # note to self
                 url = iri.replace('uri.interlex.org', self.host_port)
             else:
                 url = f'http://{self.host_port}/base/curies/{curie}?local=True'
-
         elif label:
             url = f'http://{self.host_port}/base/lexical/{label}'
         else:
             return None
 
-        if url in self._not_ok_cache:
-            return None
-
-        resp = get(url)
-        if not resp.ok:
-            self._not_ok_cache.add(url)
-            return None
-        ttl = resp.content
-        g = self.Graph().parse(data=ttl, format='turtle')
-        ia_iri = isAbout(g)
-
-        rdll = rdflibLocal(g)
-        maybe_out = list(rdll.query(curie=curie, label=label, predicates=predicates))  # TODO cases where ilx is preferred will be troublesome
-        if maybe_out:
-            yield from maybe_out
+        if url in self._graph_cache:
+            graph = self._graph_cache[url]
+            if not graph:
+                return None
         else:
-            yield from rdll.query(iri=ia_iri, label=label, predicates=predicates)
+            resp = get(url)
+            if not resp.ok:
+                self._graph_cache[url] = None
+                return None
+            ttl = resp.content
+            graph = self.Graph().parse(data=ttl, format='turtle')
+            self._graph_cache[url] = graph
+
+        ia_iri = isAbout(graph)
+        rdll = rdflibLocal(graph)
+
+        # TODO cases where ilx is preferred will be troublesome
+        maybe_out = list(rdll.query(curie=curie, label=label, predicates=predicates))
+        if maybe_out:
+            out = maybe_out
+        else:
+            out = list(rdll.query(iri=ia_iri, label=label, predicates=predicates))
+
+        yield from out
 
 
 class rdflibLocal(OntService):  # reccomended for local default implementation
