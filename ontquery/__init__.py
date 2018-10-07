@@ -436,7 +436,8 @@ class OntTerm(OntId):
                     if str(orig_value) == value:
                         pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
                     elif (keyword == 'label' and
-                          (orig_value in result['labels'] or orig_value.lower() == value.lower())):
+                          (orig_value in result['labels'] or
+                           orig_value and (orig_value.lower() == value.lower()))):
                         pass
                     elif keyword == 'predicates':
                         pass  # query will not match result
@@ -1053,7 +1054,15 @@ class InterLexRemote(OntService):  # note to self
         if maybe_out:
             out = maybe_out
         else:
-            out = list(rdll.query(iri=ia_iri, label=label, predicates=predicates))
+            out = rdll.query(iri=ia_iri, label=label, predicates=predicates)
+            if curie:
+                for qr in out:
+                    yield QueryResult(qr._QueryResult__query_args,
+                                      curie=curie,
+                                      **{k:v for k, v in qr.items()
+                                         if k != 'curie' })
+                return
+
 
         yield from out
 
