@@ -2,7 +2,7 @@ import rdflib
 import requests
 from urllib.parse import quote
 from pyontutils import scigraph
-from pyontutils.utils import ordered
+from pyontutils.utils import ordered, TermColors as tc
 from pyontutils.closed_namespaces import rdf, owl
 #from pyontutils.core import NIFRID
 from ontquery import OntCuries, OntId
@@ -62,7 +62,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                               depth=depth, direction=direction)  # TODO
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
-            print('aaaaaaaaaaaaaaaaa', len(edges))   # TODO len(set(???))
+            #print('aaaaaaaaaaaaaaaaa', len(edges))   # TODO len(set(???))
         else:
             if inverse:  # it is probably a bad idea to try to be clever here
                 predicate = self.inverses[predicate]
@@ -118,7 +118,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 for predicate in predicates:
-                    print(repr(predicate), self.inverses)
                     values = tuple(sorted(self._graphQuery(identifier, predicate,
                                                            depth=depth, direction=direction)))
                     if values:
@@ -126,7 +125,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
                     if predicate in self.inverses:
                         p = self.inverses[predicate]
-                        print(repr(p))
                         inv_direction = ('OUTGOING' if
                                          direction == 'INCOMING' else
                                          ('INCOMING' if
@@ -276,6 +274,8 @@ class InterLexRemote(OntService):  # note to self
                 raise ValueError(f'curie and curied iri do not match {curie} {icurie}')
             else:
                 curie = icurie
+        elif curie:
+            iri = OntId(iri).curie
 
         if curie:
             if curie.startswith('ILX:') and iri:
@@ -309,12 +309,13 @@ class InterLexRemote(OntService):  # note to self
             qrd = {'curie': curie, 'iri': iri, 'predicates': {}}  # FIXME iri can be none?
             for qr in qrs:
                 # FIXME still last one wins behavior
-                qrc = cullNone(**qr)
-                n = {k:v for k, v in qrc.items()
-                     if k not in ('curie', 'iri', 'predicates')}
+                n = {k:v for k, v in qr.items()
+                     if k not in ('curie', 'iri', 'predicates')
+                     and v is not None}
                 qrd.update(n)
-                qrd['predicates'].update(cullNone(**qrc['predicates']))
+                qrd['predicates'].update(cullNone(**qr['predicates']))
 
+            print(tc.ltyellow(str(qrd)))
             yield QueryResult(kwargs, **qrd)
 
         else:
