@@ -2,10 +2,20 @@ import unittest
 import rdflib
 import ontquery as oq
 
+# FIXME TODO per service ... + mismatch warning
 oq.OntCuries({'rdf': str(rdflib.RDF),
               'rdfs': str(rdflib.RDFS),
               'owl': str(rdflib.OWL),
-              'UBERON': 'http://purl.obolibrary.org/obo/UBERON_'})
+              'BFO': 'http://purl.obolibrary.org/obo/BFO_',
+              'UBERON': 'http://purl.obolibrary.org/obo/UBERON_',
+              'NLX': 'http://uri.neuinfo.org/nif/nifstd/nlx_',
+              'BIRNLEX': 'http://uri.neuinfo.org/nif/nifstd/birnlex_',
+              'ILX': 'http://uri.interlex.org/base/ilx_'
+})
+oq.OntCuries({
+    'hasPart': oq.OntId('BFO:0000051'),
+    'partOf': oq.OntId('BFO:0000050'),
+})
 OntId = oq.OntId
 
 
@@ -16,6 +26,7 @@ class ServiceBase:
             query = _query
 
         self.OntTerm = OntTerm
+        self.OntTerm.bindQueryResult()
 
     def test_ontid(self):
         t = self.OntTerm(OntId('UBERON:0000955'))
@@ -58,6 +69,13 @@ class TestIlx(ServiceBase, unittest.TestCase):
         t = self.OntTerm('NLX:60355')
         ser = t._graph.serialize(format='nifttl').decode()
         assert t.label, ser
+
+    def test_query_ot(self):
+        """ This was an issue with incorrectly setting curie and iri in InterLexRemote.query """
+        qr = next(self.OntTerm.query(label='deep'))
+        #assert False, qr
+        qr.OntTerm
+        #wat = self.OntTerm(label='deep')  # would also trigger the issue (and then fail)
 
 
 class TestSciGraph(ServiceBase, unittest.TestCase):

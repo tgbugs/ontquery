@@ -3,7 +3,7 @@ Implementation of the query interface that provides a layer of separation betwee
 identifiers and lookup services for finding and validating them.
 """
 
-from ontquery import plugin
+from ontquery import plugin, exceptions as exc
 from ontquery.utils import mimicArgs, cullNone
 from ontquery.terms import OntId  # FIXME doen't want to import OntId ...
 
@@ -187,6 +187,8 @@ class QueryResult:
 
     @property
     def OntTerm(self):  # FIXME naming
+        if self.iri is None:
+            raise exc.ShouldNotHappenError(f'I can\'t believe you\'ve done this! {self!r}')
         return self._OntTerm(iri=self.iri)  # TODO works best with a cache
 
     @property

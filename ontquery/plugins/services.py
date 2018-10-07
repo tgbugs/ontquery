@@ -305,17 +305,32 @@ class InterLexRemote(OntService):  # note to self
         rdll = rdflibLocal(graph)
 
         if True:
-            qrs = rdll.query(label=label, predicates=predicates, all_classes=True)
-            qrd = {'curie': curie, 'iri': iri, 'predicates': {}}  # FIXME iri can be none?
+            #qrs = rdll.query(label=label, predicates=predicates, all_classes=True)  # label=label issue?
+            qrs = rdll.query(predicates=predicates, all_classes=True)
+            qrd = {'predicates': {}}  # FIXME iri can be none?
+            toskip = 'predicates',
+            if curie is None and iri is None:
+                i = OntId(ia_iri)
+                qrd['curie'] = i.curie
+                qrd['iri'] = i.iri
+                toskip += 'curie', 'iri'
+            if curie:
+                qrd['curie'] = curie
+                toskip += 'curie',
+            if iri:
+                qrd['iri'] = iri
+                toskip += 'iri',
+
             for qr in qrs:
+                #print(tc.ltgreen(str(qr)))
                 # FIXME still last one wins behavior
                 n = {k:v for k, v in qr.items()
-                     if k not in ('curie', 'iri', 'predicates')
+                     if k not in toskip
                      and v is not None}
                 qrd.update(n)
                 qrd['predicates'].update(cullNone(**qr['predicates']))
 
-            print(tc.ltyellow(str(qrd)))
+            #print(tc.ltyellow(str(qrd)))
             yield QueryResult(kwargs, **qrd)
 
         else:

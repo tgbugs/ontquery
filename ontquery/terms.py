@@ -297,7 +297,7 @@ class OntTerm(OntId):
             if 'predicates' in self.kwargs:
                 extra_kwargs['predicates'] = self.kwargs['predicates']
             # can't gurantee that all endpoints work on the expanded iri
-            print(self.iri, self.kwargs)
+            #print(self.iri, self.kwargs)
             results_gen = self.query(iri=self.iri, curie=self.curie, **extra_kwargs)
         
         i = None

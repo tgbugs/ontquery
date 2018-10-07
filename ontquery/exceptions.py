@@ -14,3 +14,5 @@ class NoExplicitIdError(OntQueryError):
     pass
 
 
+class ShouldNotHappenError(OntQueryError):
+    pass
