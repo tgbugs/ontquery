@@ -1,4 +1,9 @@
+import rdflib
+import requests
+from urllib.parse import quote
 from pyontutils import scigraph
+from pyontutils.utils import ordered
+#from pyontutils.core import NIFRID
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
@@ -52,11 +57,13 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             p = predicate.suffix
         else:
             p = predicate
-        d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=p, depth=depth, direction=direction)  # TODO
+        d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=p,
+                                              depth=depth, direction=direction)  # TODO
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
+            print('aaaaaaaaaaaaaaaaa', len(edges))   # TODO len(set(???))
         else:
-            if inverse:
+            if inverse:  # it is probably a bad idea to try to be clever here
                 predicate = self.inverses[predicate]
             print(f'{subject.curie} has no edges with predicate {predicate.curie} ')
             return
@@ -67,7 +74,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if depth > 1:
             #subjects = set(subject.curie)
             seen = {subject.curie}
-            for e in self.ordered(edges):
+            for i, e in enumerate(ordered(subject.curie, edges, inverse=inverse)):
+                print('record number:', i)  # FIXME
                 # FIXME need to actually get the transitive closure, this doesn't actually work
                 #if e[s] in subjects:
                     #subjects.add(object.curie)
@@ -109,6 +117,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 for predicate in predicates:
+                    print(repr(predicate), self.inverses)
                     values = tuple(sorted(self._graphQuery(identifier, predicate,
                                                            depth=depth, direction=direction)))
                     if values:
@@ -116,7 +125,12 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
                     if predicate in self.inverses:
                         p = self.inverses[predicate]
-                        inv_direction = 'OUTGOING' if direction == 'INCOMING' else ('INCOMING' if direction == 'OUTGOING' else direction)
+                        print(repr(p))
+                        inv_direction = ('OUTGOING' if
+                                         direction == 'INCOMING' else
+                                         ('INCOMING' if
+                                          direction == 'OUTGOING'
+                                          else direction))
                         inv_values = tuple(sorted(self._graphQuery(identifier, p,
                                                                    depth=depth, direction=inv_direction,
                                                                    inverse=True)))
@@ -170,7 +184,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             yield qr
 
 
-import requests
 class SciCrunchRemote(SciGraphRemote):
     known_inverses = ('partOf:', 'hasPart:'),
     defaultEndpoint = 'https://scicrunch.org/api/1/scigraph'
@@ -216,7 +229,6 @@ class InterLexRemote(OntService):  # note to self
         self.port = port
         self._graph_cache = {}
 
-        import rdflib  # FIXME
         self.Graph = rdflib.Graph
         self.RDF = rdflib.RDF
         self.OWL = rdflib.OWL
@@ -315,10 +327,6 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
     def __init__(self, graph, OntId=OntId):
         self.OntId = OntId
-        import rdflib
-        from pyontutils.core import NIFRID
-        self.NIFRID = NIFRID
-        self.rdflib = rdflib
         self.graph = graph
         self.predicate_mapping = {'label':rdflib.RDFS.label,}
         super().__init__()
@@ -345,28 +353,28 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         if iri is not None or curie is not None:
             out = {'predicates':{}}
             identifier = self.OntId(curie=curie, iri=iri)
-            gen = self.graph.predicate_objects(self.rdflib.URIRef(identifier))
+            gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
             out['curie'] = identifier.curie
             out['iri'] = identifier.iri
-            translate = {self.rdflib.RDFS.label:'label',
-                         #self.rdflib.RDFS.subClassOf:'subClassOf',
-                         #self.rdflib.RDF.type:'type',
-                         #self.rdflib.OWL.disjointWith:'disjointWith',
-                         #self.NIFRID.definingCitation:'definingCitation',
+            translate = {rdflib.RDFS.label:'label',
+                         #rdflib.RDFS.subClassOf:'subClassOf',
+                         #rdflib.RDF.type:'type',
+                         #rdflib.OWL.disjointWith:'disjointWith',
+                         #NIFRID.definingCitation:'definingCitation',
                         }
             o = None
             owlClass = None
             for p, o in gen:
                 pn = translate.get(p, None)
-                if isinstance(o, self.rdflib.Literal):
+                if isinstance(o, rdflib.Literal):
                     o = o.toPython()
-                elif p == self.rdflib.RDF.type and o == self.rdflib.OWL.Class:
+                elif p == rdflib.RDF.type and o == rdflib.OWL.Class:
                     owlClass = True
 
                 if pn is None:
                     # TODO translation and support for query result structure
                     # FIXME lists instead of klobbering results with mulitple predicates
-                    if isinstance(o, self.rdflib.URIRef):
+                    if isinstance(o, rdflib.URIRef):
                         o = self.OntId(o)  # FIXME we we try to use OntTerm directly everything breaks
                         # FIXME these OntIds also do not derive from rdflib... sigh
                     out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
@@ -380,7 +388,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             for keyword, object in kwargs.items():
                 if keyword in self.predicate_mapping:
                     predicate = self.predicate_mapping[keyword]
-                    gen = self.graph.subjects(predicate, self.rdflib.Literal(object))
+                    gen = self.graph.subjects(predicate, rdflib.Literal(object))
                     for subject in gen:
                         yield from self.query(iri=subject)
                         return  # FIXME we can only search one thing at a time... first wins

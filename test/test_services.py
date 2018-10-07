@@ -63,6 +63,10 @@ class TestIlx(ServiceBase, unittest.TestCase):
 class TestSciGraph(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('SciGraph')()
 
+    def test_inverse(self):
+        t = self.OntTerm('UBERON:0000955')
+        t('hasPart:')
+        t('partOf:')
 
 class TestRdflib(ServiceBase, unittest.TestCase):
     g = rdflib.Graph()

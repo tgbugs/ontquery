@@ -376,7 +376,13 @@ class OntTerm(OntId):
             raise exc.NoExplicitIdError('Your term does not have a valid identifier.\n'
                                     f'Please replace it with {self!r}')
 
+    def debug(self):
+        """ return debug information """
+
     def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING', as_term=False):
+        """ Retrieve additional metadata for the current term. If None is provided
+            as the first argument the query runs against all predicates defined for
+            each service. """
         if predicate is None:
             predicates = self.query.predicates
         else:
