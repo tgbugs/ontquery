@@ -48,6 +48,9 @@ class ServiceBase:
 class TestIlx(ServiceBase, unittest.TestCase):
     remote = oq.InterLexRemote(host='localhost', port='8505')
 
+    def test_problem(self):
+        t = self.OntTerm('ILX:0101431')
+        # FIXME UBERON:0000955 is lost in predicates
 
 class TestSciGraph(ServiceBase, unittest.TestCase):
     remote = oq.SciGraphRemote()
