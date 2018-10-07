@@ -10,7 +10,9 @@ oq.OntCuries({'rdf': str(rdflib.RDF),
               'UBERON': 'http://purl.obolibrary.org/obo/UBERON_',
               'NLX': 'http://uri.neuinfo.org/nif/nifstd/nlx_',
               'BIRNLEX': 'http://uri.neuinfo.org/nif/nifstd/birnlex_',
-              'ILX': 'http://uri.interlex.org/base/ilx_'
+              'ILX': 'http://uri.interlex.org/base/ilx_',
+              'RO': 'http://purl.obolibrary.org/obo/RO_',
+              'hasRole': 'http://purl.obolibrary.org/obo/RO_0000087',
 })
 oq.OntCuries({
     'hasPart': oq.OntId('BFO:0000051'),
@@ -54,6 +56,10 @@ class ServiceBase:
     def test_cache(self):
         t1 = self.OntTerm('BIRNLEX:796')
         t2 = self.OntTerm('BIRNLEX:796')
+
+    def test_curie_consistency(self):
+        """ additional check to make sure that all curies are normalized on the way in """
+        t = self.OntTerm('RO:0000087')
 
 
 class TestIlx(ServiceBase, unittest.TestCase):

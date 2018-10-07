@@ -1,5 +1,6 @@
 import os
 import unittest
+import rdflib
 from pyontutils import scigraph_client  # this must be imported first to preserve the original path
 
 # orig_basepath = scigraph_client.BASEPATH
@@ -146,3 +147,8 @@ class TestAll(unittest.TestCase):
             assert True, 'should fail'
 
         oq.OntId('new-prefix:working')
+
+    def test_ontid_curie_uriref(self):
+        c = oq.OntId(rdflib.URIRef(oq.OntId('RO:0000087')))
+        cl = oq.OntId('RO:0000087')
+        assert c.curie == cl.curie, f'{c!r} != {cl!r}'

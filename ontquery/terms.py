@@ -77,10 +77,6 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             prefix, suffix = curie.split(':')
             iri_c = cls._make_iri(prefix, suffix)
 
-        if iri is not None:
-            curie_i = cls._namespaces.qname(iri)
-            prefix, suffix = curie_i.split(':')
-
         iris = iri_ps, iri_ci, iri_c, iri
         unique_iris = set(i for i in iris if i is not None)
 
@@ -89,7 +85,16 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         else:
             iri = next(iter(unique_iris))
 
+        if iri is not None:
+            # normalization step in case there is a longer prefix match
+            curie_i = cls._namespaces.qname(iri)
+            prefix_i, suffix_i = curie_i.split(':')
+            #if prefix and prefix_i != prefix:
+                #print('Curie changed!', prefix + ':' + suffix, '->', curie_i)
+            prefix, suffix = prefix_i, suffix_i
+
         self = super().__new__(cls, iri)
+
         # FIXME these assignments prevent updates when OntCuries changes
         self.prefix = prefix
         self.suffix = suffix
