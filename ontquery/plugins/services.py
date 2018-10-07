@@ -306,12 +306,12 @@ class InterLexRemote(OntService):  # note to self
 
         if True:
             qrs = rdll.query(label=label, predicates=predicates, all_classes=True)
-            qrd = {'curie': curie, 'predicates': {}}
+            qrd = {'curie': curie, 'iri': iri, 'predicates': {}}  # FIXME iri can be none?
             for qr in qrs:
                 # FIXME still last one wins behavior
                 qrc = cullNone(**qr)
                 n = {k:v for k, v in qrc.items()
-                     if k not in ('curie', 'predicates')}
+                     if k not in ('curie', 'iri', 'predicates')}
                 qrd.update(n)
                 qrd['predicates'].update(cullNone(**qrc['predicates']))
 
