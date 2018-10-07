@@ -11,30 +11,34 @@ from pyontutils import namespaces
 from pyontutils import scigraph
 from pyontutils import config
 from pyontutils import core
-import ontquery
+import ontquery as oq
 
 if 'SCICRUNCH_API_KEY' in os.environ:
     scigraph.scigraph_client.BASEPATH = orig_basepath
 else:
     scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
 
-class OntTerm(ontquery.OntTerm):
+class OntTerm(oq.OntTerm):
     """ Test subclassing """
+
+
+OntTerm.bindQueryResult()
+
 
 class TestAll(unittest.TestCase):
     def setUp(self):
-        ontquery.OntCuries(namespaces.PREFIXES)
-        #self.query = OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as ontquery?
-        #bs = ontquery.BasicService()  # TODO
-        #self.query = ontquery.OntQuery(bs, upstream=OntTerm)
-        ontquery.QueryResult._OntTerm = OntTerm
+        oq.OntCuries(namespaces.PREFIXES)
+        #self.query = oq.OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as oq?
+        #bs = oq.BasicService()  # TODO
+        #self.query = oq.OntQuery(bs, upstream=OntTerm)
+        #oq.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            services = ontquery.SciCrunchRemote(api_key=config.get_api_key()),
+            services = oq.plugin.get('SciCrunch')(api_key=config.get_api_key()),
         else:
-            services = ontquery.SciCrunchRemote(apiEndpoint='http://localhost:9000/scigraph'),
+            services = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph'),
 
-        self.query = ontquery.OntQueryCli(*services)
-        ontquery.OntTerm.query = ontquery.OntQuery(*services)
+        self.query = oq.OntQueryCli(*services)
+        oq.OntTerm.query = oq.OntQuery(*services)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
     def test_query(self):
@@ -44,10 +48,10 @@ class TestAll(unittest.TestCase):
         self.query(search='thalamus')  # will probably fail with many results to choose from
         self.query(prefix='MBA', abbrev='TH')
 
-        uberon = ontquery.OntQueryCli(*self.query, prefix='UBERON')
+        uberon = oq.OntQueryCli(*self.query, prefix='UBERON')
         brain_result = uberon('brain')  # -> OntTerm('UBERON:0000955', label='brain')
 
-        species = ontquery.OntQuery(*self.query, category='species')
+        species = oq.OntQuery(*self.query, category='species')
         mouse_result = species('mouse')  # -> OntTerm('NCBITaxon:10090', label='mouse')
 
         list(self.query.predicates)
@@ -74,26 +78,26 @@ class TestAll(unittest.TestCase):
             assert True, 'expect to fail'
 
     def test_term_query(self):
-        _query = ontquery.OntTerm.query
-        ontquery.OntTerm.query = self.query
+        _query = oq.OntTerm.query
+        oq.OntTerm.query = self.query
         try:
             OntTerm(label='brain')
             assert False, 'should not get here!'
         except TypeError:
             assert True, 'fails as expected'
 
-        ontquery.OntTerm.query = _query
+        oq.OntTerm.query = _query
 
         try:
             OntTerm(label='brain', prefix='UBERON')
             assert False, 'should not get here!'
-        except ontquery.NoExplicitIdError:
+        except oq.exceptions.NoExplicitIdError:
             assert True, 'fails as expected'
 
         try:
             OntTerm(label='dorsal plus ventral thalamus')
             assert False, 'should not get here!'
-        except ontquery.NoExplicitIdError:
+        except oq.exceptions.NoExplicitIdError:
             assert True, 'fails as expected'
 
         #t = next(OntTerm.query(term='midbrain reticular nucleus')).OntTerm
@@ -102,9 +106,9 @@ class TestAll(unittest.TestCase):
 
 
     def test_id(self):
-        ontquery.OntId('UBERON:0000955')
-        ontquery.OntId('http://purl.obolibrary.org/obo/UBERON_0000955')
-        ontquery.OntId(prefix='UBERON', suffix='0000955')
+        oq.OntId('UBERON:0000955')
+        oq.OntId('http://purl.obolibrary.org/obo/UBERON_0000955')
+        oq.OntId(prefix='UBERON', suffix='0000955')
 
     def test_predicates(self):
         self.query.raw = True
@@ -126,19 +130,19 @@ class TestAll(unittest.TestCase):
         assert isinstance(preds2, dict)
 
     def test_curies(self):
-        ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
-        ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
-        a = ontquery.OntCuries['new-prefix']
+        oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
+        oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
+        a = oq.OntCuries['new-prefix']
         try:
-            b = ontquery.OntCuries['not-a-prefix']
+            b = oq.OntCuries['not-a-prefix']
             assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
 
         try:
-            ontquery.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/fail/'
+            oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/fail/'
             assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
 
-        ontquery.OntId('new-prefix:working')
+        oq.OntId('new-prefix:working')

@@ -37,7 +37,7 @@ class ServiceBase:
         try:
             t = self.OntTerm(label='diffuse')
             raise AssertionError(f'should fail {t!r}')
-        except oq.OntQueryError as e:
+        except oq.exceptions.OntQueryError as e:
             pass
 
     def test_cache(self):
@@ -46,7 +46,7 @@ class ServiceBase:
 
 
 class TestIlx(ServiceBase, unittest.TestCase):
-    remote = oq.InterLexRemote(host='localhost', port='8505')
+    remote = oq.plugin.get('InterLex')(host='localhost', port='8505')
 
     def test_problem(self):
         curie = 'ILX:0101431'
@@ -59,8 +59,9 @@ class TestIlx(ServiceBase, unittest.TestCase):
         ser = t._graph.serialize(format='nifttl').decode()
         assert t.label, ser
 
+
 class TestSciGraph(ServiceBase, unittest.TestCase):
-    remote = oq.SciGraphRemote()
+    remote = oq.plugin.get('SciGraph')()
 
 
 class TestRdflib(ServiceBase, unittest.TestCase):
@@ -70,4 +71,4 @@ class TestRdflib(ServiceBase, unittest.TestCase):
     for proto_t in triples:
         g.add(rdflib.URIRef(OntId(e)) if ':' in e else rdflib.Literal(e) for e in proto_t)
 
-    remote = oq.rdflibLocal(g)
+    remote = oq.plugin.get('rdflib')(g)
