@@ -258,9 +258,16 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
             print(cls.__name__, 'will now repr with', cls.repr_args)
         setattr(cls, f'_{cls.__name__}__repr_level', next)
 
-    def set_next_repr(self, *repr_args):
-        self._oneshot_old_repr_args = self.repr_args
-        self.repr_args = repr_args
+    @classmethod
+    def set_next_repr(cls, *repr_args):
+        cls._oneshot_old_repr_args = cls.repr_args
+        cls.repr_args = repr_args
+
+    @classmethod
+    def reset_repr_args(cls):
+        if cls._oneshot_old_repr_args is not None:
+            cls.repr_args = cls._oneshot_old_repr_args
+            cls._oneshot_old_repr_args = None
 
     @property
     def _repr_level(self):
@@ -309,10 +316,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
 
     def __repr__(self):
         out = self._repr_base.format(**self._repr_args)
-        if self._oneshot_old_repr_args is not None:
-            self.repr_args = self._oneshot_old_repr_args
-            self._oneshot_old_repr_args = None
-
+        self.reset_repr_args()
         return out
 
 

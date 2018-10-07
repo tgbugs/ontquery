@@ -83,15 +83,15 @@ class TestAll(unittest.TestCase):
         ontquery.OntTerm.query = _query
 
         try:
-            OntTerm(label='brain')
+            OntTerm(label='brain', prefix='UBERON')
             assert False, 'should not get here!'
-        except ValueError:
+        except ontquery.NoExplicitIdError:
             assert True, 'fails as expected'
 
         try:
             OntTerm(label='dorsal plus ventral thalamus')
             assert False, 'should not get here!'
-        except ValueError:
+        except ontquery.NoExplicitIdError:
             assert True, 'fails as expected'
 
     def test_id(self):
