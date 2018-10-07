@@ -418,11 +418,14 @@ class OntTerm(OntId):
         i = None
         for i, result in enumerate(results_gen):
             if i > 0:
-                if i == 1:
-                    pass
-                    print(repr(TermRepr(**old_result)), '\n')
-                print(repr(TermRepr(**result)), '\n')
-                continue
+                if result.curie == old_result.curie:
+                    i = 0  # if we get the same record from multiple places it is ok
+                else:
+                    if i == 1:
+                        print(repr(TermRepr(**old_result)), '\n')
+                    print(repr(TermRepr(**result)), '\n')
+                    continue
+
             if i == 0:
                 old_result = result
 
@@ -644,7 +647,8 @@ class OntQuery:
                 #print(red.format('AAAAAAAAAA'), result)
                 if result:
                     yield result
-                    return  # FIXME order services based on which you want first for now, will work on merging later
+                    if result.label:
+                        return  # FIXME order services based on which you want first for now, will work on merging later
 
 
 class OntQueryCli(OntQuery):
@@ -1045,7 +1049,7 @@ class InterLexRemote(OntService):  # note to self
         rdll = rdflibLocal(graph)
 
         # TODO cases where ilx is preferred will be troublesome
-        maybe_out = list(rdll.query(curie=curie, label=label, predicates=predicates))
+        maybe_out = [r for r in rdll.query(curie=curie, label=label, predicates=predicates)]
         if maybe_out:
             out = maybe_out
         else:
@@ -1101,10 +1105,14 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                          #self.NIFRID.definingCitation:'definingCitation',
                         }
             o = None
+            owlClass = None
             for p, o in gen:
                 pn = translate.get(p, None)
                 if isinstance(o, self.rdflib.Literal):
                     o = o.toPython()
+                elif p == self.rdflib.RDF.type and o == self.rdflib.OWL.Class:
+                    owlClass = True
+
                 if pn is None:
                     # TODO translation and support for query result structure
                     # FIXME lists instead of klobbering results with mulitple predicates
@@ -1116,7 +1124,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 else:
                     out[pn] = o
 
-            if o is not None:
+            if o is not None and owlClass is not None:
                 yield QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
         else:
             for keyword, object in kwargs.items():
