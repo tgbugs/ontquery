@@ -1,6 +1,13 @@
+import sys
 from six import text_type
 from . import exceptions as exc
 from .utils import cullNone, red
+
+# FIXME ipython notebook?
+# this still seems wrong, I want to know not how the file is running
+# but whether the code being invoked when we call OntTerm has been
+# saved to disk
+interactive = getattr(sys, 'ps1', sys.flags.interactive)
 
 
 class dictclass(type):
@@ -70,7 +77,8 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                 try:
                     prefix, suffix = curie_ci.split(':')
                 except ValueError as e:
-                    raise ValueError(f'Could not split cuire {curie_ci!r} is it actually an identifier?') from e
+                    raise ValueError(f'Could not split curie {curie_ci!r} '
+                                     'is it actually an identifier?') from e
                 iri_ci = cls._make_iri(prefix, suffix)
 
         if curie is not None and curie != iri:
@@ -245,6 +253,7 @@ class OntTerm(OntId):
         kwargs['search'] = search
         kwargs['validated'] = validated
         kwargs['query'] = query
+        cls._oneshot_old_repr_args = None  # FIXME why does this fail in the hasattr case? below?!
         if curie_or_iri and 'labels' in kwargs:
             raise ValueError('labels= is not a valid keyword for results not returned by a query')
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
@@ -385,12 +394,12 @@ class OntTerm(OntId):
                     termRequests.append(makeRequest)
 
         elif i > 0:
-            raise exc.ManyResultsError(f'\nQuery {self.orig_kwargs} returned more than one result. Please review.\n')
-        elif noId:
-            #print(red.format(repr(self)))
+            raise exc.ManyResultsError(f'\nQuery {self.orig_kwargs} returned more than one result. '
+                                       'Please review.\n')
+        elif noId and not interactive:
             self.set_next_repr('curie', 'label')
             raise exc.NoExplicitIdError('Your term does not have a valid identifier.\n'
-                                    f'Please replace it with {self!r}')
+                                        f'Please replace it with {self!r}')
 
     def debug(self):
         """ return debug information """
