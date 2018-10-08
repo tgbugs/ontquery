@@ -1,4 +1,5 @@
 import sys
+from itertools import chain
 from six import text_type
 from . import exceptions as exc
 from .utils import cullNone, red
@@ -406,6 +407,17 @@ class OntTerm(OntId):
         if self._graph:
             print(self._graph.serialize(format='nifttl').decode())
 
+    @classmethod
+    def search(cls, expression, prefix=None, filters=tuple(), limit=40):
+        """ Something that actually sort of works """
+        OntTerm = cls
+        return sorted(set(next(OntTerm.query(term=s)).OntTerm
+                          for qr in OntTerm.query(search=expression,
+                                                  prefix=prefix, limit=limit)
+                          for s in chain(OntTerm(qr.iri).synonyms, (qr.label,))
+                          if all(f in s for f in filters)),
+                          key=lambda t:t.label)
+
     def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING', as_term=False):
         """ Retrieve additional metadata for the current term. If None is provided
             as the first argument the query runs against all predicates defined for
@@ -433,6 +445,8 @@ class OntTerm(OntId):
 
 class TermRepr(OntTerm):
     repr_arg_order = (('curie', 'label', 'synonyms'),)
+    repr_args = repr_arg_order[0]
+    _oneshot_old_repr_args = None
     __firsts = 'curie', 'iri'
 
     def __new__(cls, *args, **kwargs):

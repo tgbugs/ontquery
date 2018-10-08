@@ -146,6 +146,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         elif label:
             results = self.sgv.findByTerm(label, searchSynonyms=False, **qualifiers)
         elif search:
+            qualifiers['limit'] = 100  # FIXME deprecated issue
             results = self.sgv.searchByTerm(search, **qualifiers)
         elif abbrev:
             results = self.sgv.findByTerm(abbrev, searchSynonyms=True,
@@ -158,6 +159,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         # TODO deprecated handling
 
         # TODO transform result to expected
+        count = 0
         for result in results:
             if result['deprecated'] and not identifiers:
                 continue
@@ -181,6 +183,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              predicates=predicate_results,
                              source=self)
             yield qr
+            if count >= limit:  # FIXME deprecated issue
+                break
+            else:
+                count += 1
 
 
 class SciCrunchRemote(SciGraphRemote):

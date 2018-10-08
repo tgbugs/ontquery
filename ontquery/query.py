@@ -95,7 +95,7 @@ class OntQuery:
                 #print(red.format('AAAAAAAAAA'), result)
                 if result:
                     yield result
-                    if result.label:
+                    if search is None and term is None and result.label:
                         return  # FIXME order services based on which you want first for now, will work on merging later
 
 
