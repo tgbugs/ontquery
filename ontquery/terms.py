@@ -52,6 +52,9 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                       ('prefix', 'suffix'),
                       ('iri',))
     __firsts = 'curie', 'iri'  # FIXME bad for subclassing __repr__ behavior :/
+    class BadCurieError(Exception): pass
+    class UnknownPrefixError(Exception): pass
+
     def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
 
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
@@ -72,14 +75,14 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
                 curie_or_iri.startswith('file://')):
                 iri_ci = curie_or_iri
                 curie_ci = cls._namespaces.qname(iri_ci)
-                prefix, suffix = curie_ci.split(':')
+                prefix, suffix = curie_ci.split(':', 1)
             else:
                 curie_ci = curie_or_iri
                 try:
-                    prefix, suffix = curie_ci.split(':')
+                    prefix, suffix = curie_ci.split(':', 1)
                 except ValueError as e:
-                    raise ValueError(f'Could not split curie {curie_ci!r} '
-                                     'is it actually an identifier?') from e
+                    raise cls.BadCurieError(f'Could not split curie {curie_ci!r} '
+                                            'is it actually an identifier?') from e
                 iri_ci = cls._make_iri(prefix, suffix)
 
         if curie is not None and curie != iri:
@@ -97,10 +100,13 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         if iri is not None:
             # normalization step in case there is a longer prefix match
             curie_i = cls._namespaces.qname(iri)
-            prefix_i, suffix_i = curie_i.split(':')
+            prefix_i, suffix_i = curie_i.split(':', 1)
             #if prefix and prefix_i != prefix:
                 #print('Curie changed!', prefix + ':' + suffix, '->', curie_i)
             prefix, suffix = prefix_i, suffix_i
+
+        if ' ' in prefix or ' ' in suffix:
+            raise cls.BadCurieError(f'{prefix}:{suffix} has an invalid charachter in it!')
 
         self = super().__new__(cls, iri)
 
@@ -134,7 +140,7 @@ class OntId(text_type):  # TODO all terms singletons to prevent nastyness
         if prefix in namespaces:
             return namespaces[prefix] + suffix
         else:
-            raise KeyError(f'Unknown curie prefix: {prefix}')
+            raise cls.UnknownPrefixError(f'Unknown curie prefix: {prefix}')
 
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
