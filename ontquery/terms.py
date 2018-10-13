@@ -381,6 +381,8 @@ class OntTerm(OntId):
                 setattr(self, keyword, value)
             rargs = {k:v for k, v in self.orig_kwargs.items()
                      if k not in ('validated', 'query') and v is not None}
+            if 'curie_or_iri' in rargs:  # curei_or_iri not in repr_args
+                rargs['curie'] = self.curie
             self.set_next_repr(*rargs)
             if not self.iri:
                 for k, v in rargs.items():
