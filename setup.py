@@ -40,13 +40,13 @@ try:
         author_email='tgbugs@gmail.com',
         license='MIT',
         classifiers=[],
-        keywords='ontology scigraph interlex',
+        keywords='ontology terminology scigraph interlex term lookup',
         package_dir={'ontquery':'export'},
         packages=['ontquery', 'ontquery.plugins'],
         install_requires=[
         ],
-        extras_require={'dev':['pyontutils',
-        ]},
+        extras_require={'dev':['pyontutils',],
+                        'services':['rdflib', 'requests']},
         entry_points={
             'console_scripts': [
             ],
