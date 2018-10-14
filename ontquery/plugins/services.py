@@ -205,6 +205,7 @@ class SciCrunchRemote(SciGraphRemote):
     defaultEndpoint = 'https://scicrunch.org/api/1/scigraph'
     def __init__(self, api_key=None, apiEndpoint=defaultEndpoint, OntId=OntId):
         if api_key is None:
+            import os
             try:
                 api_key = os.environ['SCICRUNCH_API_KEY']
             except KeyError:
