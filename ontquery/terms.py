@@ -103,6 +103,8 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
             #if prefix and prefix_i != prefix:
                 #print('Curie changed!', prefix + ':' + suffix, '->', curie_i)
             prefix, suffix = prefix_i, suffix_i
+            if not suffix.startswith('//') and curie_i == iri:
+                raise ValueError(f'You have provided a curie {curie_i} as an iri!')
 
         if ' ' in prefix or ' ' in suffix:
             raise cls.BadCurieError(f'{prefix}:{suffix} has an invalid charachter in it!')

@@ -297,13 +297,14 @@ class InterLexRemote(OntService):  # note to self
             return o
 
         if iri:
-            icurie = OntCuries.qname(iri)
+            oiri = OntId(iri=iri)
+            icurie = oiri.curie
             if curie and icurie != curie:
                 raise ValueError(f'curie and curied iri do not match {curie} {icurie}')
             else:
                 curie = icurie
         elif curie:
-            iri = OntId(iri).curie
+            iri = OntId(curie).iri
 
         if curie:
             if curie.startswith('ILX:') and iri:
@@ -377,7 +378,7 @@ class InterLexRemote(OntService):  # note to self
                                              if k != 'curie' })
                     return
 
-        yield from out
+            yield from out
 
 
 class rdflibLocal(OntService):  # reccomended for local default implementation

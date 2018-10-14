@@ -57,14 +57,15 @@ class ServiceBase:
     def test_cache(self):
         t1 = self.OntTerm('BIRNLEX:796')
         t2 = self.OntTerm('BIRNLEX:796')
+        assert t1.label and t2.label, f'no lable!? {t1.__dict__} {t2.__dict__}'
 
     def test_curie_consistency(self):
         """ additional check to make sure that all curies are normalized on the way in """
         t = self.OntTerm('RO:0000087')
 
 
-class TestIlx(ServiceBase, unittest.TestCase):
-    remote = oq.plugin.get('InterLex')(host='localhost', port='8505')
+class _TestIlx(ServiceBase):
+    remote = oq.plugin.get('InterLex')(host='uri.interlex.org')
 
     def test_problem(self):
         curie = 'ILX:0101431'
@@ -88,6 +89,14 @@ class TestIlx(ServiceBase, unittest.TestCase):
         qr.OntTerm
         #wat = self.OntTerm(label='deep')  # would also trigger the issue (and then fail)
 
+    def test_z_bad_curie(self):
+        qr = next(self.OntTerm.query.services[0].query(curie='BIRNLEX:796'))
+
+
+if 'CI' not in os.environ:  # production doesn't have all the required features yet
+    class TestIlx(_TestIlx, unittest.TestCase):
+        remote = oq.plugin.get('InterLex')(host='localhost', port='8505')
+
 
 class TestSciGraph(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('SciGraph')(api_key=os.environ.get('SCICRUNCH_API_KEY', None))
@@ -105,7 +114,10 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
 class TestRdflib(ServiceBase, unittest.TestCase):
     g = rdflib.Graph()
     triples = (('UBERON:0000955', 'rdf:type', 'owl:Class'),
-               ('UBERON:0000955', 'rdfs:label', 'brain'),)
+               ('UBERON:0000955', 'rdfs:label', 'brain'),
+               ('BIRNLEX:796', 'rdf:type', 'owl:Class'),
+               ('BIRNLEX:796', 'rdfs:label', 'Brain'),
+              )
     for proto_t in triples:
         g.add(rdflib.URIRef(OntId(e)) if ':' in e else rdflib.Literal(e) for e in proto_t)
 

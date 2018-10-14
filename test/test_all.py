@@ -35,8 +35,7 @@ class TestAll(unittest.TestCase):
         #oq.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
             services = oq.plugin.get('SciCrunch')(api_key=config.get_api_key()),
-        else:
-            services = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph'),
+        else: services = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph'),
 
         self.query = oq.OntQueryCli(*services)
         oq.OntTerm.query = oq.OntQuery(*services)
@@ -151,3 +150,16 @@ class TestAll(unittest.TestCase):
         c = oq.OntId(rdflib.URIRef(oq.OntId('RO:0000087')))
         cl = oq.OntId('RO:0000087')
         assert c.curie == cl.curie, f'{c!r} != {cl!r}'
+
+    def test_ontid_iri(self):
+        oq.OntId(iri='http://uri.neuinfo.org/nifa/nifstd/birnleex_796')
+
+    def test_ontid_curie(self):
+        oq.OntId(curie='BIRNLEX:796')
+
+    def test_ontid_curie_as_iri(self):
+        try:
+            oq.OntId(iri='BIRNLEX:796')
+            raise AssertionError('should have failed with ValueError')
+        except ValueError:
+            pass

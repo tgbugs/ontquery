@@ -105,7 +105,8 @@ class OntQueryCli(OntQuery):
     def __init__(self, *services, prefix=None, category=None, query=None):
         if query is not None:
             if services:
-                raise ValueError('*services and query= are mutually exclusive arguments, please remove one')
+                raise ValueError('*services and query= are mutually exclusive arguments, '
+                                 'please remove one')
 
             self._services = query.services
         else:
@@ -115,7 +116,9 @@ class OntQueryCli(OntQuery):
     def __call__(self, *args, **kwargs):
         def func(result):
             if result.hasOntTerm and not self.raw:
-                return result.OntTerm
+                t = result.OntTerm
+                t.set_next_repr('curie', 'label')
+                return t
             else:
                 return result
 
@@ -130,9 +133,9 @@ class OntQueryCli(OntQuery):
                 old_result = result
 
         if i is None:
-            print(f'\nQuery {kwargs} returned no results. Please change your query.\n')
+            print(f'\nCliQuery {args} {kwargs} returned no results. Please change your query.\n')
         elif i > 0:
-            print(f'\nQuery {kwargs} returned more than one result. Please review.\n')
+            print(f'\nCliQuery {args} {kwargs} returned more than one result. Please review.\n')
         else:
             return func(result)
 
