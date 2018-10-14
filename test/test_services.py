@@ -1,3 +1,4 @@
+import os
 import unittest
 import rdflib
 import ontquery as oq
@@ -73,7 +74,11 @@ class TestIlx(ServiceBase, unittest.TestCase):
 
     def test_no_label(self):
         t = self.OntTerm('NLX:60355')
-        ser = t._graph.serialize(format='nifttl').decode()
+        try:
+            ser = t._graph.serialize(format='nifttl').decode()
+        except rdflib.plugin.PluginException:  # if pyontutils is absent
+            ser = t._graph.serialize(format='turtle').decode()
+
         assert t.label, ser
 
     def test_query_ot(self):
@@ -85,7 +90,7 @@ class TestIlx(ServiceBase, unittest.TestCase):
 
 
 class TestSciGraph(ServiceBase, unittest.TestCase):
-    remote = oq.plugin.get('SciGraph')()
+    remote = oq.plugin.get('SciGraph')(api_key=os.environ.get('SCICRUNCH_API_KEY', None))
 
     def test_inverse(self):
         t = self.OntTerm('UBERON:0000955')

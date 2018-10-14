@@ -105,7 +105,6 @@ class TestAll(unittest.TestCase):
         t = next(OntTerm.query(term='serotonin', prefix='CHEBI')).OntTerm
         assert t != OntTerm
 
-
     def test_id(self):
         oq.OntId('UBERON:0000955')
         oq.OntId('http://purl.obolibrary.org/obo/UBERON_0000955')

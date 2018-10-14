@@ -1,4 +1,3 @@
-import requests
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
@@ -9,16 +8,24 @@ except ModuleNotFoundError:
     from . import scigraph_client as scigraph
 
 try:
-    import rdflib
-except ModuleNotFoundError:
+    import requests
+except ModuleNotFoundError as requests_missing:
     pass  # we warn later if this fails
 
+try:
+    import rdflib
+except ModuleNotFoundError as rdflib_missing:
+    pass  # we warn later if this fails
 
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
     known_inverses = ('', ''),
     def __init__(self, api_key=None, apiEndpoint=None, OntId=OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
+        try:
+            requests
+        except NameError:
+            raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
         self.basePath = apiEndpoint
         self.api_key = api_key
         self.OntId = OntId
@@ -51,7 +58,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
         self.categories = self.sgv.getCategories()
         self._predicates = sorted(set(self.sgg.getRelationships()))
-        self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))
+        #self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))  # only on newer versions, update when we switch production over
+        self._onts = sorted(o['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'text/plain'))
         super().setup()
 
     def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
@@ -196,8 +204,15 @@ class SciCrunchRemote(SciGraphRemote):
     known_inverses = ('partOf:', 'hasPart:'),
     defaultEndpoint = 'https://scicrunch.org/api/1/scigraph'
     def __init__(self, api_key=None, apiEndpoint=defaultEndpoint, OntId=OntId):
+        if api_key is None:
+            try:
+                api_key = os.environ['SCICRUNCH_API_KEY']
+            except KeyError:
+                pass
+
         if api_key is None and apiEndpoint == self.defaultEndpoint:
             raise ValueError('You have not set an API key for the SciCrunch API!')
+
         super().__init__(api_key=api_key, apiEndpoint=apiEndpoint, OntId=OntId)
 
     def termRequest(self, term):
@@ -233,6 +248,10 @@ class InterLexRemote(OntService):  # note to self
     known_inverses = ('', ''),
 
     def __init__(self, *args, host='uri.interlex.org', port='', **kwargs):
+        try:
+            requests
+        except NameError:
+            raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
         self.host = host
         self.port = port
         self._graph_cache = {}
@@ -372,7 +391,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         try:
             self.predicate_mapping = {'label':rdflib.RDFS.label,}
         except NameError:
-            raise ModuleNotFoundError('You need to install >=rdflib-5.0.0 to use this service') from e
+            raise ModuleNotFoundError('You need to install >=rdflib-5.0.0 to use this service') from rdflib_missing
         super().__init__()
 
     def add(self, iri, format):
