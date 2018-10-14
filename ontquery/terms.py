@@ -1,6 +1,5 @@
 import sys
 from itertools import chain
-from six import text_type
 from . import exceptions as exc
 from .utils import cullNone, red
 
@@ -46,7 +45,7 @@ class OntCuries(metaclass=dictclass):
         return iri
 
 
-class OntId(text_type):  # TODO all terms singletons to prevent nastyness
+class OntId(str):  # TODO all terms singletons to prevent nastyness
     _namespaces = OntCuries  # overwrite when subclassing to switch curies...
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
@@ -289,7 +288,7 @@ class OntTerm(OntId):
         try:
             self = super().__new__(cls, **kwargs)
         except StopIteration:  # no iri found
-            self = text_type.__new__(cls, '')  # issue will be dealt with downstream
+            self = str.__new__(cls, '')  # issue will be dealt with downstream
 
         self.orig_kwargs = orig_kwargs
         self.kwargs = kwargs
