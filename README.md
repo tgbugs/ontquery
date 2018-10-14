@@ -48,7 +48,10 @@ This workflow works for a variety of categories:
 * institution (e.g. 'UC San Francisco', 'Brown University')
 * disease (e.g. "Parkinson's Disease", 'ALS')
 
-
+# Building for release
+`python setup.py sdist --release && python setup.py bdist_wheel --universal --release`
+Building a release requires a working install of pyontutils in order to build the
+scigraph client library. The `--release` tells setup to build the scigraph client.
 
 # Related issues
 
