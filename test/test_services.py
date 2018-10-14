@@ -92,6 +92,11 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
         t('hasPart:')
         t('partOf:')
 
+    def test_depth(self):
+        t = self.OntTerm('UBERON:0000955')
+        t('hasPart:', depth=2)
+
+
 class TestRdflib(ServiceBase, unittest.TestCase):
     g = rdflib.Graph()
     triples = (('UBERON:0000955', 'rdf:type', 'owl:Class'),

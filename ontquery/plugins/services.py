@@ -1,14 +1,17 @@
-import rdflib
 import requests
-from urllib.parse import quote
-from pyontutils import scigraph
-from pyontutils.utils import ordered, TermColors as tc
-from pyontutils.closed_namespaces import rdf, owl
-#from pyontutils.core import NIFRID
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
 from ontquery.services import OntService
+try:
+    from pyontutils import scigraph
+except ModuleNotFoundError:
+    from . import scigraph_client as scigraph
+
+try:
+    import rdflib
+except ModuleNotFoundError:
+    pass  # we warn later if this fails
 
 
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
@@ -75,7 +78,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if depth > 1:
             #subjects = set(subject.curie)
             seen = {subject.curie}
-            for i, e in enumerate(ordered(subject.curie, edges, inverse=inverse)):
+            for i, e in enumerate(self.sgg.ordered(subject.curie, edges, inverse=inverse)):
                 #print('record number:', i)  # FIXME
                 # FIXME need to actually get the transitive closure, this doesn't actually work
                 #if e[s] in subjects:
@@ -366,7 +369,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def __init__(self, graph, OntId=OntId):
         self.OntId = OntId
         self.graph = graph
-        self.predicate_mapping = {'label':rdflib.RDFS.label,}
+        try:
+            self.predicate_mapping = {'label':rdflib.RDFS.label,}
+        except NameError:
+            raise ModuleNotFoundError('You need to install >=rdflib-5.0.0 to use this service') from e
         super().__init__()
 
     def add(self, iri, format):
@@ -424,7 +430,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         #kwargs['search'] = search
         #supported = sorted(QueryResult(kwargs))
         if all_classes:
-            for iri in self.graph[:rdf.type:owl.Class]:
+            for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
                 if isinstance(iri, rdflib.URIRef):  # no BNodes
                     yield from self.by_ident(iri, None, kwargs)
         elif iri is not None or curie is not None:
