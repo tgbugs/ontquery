@@ -1,6 +1,13 @@
 import os
+import sys
 import shutil
 from setuptools import setup
+
+RELEASE = '--release' in sys.argv
+if RELEASE:
+    sys.argv.remove('--release')
+
+scigraph_client = 'ontquery/plugins/scigraph_client.py'
 
 files = [
     'ontquery/__init__.py',
@@ -13,6 +20,10 @@ files = [
     'ontquery/terms.py',
     'ontquery/utils.py',
 ]
+
+if RELEASE:
+    os.system('scigraph-codegen -a https://scicrunch.org/api/1/scigraph -o ' + scigraph_client)
+    files.append(scigraph_client)
 
 try:
     os.mkdir('export')
@@ -31,7 +42,7 @@ try:
         classifiers=[],
         keywords='ontology scigraph interlex',
         package_dir={'ontquery':'export'},
-        packages=['ontquery'],
+        packages=['ontquery', 'ontquery.plugins'],
         install_requires=[
         ],
         extras_require={'dev':['pyontutils',
@@ -44,3 +55,5 @@ try:
 
 finally:
     shutil.rmtree('export')
+    if RELEASE:
+        os.remove(scigraph_client)

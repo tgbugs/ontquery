@@ -1,0 +1,6 @@
+recursive-exclude export *
+recursive-exclude pyontutils.egg-info *
+exclude .gitignore
+exclude .travis.yml
+exclude MANIFEST.in
+include ontquery/plugins/scigraph_client.py
