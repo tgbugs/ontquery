@@ -21,6 +21,7 @@ files = [
     'ontquery/query.py',
     'ontquery/services.py',
     'ontquery/terms.py',
+    'ontquery/trie.py',
     'ontquery/utils.py',
 ]
 
@@ -35,7 +36,7 @@ try:
         shutil.copyfile(f, f.replace('ontquery', 'export'))
     setup(
         name='ontquery',
-        version='0.0.4',
+        version='0.0.5',
         description='a framework querying ontology terms',
         long_description=long_description,
         long_description_content_type='text/markdown',
