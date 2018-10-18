@@ -1,6 +1,6 @@
 import sys
 from itertools import chain
-from . import exceptions as exc
+from . import exceptions as exc, trie
 from .utils import cullNone, red
 
 # FIXME ipython notebook?
@@ -32,13 +32,60 @@ class OntCuries(metaclass=dictclass):
         #if not hasattr(cls, '_' + cls.__name__ + '_dict'):
         if not hasattr(cls, '_dict'):
             cls._dict = {}
-        cls._dict.update(dict(*args, **kwargs))
+            cls._n_to_p = {}
+            cls._strie = {}
+            cls._trie = {}
+
+        #cls._dict.update(dict(*args, **kwargs))
+        for p, namespace in dict(*args, **kwargs).items():
+            sn = str(namespace)
+            trie.insert_trie(cls._trie, sn)
+            cls._dict[p] = sn
+            cls._n_to_p[sn] = p
+
+        cls._pn = sorted(cls._dict.items(), key=lambda kv: len(kv[1]), reverse=True)
         return cls._dict
 
     @classmethod
     def qname(cls, iri):
+        # while / is not *technically* allowed in prefix names by ttl
+        # RDFa and JSON-LD do allow it, so we are going to allow it too
+        # TODO cache the output mapping?
+        try:
+            namespace, suffix = trie.split_uri(iri)
+        except ValueError as e:
+            try:
+                namespace = str(iri)
+                prefix = cls._n_to_p[namespace]
+                return prefix + ':'
+            except KeyError as e:
+                return iri  # can't split it then we're in trouble probably
+
+        if namespace not in cls._strie:
+            trie.insert_strie(cls._strie, cls._trie, namespace)
+
+        if cls._strie[namespace]:
+            pl_namespace = trie.get_longest_namespace(cls._strie[namespace], iri)
+            if pl_namespace is not None:
+                namespace = pl_namespace
+                suffix = iri[len(namespace):]
+
+        try:
+            prefix = cls._n_to_p[namespace]
+            return ':'.join((prefix, suffix))
+        except KeyError:
+            new_iri = namespace[:-1]
+            sep = namespace[-1]
+            qname = cls.qname(new_iri)
+            # this works because when we get to an unsplitable case we simply fail
+            # caching can help with performance here because common prefixes that
+            # have not been shortened will show up in the cache
+            return qname + sep + suffix
+
+    @classmethod
+    def _qname_old(cls, iri):
         # sort in reverse to match longest matching namespace first TODO/FIXME trie
-        for prefix, namespace in sorted(cls._dict.items(), key=lambda kv: len(kv[1]), reverse=True):
+        for prefix, namespace in cls._pn:
             if iri.startswith(namespace):
                 suffix = iri[len(namespace):]
                 return ':'.join((prefix, suffix))
