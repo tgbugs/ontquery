@@ -54,7 +54,7 @@ class TestQname(unittest.TestCase):
 
     @staticmethod
     def helper(iri, prefix, suffix):
-            expect = prefix + ':' + suffix
-            got = oq.OntCuries.qname(iri)
-            old = oq.OntCuries._qname_old(iri)
-            return expect, got, old
+        expect = prefix + ':' + suffix
+        got = oq.OntCuries.qname(iri)
+        old = oq.OntCuries._qname_old(iri)
+        return expect, got, old
