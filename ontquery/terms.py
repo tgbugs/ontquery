@@ -36,14 +36,15 @@ class OntCuries(metaclass=dictclass):
             cls._strie = {}
             cls._trie = {}
 
-        #cls._dict.update(dict(*args, **kwargs))
         for p, namespace in dict(*args, **kwargs).items():
             sn = str(namespace)
             trie.insert_trie(cls._trie, sn)
             cls._dict[p] = sn
             cls._n_to_p[sn] = p
 
-        cls._pn = sorted(cls._dict.items(), key=lambda kv: len(kv[1]), reverse=True)
+        if args or kwargs:
+            cls._pn = sorted(cls._dict.items(), key=lambda kv: len(kv[1]), reverse=True)
+
         return cls._dict
 
     @classmethod
