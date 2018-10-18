@@ -3,6 +3,9 @@ import sys
 import shutil
 from setuptools import setup
 
+with open('README.md', 'rt') as f:
+    long_description = f.read()
+
 RELEASE = '--release' in sys.argv
 if RELEASE:
     sys.argv.remove('--release')
@@ -29,12 +32,13 @@ try:
     os.mkdir('export')
     os.mkdir('export/plugins')
     for f in files:
-        shutil.copyfile(f, f.replace('ontquery','export'))
+        shutil.copyfile(f, f.replace('ontquery', 'export'))
     setup(
         name='ontquery',
-        version='0.0.3',
+        version='0.0.4',
         description='a framework querying ontology terms',
-        long_description=' ',
+        long_description=long_description,
+        long_description_content_type='text/markdown',
         url='https://github.com/tgbugs/ontquery',
         author='Tom Gillespie',
         author_email='tgbugs@gmail.com',
