@@ -468,6 +468,12 @@ class OntTerm(OntId):
     def search(cls, expression, prefix=None, filters=tuple(), limit=40):
         """ Something that actually sort of works """
         OntTerm = cls
+        if expression is None and prefix is not None:
+            # FIXME bad convention
+            return sorted(qr.OntTerm
+                          for qr in OntTerm.query(search=expression,
+                                                  prefix=prefix, limit=limit))
+
         return sorted(set(next(OntTerm.query(term=s)).OntTerm
                           for qr in OntTerm.query(search=expression,
                                                   prefix=prefix, limit=limit)

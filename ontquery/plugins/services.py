@@ -421,12 +421,15 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     }
         o = None
         owlClass = None
+        owl = rdflib.OWL
         for p, o in gen:
             pn = translate.get(p, None)
             if isinstance(o, rdflib.Literal):
                 o = o.toPython()
-            elif p == rdflib.RDF.type and o == rdflib.OWL.Class:
-                owlClass = True
+            #elif p == rdflib.RDF.type and o == owl.Class:
+            elif p == rdflib.RDF.type and o in (owl.Class, owl.ObjectProperty,
+                                                owl.DatatypeProperty, owl.AnnotationProperty):
+                owlClass = True  # FIXME ...
 
             if pn is None:
                 # TODO translation and support for query result structure
@@ -442,11 +445,31 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         if o is not None and owlClass is not None:
             yield QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
 
-    def query(self, iri=None, curie=None, label=None, predicates=None, all_classes=False, **kwargs):
+    def _prefix(self, iri):
+        try:
+            prefix, _, _ = self.graph.compute_qname(iri, generate=False)
+            return prefix
+        except KeyError:
+            return None
+
+    def query(self, iri=None, curie=None, label=None, predicates=None,
+              search=None, prefix=None, all_classes=False, **kwargs):
+        if prefix is not None and all(a is None for a in (iri, curie, label)):
+            iri_prefix = self.graph.namespace_manager.store.namespace(prefix)
+            if iri_prefix is not None:
+                # TODO is this faster or is shortening? this seems like it might be faster ...
+                # unless the graph has it all cached
+                for _iri in sorted(u for u in set(e for t in self.graph for e in t
+                                               if isinstance(e, rdflib.URIRef))
+                                if self._prefix(u) == prefix):
+                    yield from self.query(iri=_iri)
+                return
+
         # right now we only support exact matches to labels FIXME
         kwargs['curie'] = curie
         kwargs['iri'] = iri
         kwargs['label'] = label
+
         #kwargs['term'] = term
         #kwargs['search'] = search
         #supported = sorted(QueryResult(kwargs))
