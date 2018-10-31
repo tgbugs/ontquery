@@ -396,6 +396,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             raise ModuleNotFoundError('You need to install >=rdflib-5.0.0 to use this service') from rdflib_missing
         super().__init__()
 
+    @property
+    def _onts(self):
+        yield from self.graph[:rdflib.RDF.type:rdflib.OWL.Ontology]
+
     def add(self, iri, format):
         pass
 

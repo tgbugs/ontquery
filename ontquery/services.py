@@ -6,7 +6,8 @@ class OntService:
         add ontology, and list ontologies methods for a given type of endpoint. """
 
     def __init__(self):
-        self._onts = []
+        if not hasattr(self, '_onts'):
+            self._onts = []
         self.started = False
 
     def add(self, iri):  # TODO implement with setter/appender?
