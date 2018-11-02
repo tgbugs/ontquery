@@ -1,7 +1,9 @@
+import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
 from ontquery.services import OntService
+
 try:
     from pyontutils import scigraph
 except ModuleNotFoundError:
@@ -405,7 +407,16 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
     def setup(self):
         # graph is already set up...
+        # assume that the graph is static for these
+        self._curies = {cp:ip for cp, ip in self.graph.namespaces()}
         super().setup()
+
+    @property
+    def curies(self):
+        if not self.started:
+            self.setup()
+
+        return self._curies
 
     @property
     def predicates(self):
@@ -493,6 +504,52 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                         return  # FIXME we can only search one thing at a time... first wins
 
 
+class StaticIrisRemote(rdflibLocal):
+    """ Create a Local from a remote by fetching the content at that iri """
+    persistent_cache = False  # TODO useful for nwb usecase
+    def __init__(self, *iris, OntId=OntId):
+        self.graph = rdflib.ConjunctiveGraph()
+        for iri in iris:
+            # TODO filetype detection from interlex
+            resp = requests.get(iri)
+            if resp.ok:
+                ttl = resp.content
+                self.graph.parse(data=ttl, format='turtle')
+            else:
+                raise exc.FetchingError(f'Could not fetch {iri} {resp.status_code} {resp.reason}')
+
+        super().__init__(self.graph, OntId=OntId)
+
+
+class GitHubRemote(StaticIrisRemote):  # TODO very incomplete
+    """ Create a Local from a file on github from group, repo, and filename """
+    base_iri = ('https://raw.githubusercontent.com/'
+                '{group}/{repo}/{branch_or_commit}/{filepath}')
+    def __init__(self, group, repo, *filepaths,
+                 branch='master',
+                 commit=None,  # mutually exclusive with branch, or error on commit not on branch?
+                 branches_or_commits=('master',),
+                 OntId=OntId):
+        """ filepath from the working directory no leading slash """
+        # TODO > 1 group, there are too many combinations here
+        # use case would be to load all the relevant files from each of the
+        # branches parcellation, neurons, methods, sparc
+        # to do this with scigraph we could have a function that produced
+        # the yaml template that loads the output of self.iris
+        self.filepaths = filepaths
+        self.groups_repos_branches = (group, repo, branch),
+        super().__init__(*self.iris, OntId=OntId)
+
+    @property
+    def iris(self):
+        for group, repo, branch_or_commit in self.groups_repos_branches:
+            for filepath in self.filepaths:
+                yield self.base_iri.format(group=group,
+                                           repo=repo,
+                                           branch_or_commit=branch_or_commit,
+                                           filepath=filepath)
+
+
 def main():
     import os
     from IPython import embed
@@ -556,6 +613,7 @@ def main():
 
     test(OntId)
     asdf = test(OntTerm)
+
 
 if __name__ == '__main__':
     main()

@@ -16,3 +16,7 @@ class NoExplicitIdError(OntQueryError):
 
 class ShouldNotHappenError(OntQueryError):
     pass
+
+
+class FetchingError(OntQueryError):
+    """ A really good looking error you've got there! """

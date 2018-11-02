@@ -49,4 +49,6 @@ register('rdflib', 'ontquery.plugins.services', 'rdflibLocal')
 register('InterLex', 'ontquery.plugins.services', 'InterLexRemote')
 register('SciGraph', 'ontquery.plugins.services', 'SciGraphRemote')
 register('SciCrunch', 'ontquery.plugins.services', 'SciCrunchRemote')
+register('GitHub', 'ontquery.plugins.services', 'GitHubRemote')
+register('iris', 'ontquery.plugins.services', 'StaticIriRemote')
 
