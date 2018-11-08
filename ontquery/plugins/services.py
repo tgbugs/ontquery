@@ -3,6 +3,7 @@ from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
 from ontquery.services import OntService
+from . import interlex_client
 
 try:
     from pyontutils import scigraph
@@ -267,6 +268,8 @@ class InterLexRemote(OntService):  # note to self
             else:
                 self.api_key = api_key
 
+        self.ilx_cli = interlex_client(api_key = self.api_key)
+
         self.apiEndpoint = apiEndpoint
 
         try:
@@ -307,9 +310,45 @@ class InterLexRemote(OntService):  # note to self
                   predicates: dict=None):
         return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
 
+    def add_pde(self, type, label, subThingOf: str = None, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
+        server_populated_output = self.add_entity(
+            type = type,
+            label = label,
+            subThingOf = subThingOf,
+            definition = definition,
+            synonyms = synonyms,
+            comment = comment,
+            predicates = predicates,
+        )
+        return QueryResult(
+             query_args = {},
+             iri=None,
+             curie=None,
+             label = server_populated_output['label'],
+             labels=tuple(),
+             abbrev=None,  # TODO
+             acronym=None,  # TODO
+             definition=None,
+             synonyms= tuple([syn['literal'] for syn in server_populated_output['synonyms']]),
+             deprecated=None,
+             prefix=None,
+             category=None,
+             predicates=None,  # FIXME dict
+             _graph=None,
+             source=None,
+        )
+
     def add_entity(self, type, subThingOf, label, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
-        # type: term, annotation, relationship, cde, fde, pde
-        pass
+        server_populated_output = self.ilx_cli.add_entity(
+            label = label,
+            type = type,
+            superclass = subThingOf,
+            definition = definition,
+            commit = commit,
+            synonyms = synonyms,
+        )
+        # TODO: need to process the annotatations eventually
+        return server_populated_output
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
