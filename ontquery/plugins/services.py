@@ -262,6 +262,11 @@ class InterLexRemote(OntService):  # note to self
             except KeyError:
                 pass
 
+            if api_key is None and apiEndpoint == self.defaultEndpoint:
+                raise ValueError('You have not set an API key for the SciCrunch API!')
+            else:
+                self.api_key = api_key
+
         self.apiEndpoint = apiEndpoint
 
         try:
