@@ -279,6 +279,19 @@ class InterLexRemote(OntService):  # note to self
     def predicates(self):
         return {}  # TODO
 
+    def add_class(self,
+                  subClassOf=None,
+                  label=None,
+                  definition=None,
+                  synonyms=tuple(),
+                  comment=None,
+                  predicates: dict=None):
+        return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
+
+    def add(self, type, subThingOf, label, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
+        # type: term, annotation, relationship, cde, fde, pde
+        pass
+
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
