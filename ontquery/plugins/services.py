@@ -249,14 +249,28 @@ class SciCrunchRemote(SciGraphRemote):
 
 class InterLexRemote(OntService):  # note to self
     known_inverses = ('', ''),
+    defaultEndpoint = 'https://scicrunch.org/api/1/'
+    def __init__(self, *args, api_key=None, apiEndpoint=defaultEndpoint, host='uri.interlex.org', port='',
+                 user_curies: dict={'ILX', 'http://uri.interlex.org/base/ilx_'},  # FIXME hardcoded
+                 **kwargs):
+        """ user_curies is a local curie mapping from prefix to a uri
+            This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
+        if api_key is None:
+            import os
+            try:
+                api_key = os.environ.get('INTERLEX_API_KEY', os.environ['SCICRUNCH_API_KEY'])
+            except KeyError:
+                pass
 
-    def __init__(self, *args, host='uri.interlex.org', port='', **kwargs):
+        self.apiEndpoint = apiEndpoint
+
         try:
             requests
         except NameError:
             raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
         self.host = host
         self.port = port
+        self.user_curies = user_curies
         self._graph_cache = {}
 
         self.Graph = rdflib.Graph
@@ -288,8 +302,13 @@ class InterLexRemote(OntService):  # note to self
                   predicates: dict=None):
         return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
 
-    def add(self, type, subThingOf, label, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
+    def add_entity(self, type, subThingOf, label, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
         # type: term, annotation, relationship, cde, fde, pde
+        pass
+
+    def add_triple(self, subject, predicate, object):
+        """ Triple of curied or full iris to add to graph.
+            Subject should be an interlex"""
         pass
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None, **_):
