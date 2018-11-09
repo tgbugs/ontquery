@@ -14,7 +14,7 @@ For example in bash `export SCICRUNCH_API_KEY=my-api-key`.
 
 See https://github.com/tgbugs/ontquery/blob/db8cad7463704bce9010651c3744452aa5370114/ontquery/__init__.py#L557-L558 for how to pass the key in.
 
-# Usage
+# SciGraphRemote Usage
 ```python
 from ontquery import OntQuery, SciGraphRemote, OntTerm, OntCuries
 
@@ -58,3 +58,28 @@ scigraph client library. The `--release` tells setup to build the scigraph clien
 https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-368741867
 
 https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-369215854
+
+
+# InterLexRemote Usage
+
+```python
+from ontquery.plugins.services import InterLexRemote
+
+api_key = os.environ['INTERLEX_API_KEY']
+ilx_cli = InterLexRemote(
+    api_key = api_key,
+    apiEndpoint = 'https://beta.scicrunch.org',
+)
+server_populated_output = services_cli.add_entity(
+    label = 'Label of entity you wish to create',
+    type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
+    definition = 'Entities definition',
+    comment = 'A comment to help understand entity',
+    subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
+    synonyms = ['synonym1', 'synonym2', 'etc'],
+    predicates = {
+        # annotation_type_ilx_id : 'annotation_value',
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
+    }
+)
+```
