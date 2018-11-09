@@ -267,7 +267,10 @@ class InterLexRemote(OntService):  # note to self
         else:
             self.api_key = api_key
 
-        self.ilx_cli = InterLexClient(api_key = self.api_key)
+        self.ilx_cli = InterLexClient(
+            api_key = self.api_key,
+            base_url = apiEndpoint,
+        )
 
         self.apiEndpoint = apiEndpoint
 
@@ -343,28 +346,29 @@ class InterLexRemote(OntService):  # note to self
             type = type,
             superclass = subThingOf,
             definition = definition,
-            commit = commit,
+            comment = comment,
             synonyms = synonyms,
         )
         ilx_url_prefix = 'http://uri.interlex.org/base/'
-        for pred, objs in predicates.items():
-            if not isinstance(objs, list):
-                objs = [objs]
-            for obj in objs:
-                # server output doesnt include their ILX IDs ... so it's not worth getting
-                self.add_annotation(
-                    subject = ilx_url_prefix + server_populated_output['ilx'],
-                    # TODO: predicate will be a ilx_url but we also want to convert curies?
-                    predicate = pred,
-                    object = obj,
-                )
+        if predicates:
+            for pred, objs in predicates.items():
+                if not isinstance(objs, list):
+                    objs = [objs]
+                for obj in objs:
+                    # server output doesnt include their ILX IDs ... so it's not worth getting
+                    self.add_annotation(
+                        subject = ilx_url_prefix + server_populated_output['ilx'],
+                        # TODO: predicate will be a ilx_url but we also want to convert curies?
+                        predicate = pred,
+                        object = obj,
+                    )
         return server_populated_output
 
     def add_annotation(self, subject, predicate, object):
         server_populated_output = self.ilx_cli.add_annotation(
             term_ilx_id = subject,
             annotation_type_ilx_id = predicate,
-            annotation_value = subject,
+            annotation_value = object,
         )
 
     def add_triple(self, subject, predicate, object):
