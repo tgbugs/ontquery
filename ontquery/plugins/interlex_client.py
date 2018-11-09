@@ -289,6 +289,12 @@ class InterLexClient:
             exit(
                 'Unexpected key(s): ' + str(set(entity) - options_in_entity)
             )
+        entity['type'] = entity['type'].lower() # BUG: server only takes lowercase
+        if entity['type'] not in ['term', 'relationship', 'annotation', 'cde', 'fde', 'pde']:
+            exit(
+                'Entity should be one of the following: ' +
+                'term, relationship, annotation, cde, fde, pde'
+            )
         if entity.get('superclass'):
             entity = self.process_superclass(entity)
         if entity.get('synonyms'):
