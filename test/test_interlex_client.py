@@ -6,7 +6,7 @@ import string
 
 
 sci = InterlexClient(
-    api_key = os.environ.get('SCICRUNCH_API_KEY'),
+    api_key = os.environ.get('INTERLEX_API_KEY'),
     base_url = 'https://beta.scicrunch.org',
 )
 
