@@ -259,14 +259,13 @@ class InterLexRemote(OntService):  # note to self
         if api_key is None:
             import os
             try:
-                api_key = os.environ.get('INTERLEX_API_KEY', os.environ['SCICRUNCH_API_KEY'])
+                self.api_key = os.environ.get('INTERLEX_API_KEY', 'SCICRUNCH_API_KEY')
             except KeyError:
                 pass
-
             if api_key is None and apiEndpoint == self.defaultEndpoint:
                 raise ValueError('You have not set an API key for the SciCrunch API!')
-            else:
-                self.api_key = api_key
+        else:
+            self.api_key = api_key
 
         self.ilx_cli = InterLexClient(api_key = self.api_key)
 
@@ -355,6 +354,7 @@ class InterLexRemote(OntService):  # note to self
                 # server output doesnt include their ILX IDs ... so it's not worth getting
                 self.add_annotation(
                     subject = ilx_url_prefix + server_populated_output['ilx'],
+                    # TODO: predicate will be a ilx_url but we also want to convert curies?
                     predicate = pred,
                     object = obj,
                 )
