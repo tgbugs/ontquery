@@ -3,7 +3,7 @@ from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
 from ontquery.services import OntService
-from interlex_client import InterlexClient
+from .interlex_client import InterLexClient
 
 try:
     from pyontutils import scigraph
@@ -268,7 +268,7 @@ class InterLexRemote(OntService):  # note to self
             else:
                 self.api_key = api_key
 
-        self.ilx_cli = InterlexClient(api_key = self.api_key)
+        self.ilx_cli = InterLexClient(api_key = self.api_key)
 
         self.apiEndpoint = apiEndpoint
 
@@ -311,7 +311,7 @@ class InterLexRemote(OntService):  # note to self
         return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
 
     def add_pde(self, type, label, subThingOf: str = None, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
-        server_populated_output = self.add_entity(
+        server_populated_output, predicates_added = self.add_entity(
             type = type,
             label = label,
             subThingOf = subThingOf,
@@ -333,7 +333,7 @@ class InterLexRemote(OntService):  # note to self
              deprecated=None,
              prefix=None,
              category=None,
-             predicates=None,  # FIXME dict
+             predicates = predicates_added,  # FIXME dict; dict of what keys?
              _graph=None,
              source=None,
         )
@@ -347,8 +347,28 @@ class InterLexRemote(OntService):  # note to self
             commit = commit,
             synonyms = synonyms,
         )
-        # TODO: need to process the annotatations eventually
-        return server_populated_output
+        ilx_url_prefix = 'http://uri.interlex.org/base/'
+        predicates_added = []
+        for predicate in predicates:
+            # server output doesnt include their ILX IDs ... so it's not worth getting
+            self.add_annotation(
+                subject = ilx_url_prefix + server_populated_output['ilx'],
+                predicate = predicate['annotation_type_ilx_id'],
+                subject = predicate['annotation_value'],
+            )
+            predicates_added.append(dict(
+                subject = ilx_url_prefix + server_populated_output['ilx'],
+                predicate = predicate['annotation_type_ilx_id'],
+                subject = predicate['annotation_value'],
+            ))
+        return server_populated_output, predicates_added
+
+    def add_annotation(self, subject, predicate, object):
+        server_populated_output = _self.ilx_cli.add_annotation(
+            'term_ilx_id': subject, # brain ILX ID
+            'annotation_type_ilx_id': predicate, # hasDbXref ILX ID
+            'annotation_value': subject,
+        )
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
