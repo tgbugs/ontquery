@@ -1,11 +1,11 @@
 import os
 import pytest
 import random
-from ontquery.plugins.interlex_client import InterlexClient
+from ontquery.plugins.interlex_client import InterLexClient
 import string
 
 
-sci = InterlexClient(
+sci = InterLexClient(
     api_key = os.environ.get('INTERLEX_API_KEY'),
     base_url = 'https://beta.scicrunch.org',
 )
