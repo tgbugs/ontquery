@@ -3,7 +3,7 @@ from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
 from ontquery.services import OntService
-from . import interlex_client
+from interlex_client import InterlexClient
 
 try:
     from pyontutils import scigraph
@@ -268,7 +268,7 @@ class InterLexRemote(OntService):  # note to self
             else:
                 self.api_key = api_key
 
-        self.ilx_cli = interlex_client(api_key = self.api_key)
+        self.ilx_cli = InterlexClient(api_key = self.api_key)
 
         self.apiEndpoint = apiEndpoint
 
