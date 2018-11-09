@@ -311,7 +311,7 @@ class InterLexRemote(OntService):  # note to self
         return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
 
     def add_pde(self, type, label, subThingOf: str = None, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
-        server_populated_output, predicates_added = self.add_entity(
+        server_populated_output = self.add_entity(
             type = type,
             label = label,
             subThingOf = subThingOf,
@@ -333,7 +333,7 @@ class InterLexRemote(OntService):  # note to self
              deprecated=None,
              prefix=None,
              category=None,
-             predicates = predicates_added,  # FIXME dict; dict of what keys?
+             predicates = predicates,  # FIXME dict; dict of what keys?
              _graph=None,
              source=None,
         )
@@ -348,26 +348,23 @@ class InterLexRemote(OntService):  # note to self
             synonyms = synonyms,
         )
         ilx_url_prefix = 'http://uri.interlex.org/base/'
-        predicates_added = []
-        for predicate in predicates:
-            # server output doesnt include their ILX IDs ... so it's not worth getting
-            self.add_annotation(
-                subject = ilx_url_prefix + server_populated_output['ilx'],
-                predicate = predicate['annotation_type_ilx_id'],
-                subject = predicate['annotation_value'],
-            )
-            predicates_added.append(dict(
-                subject = ilx_url_prefix + server_populated_output['ilx'],
-                predicate = predicate['annotation_type_ilx_id'],
-                subject = predicate['annotation_value'],
-            ))
-        return server_populated_output, predicates_added
+        for pred, objs in predicates.items():
+            if not isinstance(objs, list):
+                objs = [objs]
+            for obj in objs:
+                # server output doesnt include their ILX IDs ... so it's not worth getting
+                self.add_annotation(
+                    subject = ilx_url_prefix + server_populated_output['ilx'],
+                    predicate = pred,
+                    object = obj,
+                )
+        return server_populated_output
 
     def add_annotation(self, subject, predicate, object):
-        server_populated_output = _self.ilx_cli.add_annotation(
-            'term_ilx_id': subject, # brain ILX ID
-            'annotation_type_ilx_id': predicate, # hasDbXref ILX ID
-            'annotation_value': subject,
+        server_populated_output = self.ilx_cli.add_annotation(
+            term_ilx_id = subject,
+            annotation_type_ilx_id = predicate,
+            annotation_value = subject,
         )
 
     def add_triple(self, subject, predicate, object):
@@ -712,4 +709,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    pass
+    #main()
