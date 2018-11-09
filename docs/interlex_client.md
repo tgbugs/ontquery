@@ -26,7 +26,7 @@ Get your api_key via [SciCrunch](https://scicrunch.org/)
 ----
 ##### How it should look in your .bashrc or .zshrc file:
 ```bash
-export SCICRUNCH_API_KEY="YOUR API KEY HERE"
+export INTERLEX_API_KEY="YOUR API KEY HERE"
 ```
 ----
 
