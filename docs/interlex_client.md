@@ -1,7 +1,6 @@
 # Project Details
 
-ScicrunchClient is meant to help outside curators add entities and annotations in an efficient process.
-The python3 file to focus on is scicrunch_client.py with its class ScicrunchClient.
+InterLexClient is meant to help outside curators add entities and annotations in an efficient process.
 
 ## Prerequisites
 
@@ -30,47 +29,29 @@ Get your api_key via [SciCrunch](https://scicrunch.org/)
 export SCICRUNCH_API_KEY="YOUR API KEY HERE"
 ```
 ----
-## Installing
-
-Install SciCrunch-Client from github, placing it in your home directory
-
-```bash
-cd ~/
-git clone git@github.com:tmsincomb/SciCrunch-Client.git
-```
-
-Add this line to your .bashrc or .zshrc (if using zsh)
-
-```bash
-export PYTHONPATH=$PYTHONPATH:~/SciCrunch-Client
-```
 
 ## Running the tests
 
 Pytest with -v option for verbose
 
 ```bash
-pytest -v ~/ScicrunchClient/
+pytest -v test/test_interlex_client.py
 ```
 
-## Examples
-
-For a complete example python script please look to **examples_of_how_to_use_scicrunch_client.py**
-
-## Directions in how to use scicrunch_client.py
+## Directions in how to use InterLexClient
 
 ##### Importing:
 
 ```bash
-from scicrunch_client import ScicrunchClient
+from interlex_client import InterLexClient
 ```
 
 ##### Setup for **BETA**:
 *This Should be used to test if your code works first*
 
 ```python
-sci = ScicrunchClient(
-    api_key = os.environ.get("SCICRUNCH_API_KEY"),
+ilx_cli = InterLexClient(
+    api_key = os.environ.get("INTERLEX_API_KEY"),
     base_url = "https://beta.scicrunch.org",
 )
 ```
@@ -78,8 +59,8 @@ sci = ScicrunchClient(
 ##### Setup for **PRODUCTION**:
 
 ```python
-sci = ScicrunchClient(
-    api_key = os.environ.get("SCICRUNCH_API_KEY"),
+ilx_cli = InterLexClient(
+    api_key = os.environ.get("INTERLEX_API_KEY"),
     base_url = "https://scicrunch.org",
 )
 ```
@@ -87,91 +68,56 @@ sci = ScicrunchClient(
 ##### Adding Entity Options:
 
 ```python
-add_entity_data = sci.add_entity(
-    entity = {
-        "label": "",
-        "type": "",
-        "definition": "",
-        "comment": "",
-        "superclass": {
-            "ilx_id": ""
-        },
-        "synonyms": [
-            {
-                "literal": ""
-            },
-        ],
-        "existing_ids": [
-            {
-                "iri": "",
-                "curie": "",
-            },
-        ],
-    }
+added_entity_data = ilx_cli.add_entity(
+    label = '',
+    type = '',
+    definition = '',
+    comment = '',
+    superclass = '',
+    synonyms = ['',],
 )
 ```
 
 ##### Adding Entity Needed:
 
 ```python
-add_entity_data = sci.add_entity(
-    entity = {
-        "label": "",
-        "type": "",
-    }
+added_entity_data = ilx_cli.add_entity(
+    label = '',
+    type = '',
 )
 ```
 
 #### Adding Entity Example
 
 ```python
-add_entity_data = sci.add_entity(
-    entity = {
-        "label": "brain",
-        "type": "term",
-        "definition": "Part of the central nervous system",
-        "comment": "Cannot live without it",
-        "superclass": {
-            "ilx_id": "ilx_0108124", # ILX ID for Organ
-        },
-        "synonyms": [
-            {
-                "literal": "Encephalon"
-            },
-            {
-                "literal": "Cerebro"
-            },
-        ],
-        "existing_ids": [
-            {
-                "iri": "http://uri.neuinfo.org/nif/nifstd/birnlex_796",
-                "curie": "BIRNLEX:796",
-            },
-        ],
-    }
+added_entity_data = ilx_cli.add_entity(
+    label = 'brain',
+    type = 'term',
+    definition = 'Part of the central nervous system',
+    comment = 'Cannot live without it',
+    superclass = 'http://uri.interlex.org/base/ilx_0108124',
+    synonyms = ['Encephalon', 'Cerebro'],
 )
 ```
 
 ##### Adding Annotation (All 3 keys Needed)
 
 ```python
-added_annotation_data = sci.add_annotation(
-    annotation = {
-        "term_ilx_id": "",
-        "annotation_type_ilx_id": "",
-        "annotation_value": "",
-    }
+added_annotation_data = ilx_cli.add_annotation(
+    "term_ilx_id": "",
+    "annotation_type_ilx_id": "",
+    "annotation_value": "",
+)
 ```
 
 ##### Adding Annotation Example
 
 ```python
-added_annotation_data = sci.add_annotation(
-    annotation = {
-        "term_ilx_id": "ilx_0101431", # brain ILX ID
-        "annotation_type_ilx_id": "tmp_0381624", # hasDbXref ILX ID
-        "annotation_value": "This is a string you should add for value",
-    }
+added_annotation_data = ilx_cli.add_annotation(
+    "term_ilx_id": "http://uri.interlex.org/base/ilx_0101431", # brain ILX ID
+    "annotation_type_ilx_id": "http://uri.interlex.org/base/tmp_0381624", # hasDbXref ILX ID
+    "annotation_value": "This is a string you should add for value",
+)
 ```
 
 Both functions add_entity() and add_annotation() will return a dictionary of the populated data
