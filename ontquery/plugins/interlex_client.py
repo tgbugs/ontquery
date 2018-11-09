@@ -191,7 +191,7 @@ class InterLexClient:
             entity['comment'] = comment
 
         if superclass:
-            entity['superclass'] = self.fix_ilx(superclass)
+            entity['superclass'] = {'ilx_id':self.fix_ilx(superclass)}
 
         if synonyms:
             entity['synonyms'] = [{'literal': syn} for syn in synonyms]
@@ -409,8 +409,8 @@ def example():
         base_url = 'https://beta.scicrunch.org',
     )
     entity = {
-        'label': 'brain9',
-        'type': 'pde', # broken at the moment NEEDS PDE HARDCODED
+        'label': 'brain103',
+        'type': 'fde', # broken at the moment NEEDS PDE HARDCODED
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
         'superclass': {
