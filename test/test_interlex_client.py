@@ -1,11 +1,11 @@
 import os
 import pytest
 import random
-from scicrunch_client import ScicrunchClient
+from ontquery.plugins.interlex_client import InterlexClient
 import string
 
 
-sci = ScicrunchClient(
+sci = InterlexClient(
     api_key = os.environ.get('SCICRUNCH_API_KEY'),
     base_url = 'https://beta.scicrunch.org',
 )
