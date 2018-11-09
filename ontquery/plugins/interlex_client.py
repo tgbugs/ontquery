@@ -5,7 +5,7 @@ from sys import exit
 from typing import List
 
 
-class InterlexClient:
+class InterLexClient:
 
     """ Connects to SciCrunch via its' api endpoints
 
@@ -74,7 +74,7 @@ class InterlexClient:
 
     def fix_ilx(self, ilx_id: str) -> str:
         """ Database only excepts lower case and underscore version of ID """
-        #lower check and nothing check
+        ilx_id = ilx_id.replace('http://uri.interlex.org/base/', '')
         if ilx_id[:4] not in ['TMP:', 'tmp_', 'ILX:', 'ilx_']:
             exit(
                 'Need to provide ilx ID with format ilx_# or ILX:# for given ID ' + ilx_id
@@ -191,7 +191,7 @@ class InterlexClient:
             entity['comment'] = comment
 
         if superclass:
-            entity['superclass'] = superclass
+            entity['superclass'] = self.fix_ilx(superclass)
 
         if synonyms:
             entity['synonyms'] = [{'literal': syn} for syn in synonyms]
@@ -405,8 +405,8 @@ class InterlexClient:
         return output
 
 def example():
-    sci = InterlexClient(
-        api_key = os.environ.get('SCICRUNCH_API_KEY'),
+    sci = InterLexClient(
+        api_key = os.environ.get('INTERLEX_API_KEY'),
         base_url = 'https://beta.scicrunch.org',
     )
     entity = {
