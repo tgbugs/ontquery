@@ -5,7 +5,7 @@ from sys import exit
 from typing import List
 
 
-class ScicrunchClient:
+class InterlexClient:
 
     """ Connects to SciCrunch via its' api endpoints
 
@@ -405,7 +405,7 @@ class ScicrunchClient:
         return output
 
 def example():
-    sci = ScicrunchClient(
+    sci = InterlexClient(
         api_key = os.environ.get('SCICRUNCH_API_KEY'),
         base_url = 'https://beta.scicrunch.org',
     )
@@ -437,8 +437,8 @@ def example():
         'annotation_type_ilx_id': 'tmp_0381624', # hasDbXref ILX ID
         'annotation_value': 'PMID:12345',
     }
-    print(sci.add_entity(entity))
-    print(sci.add_annotation(annotation))
+    print(sci.add_raw_entity(entity))
+    print(sci.add_annotation(**annotation))
 
 if __name__ == '__main__':
     example()
