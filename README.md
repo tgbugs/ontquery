@@ -68,8 +68,8 @@ from ontquery.plugins.services import InterLexRemote
 api_key = os.environ['INTERLEX_API_KEY']
 ilx_cli = InterLexRemote(
     api_key = api_key,
-    # When ready, should be changed to https://scicrunch.org' for production 
-    apiEndpoint = 'https://beta.scicrunch.org',
+    # When ready, should be changed to 'https://scicrunch.org/api/1/' for production (default)
+    apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
 server_populated_output = services_cli.add_entity(
     label = 'Label of entity you wish to create',
