@@ -3,6 +3,7 @@ from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
 from ontquery.query import QueryResult
 from ontquery.services import OntService
+from .interlex_client import InterLexClient
 
 try:
     from pyontutils import scigraph
@@ -258,14 +259,18 @@ class InterLexRemote(OntService):  # note to self
         if api_key is None:
             import os
             try:
-                api_key = os.environ.get('INTERLEX_API_KEY', os.environ['SCICRUNCH_API_KEY'])
+                self.api_key = os.environ.get('INTERLEX_API_KEY', 'SCICRUNCH_API_KEY')
             except KeyError:
                 pass
-
             if api_key is None and apiEndpoint == self.defaultEndpoint:
                 raise ValueError('You have not set an API key for the SciCrunch API!')
-            else:
-                self.api_key = api_key
+        else:
+            self.api_key = api_key
+
+        self.ilx_cli = InterLexClient(
+            api_key = self.api_key,
+            base_url = apiEndpoint,
+        )
 
         self.apiEndpoint = apiEndpoint
 
@@ -307,9 +312,64 @@ class InterLexRemote(OntService):  # note to self
                   predicates: dict=None):
         return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
 
+    def add_pde(self, type, label, subThingOf: str = None, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
+        server_populated_output = self.add_entity(
+            type = type,
+            label = label,
+            subThingOf = subThingOf,
+            definition = definition,
+            synonyms = synonyms,
+            comment = comment,
+            predicates = predicates,
+        )
+        return QueryResult(
+             query_args = {},
+             iri=None,
+             curie=None,
+             label = server_populated_output['label'],
+             labels=tuple(),
+             abbrev=None,  # TODO
+             acronym=None,  # TODO
+             definition=None,
+             synonyms= tuple([syn['literal'] for syn in server_populated_output['synonyms']]),
+             deprecated=None,
+             prefix=None,
+             category=None,
+             predicates = predicates,  # FIXME dict; dict of what keys?
+             _graph=None,
+             source=None,
+        )
+
     def add_entity(self, type, subThingOf, label, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
-        # type: term, annotation, relationship, cde, fde, pde
-        pass
+        server_populated_output = self.ilx_cli.add_entity(
+            label = label,
+            type = type,
+            superclass = subThingOf,
+            definition = definition,
+            comment = comment,
+            synonyms = synonyms,
+        )
+        ilx_url_prefix = 'http://uri.interlex.org/base/'
+        if predicates:
+            for pred, objs in predicates.items():
+                if not isinstance(objs, list):
+                    objs = [objs]
+                for obj in objs:
+                    # server output doesnt include their ILX IDs ... so it's not worth getting
+                    self.add_annotation(
+                        subject = ilx_url_prefix + server_populated_output['ilx'],
+                        # TODO: predicate will be a ilx_url but we also want to convert curies?
+                        predicate = pred,
+                        object = obj,
+                    )
+        return server_populated_output
+
+    def add_annotation(self, subject, predicate, object):
+        server_populated_output = self.ilx_cli.add_annotation(
+            term_ilx_id = subject,
+            annotation_type_ilx_id = predicate,
+            annotation_value = object,
+        )
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
@@ -653,4 +713,5 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    pass
+    #main()
