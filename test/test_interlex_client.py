@@ -5,16 +5,16 @@ from ontquery.plugins.interlex_client import InterLexClient
 from ontquery.plugins.services import InterLexRemote
 import string
 
-
-ilx_cli = InterLexClient(
-    api_key = os.environ.get('INTERLEX_API_KEY'),
-    base_url = 'https://beta.scicrunch.org',
-)
+api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
 
 services_cli = InterLexRemote(
-    api_key = os.environ.get('INTERLEX_API_KEY'),
-    apiEndpoint = 'https://beta.scicrunch.org',
+    api_key = api_key,
+    apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
+
+services_cli.setup()
+
+ilx_cli = services_cli.ilx_cli
 
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))

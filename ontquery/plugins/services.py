@@ -259,18 +259,14 @@ class InterLexRemote(OntService):  # note to self
         if api_key is None:
             import os
             try:
-                self.api_key = os.environ.get('INTERLEX_API_KEY', 'SCICRUNCH_API_KEY')
+                self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
             except KeyError:
-                pass
-            if api_key is None and apiEndpoint == self.defaultEndpoint:
+                self.api_key = None
+
+            if self.api_key is None and apiEndpoint == self.defaultEndpoint:
                 raise ValueError('You have not set an API key for the SciCrunch API!')
         else:
             self.api_key = api_key
-
-        self.ilx_cli = InterLexClient(
-            api_key = self.api_key,
-            base_url = apiEndpoint,
-        )
 
         self.apiEndpoint = apiEndpoint
 
@@ -294,6 +290,15 @@ class InterLexRemote(OntService):  # note to self
         # at the start, rather than having it be completely wild
         # FIXME can't do this at the moment because interlex itself calls this --- WHOOPS
         super().__init__(*args, **kwargs)
+
+    def setup(self):
+        if self.api_key is not None and self.apiEndpoint is not None:
+            self.ilx_cli = InterLexClient(api_key=self.api_key,
+                                          base_url=self.apiEndpoint,)
+        else:
+            pass  # expect attribute errors for ilx_cli
+
+        super().setup()
 
     @property
     def host_port(self):

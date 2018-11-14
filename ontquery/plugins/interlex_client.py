@@ -21,15 +21,19 @@ class InterLexClient:
         add_annotation is a little more forgiving with it only hitting 3 minimum.
     """
 
-    def __init__(self, api_key: str, base_url: str = 'https://scicrunch.org'):
+    default_base_url = 'https://scicrunch.org/api/1/'
+
+    def __init__(self, api_key: str, base_url: str = default_base_url):
         self.api_key = api_key
         self.base_url = base_url
+        print(api_key, base_url)
         self.user_id = self.get(
-            url = 'https://scicrunch.org/api/1/user/info?key=' + self.api_key
+            url = self.default_base_url + 'user/info?key=' + self.api_key
         )['id']
 
     def process_response(self, response: requests.models.Response) -> dict:
         """ Checks for correct data response and status codes """
+        print(response.url)
         try:
             output = response.json()
         except: # Server is having a bad day and crashed.
@@ -129,7 +133,7 @@ class InterLexClient:
 
     def crude_search_scicrunch_via_label(self, label:str) -> dict:
         """ Server returns anything that is simlar in any catagory """
-        url = self.base_url + '/api/1/term/search/{term}?key={api_key}'.format(
+        url = self.base_url + 'term/search/{term}?key={api_key}'.format(
             term = label,
             api_key = self.api_key,
         )
@@ -158,7 +162,7 @@ class InterLexClient:
     def get_entity(self, ilx_id: str) -> dict:
         """ Gets full meta data (expect their annotations and relationships) from is ILX ID """
         ilx_id = self.fix_ilx(ilx_id)
-        url = self.base_url + "/api/1/ilx/search/identifier/{identifier}?key={api_key}".format(
+        url = self.base_url + "ilx/search/identifier/{identifier}?key={api_key}".format(
             identifier = ilx_id,
             api_key = self.api_key,
         )
@@ -275,8 +279,8 @@ class InterLexClient:
             'synonyms',
             'existing_ids'
         ])
-        prime_entity_url = self.base_url + '/api/1/ilx/add'
-        add_entity_url = self.base_url + '/api/1/term/add'
+        prime_entity_url = self.base_url + 'ilx/add'
+        add_entity_url = self.base_url + 'term/add'
 
         ### Checking if key/value format is currect ###
         # Seeing if you are missing a needed key
@@ -339,7 +343,7 @@ class InterLexClient:
 
     def get_annotation_via_tid(self, tid: str) -> dict:
         """ Gets annotation via anchored entity id """
-        url = self.base_url + '/api/1/term/get-annotations/{tid}?key={api_key}'.format(
+        url = self.base_url + 'term/get-annotations/{tid}?key={api_key}'.format(
             tid = tid,
             api_key = self.api_key,
         )
@@ -365,7 +369,7 @@ class InterLexClient:
                 'annotation_value': 'http://neurolex.org/wiki/birnlex_796',
             }
         """
-        url = self.base_url + '/api/1/term/add-annotation'
+        url = self.base_url + 'term/add-annotation'
 
         term_data = self.get_entity(term_ilx_id)
         if not term_data['id']:
