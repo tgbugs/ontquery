@@ -99,8 +99,9 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
                       ('prefix', 'suffix'),
                       ('iri',))
     __firsts = 'curie', 'iri'  # FIXME bad for subclassing __repr__ behavior :/
-    class BadCurieError(Exception): pass
-    class UnknownPrefixError(Exception): pass
+    class Error(Exception): pass
+    class BadCurieError(Error): pass
+    class UnknownPrefixError(Error): pass
 
     def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
 

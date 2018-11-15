@@ -21,19 +21,20 @@ class InterLexClient:
         add_annotation is a little more forgiving with it only hitting 3 minimum.
     """
 
+    class SuperClassDoesNotExistError(Exception):
+        """ The superclass listed does not exist! """
+
     default_base_url = 'https://scicrunch.org/api/1/'
 
     def __init__(self, api_key: str, base_url: str = default_base_url):
         self.api_key = api_key
         self.base_url = base_url
-        print(api_key, base_url)
         self.user_id = self.get(
             url = self.default_base_url + 'user/info?key=' + self.api_key
         )['id']
 
     def process_response(self, response: requests.models.Response) -> dict:
         """ Checks for correct data response and status codes """
-        print(response.url)
         try:
             output = response.json()
         except: # Server is having a bad day and crashed.
@@ -90,12 +91,12 @@ class InterLexClient:
         superclass = entity.pop('superclass')
         label = entity['label']
         if not superclass.get('ilx_id'):
-            exit(
+            raise self.SuperClassDoesNotExistError(
                 'Superclass not given an interlex ID for label: ' + label
             )
         superclass_data = self.get_entity(superclass['ilx_id'])
         if not superclass_data['id']:
-            exit(
+            raise self.SuperClassDoesNotExistError(
                 'Superclass ILX ID: ' + superclass['ilx_id'] + ' does not exist in SciCrunch'
             )
         # BUG: only excepts superclass_tid
@@ -106,14 +107,11 @@ class InterLexClient:
         """ Making sure key/value is in proper format for synonyms in entity """
         label = entity['label']
         for synonym in entity['synonyms']:
-            if not synonym.get('literal'):
-                exit(
-                    'Synonym not given a literal for label: ' + label
-                )
-            elif set(synonym) | set(['literal']) != set(['literal']):
-                exit(
-                    'Extra key(s) not recognized in synonyms for label: ' + label
-                )
+            # these are internal errors and users should never see them
+            if 'literal' not in synonym:
+                raise ValueError(f'Synonym not given a literal for label: {label}')
+            elif len(synonym) > 1:
+                raise ValueError(f'Too many keys in synonym for label: {label}')
         return entity
 
     def process_existing_ids(self, entity: List[dict]) -> List[dict]:
@@ -175,8 +173,7 @@ class InterLexClient:
         definition: str = None,
         comment: str = None,
         superclass: str = None,
-        synonyms: list = None,
-    ) -> List[dict]:
+        synonyms: list = None) -> List[dict]:
 
         if not label:
             exit('Entity needs a label')
@@ -353,8 +350,7 @@ class InterLexClient:
         self,
         term_ilx_id: str,
         annotation_type_ilx_id: str,
-        annotation_value: str,
-    ) -> dict:
+        annotation_value: str) -> dict:
         """ Adding an annotation value to a prexisting entity
 
         An annotation exists as 3 different parts:
@@ -412,6 +408,11 @@ class InterLexClient:
             exit(output)
 
         return output
+
+    def add_relationship(self, *args, **kwargs):
+        # TODO
+        pass
+
 
 def example():
     sci = InterLexClient(
