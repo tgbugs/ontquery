@@ -1,5 +1,6 @@
 import os
 import unittest
+from uuid import uuid4
 import rdflib
 import ontquery as oq
 
@@ -92,10 +93,22 @@ class _TestIlx(ServiceBase):
     def test_z_bad_curie(self):
         qr = next(self.OntTerm.query.services[0].query(curie='BIRNLEX:796'))
 
+    def test_zz_add_entity(self):  # needs zz so that it runs after setup()
+        resp = self.remote.add_entity(
+            type='term',
+            label=f'test term 9000 {uuid4()}',
+            subThingOf='http://uri.interlex.org/base/ilx_0109677',
+            definition='hhohohoho')
+        print(resp)
+        # NOTE the values in the response are a mishmash of garbage because
+        # the tmp_ ids were never properly abstracted
+    def test_zz_
 
 if 'CI' not in os.environ:  # production doesn't have all the required features yet
+    beta = 'https://beta.scicrunch.org/api/1/'
     class TestIlx(_TestIlx, unittest.TestCase):
-        remote = oq.plugin.get('InterLex')(host='localhost', port='8505')
+        remote = oq.plugin.get('InterLex')(apiEndpoint=beta,
+                                           host='localhost', port='8505')
 
 
 class TestSciGraph(ServiceBase, unittest.TestCase):

@@ -264,7 +264,8 @@ class InterLexRemote(OntService):  # note to self
                 self.api_key = None
 
             if self.api_key is None and apiEndpoint == self.defaultEndpoint:
-                raise ValueError('You have not set an API key for the SciCrunch API!')
+                # we don't error here because API keys are not required for viewing
+                print('WARNING: You have not set an API key for the SciCrunch API!')
         else:
             self.api_key = api_key
 
@@ -317,36 +318,24 @@ class InterLexRemote(OntService):  # note to self
                   predicates: dict=None):
         return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
 
-    def add_pde(self, type, label, subThingOf: str = None, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
-        server_populated_output = self.add_entity(
-            type = type,
+    def add_pde(self,
+                label,
+                definition:str=None,
+                synonyms=tuple(),
+                comment: str=None,
+                predicates: dict=None):
+        return self.add_entity(
+            type = 'pde',
             label = label,
-            subThingOf = subThingOf,
+            subThingOf = None,  # FIXME works for now
             definition = definition,
             synonyms = synonyms,
             comment = comment,
-            predicates = predicates,
-        )
-        return QueryResult(
-             query_args = {},
-             iri=None,
-             curie=None,
-             label = server_populated_output['label'],
-             labels=tuple(),
-             abbrev=None,  # TODO
-             acronym=None,  # TODO
-             definition=None,
-             synonyms= tuple([syn['literal'] for syn in server_populated_output['synonyms']]),
-             deprecated=None,
-             prefix=None,
-             category=None,
-             predicates = predicates,  # FIXME dict; dict of what keys?
-             _graph=None,
-             source=None,
-        )
+            predicates = predicates)
 
-    def add_entity(self, type, subThingOf, label, definition: str=None, synonyms=tuple(), comment: str=None, predicates: dict=None):
-        server_populated_output = self.ilx_cli.add_entity(
+    def add_entity(self, type, subThingOf, label, definition: str=None,
+                   synonyms=tuple(), comment: str=None, predicates: dict=None):
+        resp = self.ilx_cli.add_entity(
             label = label,
             type = type,
             superclass = subThingOf,
@@ -354,32 +343,66 @@ class InterLexRemote(OntService):  # note to self
             comment = comment,
             synonyms = synonyms,
         )
-        ilx_url_prefix = 'http://uri.interlex.org/base/'
+        out_predicates = {}
         if predicates:
-            for pred, objs in predicates.items():
+            ilx_url_prefix = 'http://uri.interlex.org/base/'  # FIXME hardcoded
+            subject = ilx_url_prefix + server_populated_output['ilx'],
+            for predicate, objs in predicates.items():
                 if not isinstance(objs, list):
                     objs = [objs]
-                for obj in objs:
+                for object in objs:
                     # server output doesnt include their ILX IDs ... so it's not worth getting
-                    self.add_annotation(
-                        subject = ilx_url_prefix + server_populated_output['ilx'],
-                        # TODO: predicate will be a ilx_url but we also want to convert curies?
-                        predicate = pred,
-                        object = obj,
-                    )
-        return server_populated_output
+                    resp = self.add_triple(subject, predicate, object)
+                    # TODO stick the responding predicates etc in if success
 
-    def add_annotation(self, subject, predicate, object):
-        server_populated_output = self.ilx_cli.add_annotation(
-            term_ilx_id = subject,
-            annotation_type_ilx_id = predicate,
-            annotation_value = object,
+        if resp['comment'] is not None:
+            out_predicates['comment'] = resp['comment']
+
+        return QueryResult(
+             query_args = {},
+             iri=resp['iri'],
+             curie=resp['curie'],
+             label = resp['label'],
+             labels=tuple(),
+             #abbrev=None,  # TODO
+             #acronym=None,  # TODO
+             definition=resp['definition'],
+             synonyms= tuple([syn['literal'] for syn in server_populated_output['synonyms']]),
+             #deprecated=None,
+             #prefix=None,
+             #category=None,
+             predicates = out_predicates,
+             #_graph=None,
+             source=self,
         )
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
             Subject should be an interlex"""
-        pass
+
+        # this split between annotations and relationships is severely annoying
+        # because you have to know before hand which one it is (sigh)
+        s = OntId(subject)
+        p = OntId(predicate)
+        o = self._get_type(object)
+        if type(o) == str:
+            func = self.ilx_cli.add_annotation
+        elif type(o) == OntId:
+            func = self.ilx_cli.add_relationship
+            o = 'ilx_' + o.suffix
+        else:
+            raise TypeError(f'what are you giving me?! {object!r}')
+
+        resp = func(term_ilx_id = 'ilx_' + s.suffix,
+                    annotation_type_ilx_id = 'ilx_' + p.suffix,
+                    annotation_value = o)
+        return resp
+
+    def _get_type(self, entity):
+        try:
+            return OntId(entity)
+        except OntId.Error:
+            return entity
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
