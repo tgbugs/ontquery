@@ -415,12 +415,64 @@ class InterLexClient:
 
     def add_relationship(
         self,
-        term1_ilx: str,
+        entity1_ilx: str,
         relationship_ilx: str,
-        term2_ilx: str,
+        entity2_ilx: str,
     ) -> dict:
-        url = self.base_url + '/api/1/term/add-relationship'
+        """ Adds relationship connection in Interlex
 
+        A relationship exists as 3 different parts:
+            1. entity with type term, cde, fde, or pde
+            2. entity with type relationship that connects entity1 to entity2
+                -> Has its' own meta data, so no value needed
+            3. entity with type term, cde, fde, or pde
+        """
+
+        url = self.base_url + 'term/add-relationship'
+
+        entity1_data = self.get_entity(entity1_ilx)
+        if not entity1_data['id']:
+            exit(
+                'entity1_ilx: ' + entity1_data + ' does not exist'
+            )
+        relationship_data = self.get_entity(relationship_ilx)
+        if not relationship_data['id']:
+            exit(
+                'relationship_ilx: ' + relationship_ilx + ' does not exist'
+            )
+        entity2_data = self.get_entity(entity2_ilx)
+        if not entity2_data['id']:
+            exit(
+                'entity2_ilx: ' + entity2_data + ' does not exist'
+            )
+
+        data = {
+            'term1_id': entity1_data['id'],
+            'relationship_tid': relationship_data['id'],
+            'term2_id': entity2_data['id'],
+            'term1_version': entity1_data['version'],
+            'term2_version': entity2_data['version'],
+            'relationship_term_version': relationship_data['version']
+        }
+
+        output = self.post(data)
+
+        ### If already exists, we return the actual relationship properly ###
+        if output.get('errormsg'):
+            if 'already exists' in output['errormsg'].lower():
+                # term_relationships = self.get_relationship_via_tid(entity1_data['id'])
+                # for term_relationship in term_relationships:
+                    if str(term_relationship['term2_id']) == str(entity2_ilx['id']):
+                        if term_relationship['relationship_tid'] == relationship_data['id']:
+                            print(
+                                'relationship: [' + entity1_data['label'] + ' -> ' +
+                                relationship_data['label'] + ' -> ' + entity1_data['label'] +
+                                '], already exists.'
+                            )
+                            return term_annotation
+            exit(output)
+
+        output = self.post(data)
 
 def example():
     sci = InterLexClient(
