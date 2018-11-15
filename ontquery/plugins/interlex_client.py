@@ -409,6 +409,15 @@ class InterLexClient:
 
         return output
 
+    def add_relationship(
+        self,
+        term1_ilx: str,
+        relationship_ilx: str,
+        term2_ilx: str,
+    ) -> dict:
+        url = self.base_url + '/api/1/term/add-relationship'
+
+
 def example():
     sci = InterLexClient(
         api_key = os.environ.get('INTERLEX_API_KEY'),
