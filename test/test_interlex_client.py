@@ -91,7 +91,7 @@ def test_add_raw_entity():
     bad_entity = entity.copy()
     bad_entity.pop('label')
     with pytest.raises(
-        SystemExit,
+        ilx_cli.MissingKeyError,
         match=r"You need key\(s\): {'label'}"
     ):
         ilx_cli.add_raw_entity(bad_entity)
@@ -100,7 +100,7 @@ def test_add_raw_entity():
     bad_entity = entity.copy()
     bad_entity['candy'] = 'snickers'
     with pytest.raises(
-        SystemExit,
+        ilx_cli.IncorrectKeyError,
         match=r"Unexpected key\(s\): {'candy'}"
     ):
         ilx_cli.add_raw_entity(bad_entity)
@@ -109,7 +109,7 @@ def test_add_raw_entity():
     bad_entity = entity.copy()
     bad_entity['superclass']['ilx_id'] = 'ilx_rgb'
     with pytest.raises(
-        SystemExit,
+        ilx_cli.SuperClassDoesNotExistError,
         match=r"Superclass ILX ID: ilx_rgb does not exist in SciCrunch"
     ):
         ilx_cli.add_raw_entity(bad_entity)
@@ -139,7 +139,7 @@ def test_add_raw_entity():
     bad_entity = entity.copy()
     popped_iri = bad_entity['existing_ids'][0].pop('iri')
     with pytest.raises(
-        SystemExit,
+        ValueError,
         match=r"Missing needing key\(s\) in existing_ids for label: " + bad_entity['label']
     ):
         ilx_cli.add_raw_entity(bad_entity)
@@ -149,7 +149,7 @@ def test_add_raw_entity():
     bad_entity = entity.copy()
     bad_entity['existing_ids'][0]['iris'] = 'extra_key'
     with pytest.raises(
-        SystemExit,
+        ValueError,
         match=r"Extra keys not recognized in existing_ids for label: " + bad_entity['label']
     ):
         ilx_cli.add_raw_entity(bad_entity)

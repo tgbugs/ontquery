@@ -292,6 +292,7 @@ class InterLexRemote(OntService):  # note to self
         super().__init__(*args, **kwargs)
 
     def setup(self):
+        OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
         if self.api_key is not None and self.apiEndpoint is not None:
             self.ilx_cli = InterLexClient(api_key=self.api_key,
                                           base_url=self.apiEndpoint,)
@@ -344,8 +345,10 @@ class InterLexRemote(OntService):  # note to self
         )
         out_predicates = {}
         if predicates:
-            ilx_url_prefix = 'http://uri.interlex.org/base/'  # FIXME hardcoded
-            subject = ilx_url_prefix + server_populated_output['ilx'],
+            if not resp['ilx'].startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+                subject = 'http://uri.interlex.org/base/' + resp['ilx']
+            else:
+                subject = resp['ilx']
             for predicate, objs in predicates.items():
                 if not isinstance(objs, list):
                     objs = [objs]
@@ -391,9 +394,16 @@ class InterLexRemote(OntService):  # note to self
             o = 'ilx_' + o.suffix
         else:
             raise TypeError(f'what are you giving me?! {object!r}')
-
-        resp = func(term_ilx_id = 'ilx_' + s.suffix,
-                    annotation_type_ilx_id = 'ilx_' + p.suffix,
+        if s.prefix == 'ILXTEMP':
+            s_fragment_prefix = 'tmp_'
+        else:
+            s_fragment_prefix = 'ilx_'
+        if p.prefix == 'ILXTEMP':
+            p_fragment_prefix = 'tmp_'
+        else:
+            p_fragment_prefix = 'ilx_'
+        resp = func(term_ilx_id = s_fragment_prefix + s.suffix,
+                    annotation_type_ilx_id =  p_fragment_prefix + p.suffix,
                     annotation_value = o)
         return resp
 

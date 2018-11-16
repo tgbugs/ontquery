@@ -64,6 +64,7 @@ https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-3692
 
 ```python
 import ontquery as oq
+import os
 InterLexRemote = oq.plugin.get('InterLex')
 
 api_key = os.environ['INTERLEX_API_KEY']
@@ -72,9 +73,24 @@ ilx_cli = InterLexRemote(
     # When ready, should be changed to 'https://scicrunch.org/api/1/' for production (default)
     apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
+ilx_cli.setup()
+
+# NEEDS: label, type, subThingOf
 server_populated_output = ilx_cli.add_entity(
     type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
+    label = 'Label of entity you wish to create',
+    definition = 'Entities definition',
+    comment = 'A comment to help understand entity',
+    synonyms = ['synonym1', 'synonym2', 'etc'],
+    predicates = {
+        # annotation_type_ilx_id : 'annotation_value',
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
+    }
+)
+
+# NEEDS: label, type
+server_populated_output = ilx_cli.add_pde(
     label = 'Label of entity you wish to create',
     definition = 'Entities definition',
     comment = 'A comment to help understand entity',

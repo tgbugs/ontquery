@@ -129,7 +129,7 @@ class InterLexClient:
         label = entity['label']
         existing_ids = entity['existing_ids']
         for existing_id in existing_ids:
-            if 'curie' not in existing_id and 'iri' not in existing_id:
+            if 'curie' not in existing_id or 'iri' not in existing_id:
                 raise ValueError(
                     f'Missing needing key(s) in existing_ids for label: {label}')
             elif len(existing_id) > 2:
@@ -332,7 +332,7 @@ class InterLexClient:
                 'You need key(s): '+ str(needed_in_entity - set(entity)))
         # Seeing if you have other options not included in the description
         elif (set(entity) | options_in_entity) != options_in_entity:
-            self.IncorrecKeyError(
+            raise self.IncorrectKeyError(
                 'Unexpected key(s): ' + str(set(entity) - options_in_entity))
         entity['type'] = entity['type'].lower() # BUG: server only takes lowercase
         if entity['type'] not in ['term', 'relationship', 'annotation', 'cde', 'fde', 'pde']:
