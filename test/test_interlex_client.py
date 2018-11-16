@@ -5,16 +5,15 @@ from ontquery.plugins.interlex_client import InterLexClient
 from ontquery.plugins.services import InterLexRemote
 import string
 
-api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
 
-services_cli = InterLexRemote(
+api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
+ilxremote = InterLexRemote(
     api_key = api_key,
     apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
+ilxremote.setup()
+ilx_cli = ilxremote.ilx_cli
 
-services_cli.setup()
-
-ilx_cli = services_cli.ilx_cli
 
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
@@ -120,7 +119,7 @@ def test_add_raw_entity():
     # Invalid synonyms -> literal not found
     bad_entity['synonyms'][0]['literals'] = bad_entity['synonyms'][0].pop('literal')
     with pytest.raises(
-        SystemExit,
+        ValueError,
         match=r"Synonym not given a literal for label: " + bad_entity['label']
     ):
         ilx_cli.add_raw_entity(bad_entity)
@@ -130,8 +129,8 @@ def test_add_raw_entity():
     bad_entity = entity.copy()
     bad_entity['synonyms'][0]['literals'] = 'bad_literal_key'
     with pytest.raises(
-        SystemExit,
-        match=r"Extra key\(s\) not recognized in synonyms for label: " + bad_entity['label']
+        ValueError,
+        match=r"Too many keys in synonym for label: " + bad_entity['label']
     ):
         ilx_cli.add_raw_entity(bad_entity)
     bad_entity['synonyms'][0].pop('literals')
@@ -219,41 +218,61 @@ def test_add_annotation():
     ):
         ilx_cli.add_annotation(**bad_anno)
 
-def test_services():
+
+def test_add_entity():
     random_label = 'test_' + id_generator(size=12)
 
+    # TODO: commented out key/vals can be used for services test later
     entity = {
         'label': random_label,
         'type': 'term', # broken at the moment NEEDS PDE HARDCODED
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
-        'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Orga
+        #'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
+        'superclass': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
         'synonyms': ['Encephalon', 'Cerebro'],
-        'predicates': {
-            'http://uri.interlex.org/base/tmp_0381624': 'sample_value' # hasDbXref beta ID
-        }
+        # 'predicates': {
+        #     'http://uri.interlex.org/base/tmp_0381624': 'sample_value' # hasDbXref beta ID
+        # }
     }
-    added_entity_data = services_cli.add_entity(**entity.copy())
-    # returned value is not identical to get_entity
-    added_entity_data = ilx_cli.get_entity(added_entity_data['ilx'])
+    added_entity_data = ilx_cli.add_entity(**entity.copy())
 
     assert added_entity_data['label'] == entity['label']
     assert added_entity_data['type'] == entity['type']
     assert added_entity_data['definition'] == entity['definition']
     assert added_entity_data['comment'] == entity['comment']
-    assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
-    assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
-    assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]
+    #assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
+    assert added_entity_data['superclass'] == entity['superclass']
+    assert added_entity_data['synonyms'][0] == entity['synonyms'][0]
+    assert added_entity_data['synonyms'][1] == entity['synonyms'][1]
 
     ### ALREADY EXISTS TEST
-    added_entity_data = services_cli.add_entity(**entity.copy())
-    # returned value is not identical to get_entity
-    added_entity_data = ilx_cli.get_entity(added_entity_data['ilx'])
+    added_entity_data = ilx_cli.add_entity(**entity.copy())
 
     assert added_entity_data['label'] == entity['label']
     assert added_entity_data['type'] == entity['type']
     assert added_entity_data['definition'] == entity['definition']
     assert added_entity_data['comment'] == entity['comment']
-    assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
-    assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
-    assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]
+    #assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
+    assert added_entity_data['superclass'] == entity['superclass']
+    assert added_entity_data['synonyms'][0] == entity['synonyms'][0]
+    assert added_entity_data['synonyms'][1] == entity['synonyms'][1]
+
+def test_add_entity_minimum():
+    random_label = 'test_' + id_generator(size=12)
+
+    # TODO: commented out key/vals can be used for services test later
+    entity = {
+        'label': random_label,
+        'type': 'term', # broken at the moment NEEDS PDE HARDCODED
+    }
+    added_entity_data = ilx_cli.add_entity(**entity.copy())
+
+    assert added_entity_data['label'] == entity['label']
+    assert added_entity_data['type'] == entity['type']
+
+    ### ALREADY EXISTS TEST
+    added_entity_data = ilx_cli.add_entity(**entity.copy())
+
+    assert added_entity_data['label'] == entity['label']
+    assert added_entity_data['type'] == entity['type']
