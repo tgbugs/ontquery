@@ -21,8 +21,20 @@ class InterLexClient:
         add_annotation is a little more forgiving with it only hitting 3 minimum.
     """
 
-    class SuperClassDoesNotExistError(Exception):
+    class Error(Exception): pass
+
+    class SuperClassDoesNotExistError(Error):
         """ The superclass listed does not exist! """
+
+    class BadResponseError(Error): pass
+
+    class NoLabelError(Error): pass
+
+    class NoTypeError(Error): pass
+
+    class MissingKeyError(Error): pass
+
+    class IncorrectKeyError(Error): pass
 
     default_base_url = 'https://scicrunch.org/api/1/'
     ilx_base_url = 'http://uri.interlex.org/base/'
@@ -38,19 +50,17 @@ class InterLexClient:
         """ Checks for correct data response and status codes """
         try:
             output = response.json()
-        except: # Server is having a bad day and crashed.
-            exit(
-                'Json not returned with status code [' + str(response.status_code) + ']'
-            )
+        except json.JSONDecodeError: # Server is having a bad day and crashed.
+            raise self.BadResponseError(
+                'Json not returned with status code [' + str(response.status_code) + ']')
 
         if response.status_code == 400:
             return output
 
         if response.status_code not in [200, 201]: # Safety catch.
-            exit(
+            raise self.BadResponseError(
                 str(output) + ': with status code [' + str(response.status_code) +
-                '] and params:' + str(output)
-            )
+                '] and params:' + str(output))
 
         return output['data']
 
@@ -80,11 +90,12 @@ class InterLexClient:
 
     def fix_ilx(self, ilx_id: str) -> str:
         """ Database only excepts lower case and underscore version of ID """
+        # FIXME probably .rsplit('/', 1) is the more correct version of this
+        # and because this is nominally a 'private' interface these should be
         ilx_id = ilx_id.replace('http://uri.interlex.org/base/', '')
         if ilx_id[:4] not in ['TMP:', 'tmp_', 'ILX:', 'ilx_']:
-            exit(
-                'Need to provide ilx ID with format ilx_# or ILX:# for given ID ' + ilx_id
-            )
+            raise ValueError(
+                'Need to provide ilx ID with format ilx_# or ILX:# for given ID ' + ilx_id)
         return ilx_id.replace('ILX:', 'ilx_').replace('TMP:', 'tmp_')
 
     def process_superclass(self, entity: List[dict]) -> List[dict]:
@@ -92,16 +103,12 @@ class InterLexClient:
         superclass = entity.pop('superclass')
         label = entity['label']
         if not superclass.get('ilx_id'):
-            # raise self.SuperClassDoesNotExistError( # broke TODO: need to figure out how this worked
-            exit(
-                'Superclass not given an interlex ID for label: ' + label
-            )
+            raise self.SuperClassDoesNotExistError(
+                f'Superclass not given an interlex ID for label: {label}')
         superclass_data = self.get_entity(superclass['ilx_id'])
         if not superclass_data['id']:
-            # raise self.SuperClassDoesNotExistError( # broke TODO: need to figure out how this worked
-            exit(
-                'Superclass ILX ID: ' + superclass['ilx_id'] + ' does not exist in SciCrunch'
-            )
+            raise self.SuperClassDoesNotExistError(
+                'Superclass ILX ID: ' + superclass['ilx_id'] + ' does not exist in SciCrunch')
         # BUG: only excepts superclass_tid
         entity['superclasses'] = [{'superclass_tid': superclass_data['id']}]
         return entity
@@ -122,14 +129,12 @@ class InterLexClient:
         label = entity['label']
         existing_ids = entity['existing_ids']
         for existing_id in existing_ids:
-            if set(existing_id) & set(['iri', 'curie']) != set(['iri', 'curie']):
-                exit(
-                    'Missing needing key(s) in existing_ids for label: ' + label
-                )
-            elif set(existing_id) | set(['iri', 'curie']) != set(['iri', 'curie']):
-                exit(
-                    'Extra keys not recognized in existing_ids for label: ' + label
-                )
+            if 'curie' not in existing_id and 'iri' not in existing_id:
+                raise ValueError(
+                    f'Missing needing key(s) in existing_ids for label: {label}')
+            elif len(existing_id) > 2:
+                raise ValueError(
+                    f'Extra keys not recognized in existing_ids for label: {label}')
         return entity
 
     def crude_search_scicrunch_via_label(self, label:str) -> dict:
@@ -183,14 +188,15 @@ class InterLexClient:
             template_entity_input['superclass'] = self.fix_ilx(template_entity_input['superclass'])
 
         if not label:
-            exit('Entity needs a label')
+            raise self.NoLabelError('Entity needs a label')
         if not type:
-            exit('Entity needs a type')
+            raise self.NoTypeError('Entity needs a type')
 
         entity_input = {
             'label': label,
             'type': type,
         }
+
 
         if definition:
             entity_input['definition'] = definition
@@ -208,20 +214,30 @@ class InterLexClient:
 
         # Sanity check -> output same as input, but filled with response data
         entity_output = {}
+        ics = [(e['iri'], e['curie'])
+               for e in raw_entity_outout['existing_ids']]
+        entity_output['iri'], entity_output['curie'] = sorted((i, c)
+                                                              for i, c in ics
+                                                              if 'ilx_' in i)[0]
+        entity_output['synonyms'] = [s['literal'] for s in raw_entity_outout['synonyms']]
         for key, value in template_entity_input.items():
             if key == 'superclass':
                 entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
             elif key == 'synonyms':
-                entity_output[key] = [syn['literal'] for syn in raw_entity_outout['synonyms']]
+                entity_output[key] = [syn['literal']
+                                      for syn in raw_entity_outout['synonyms']]
             else:
                 entity_output[key] = str(raw_entity_outout[key])
 
-        if entity_output != template_entity_input:
+        # skip this for now, I check it downstream be cause I'm paranoid, but in this client it is
+        # safe to assume that the value given will be the value returned if there is a return at all
+        # it also isn't that they match exactly, because some new values (e.g. iri and curie) are expected
+        #if entity_output != template_entity_input:
             # DEBUG: helps see what's wrong; might want to make a clean version of this
             # for key, value in template_entity_input.items():
             #     if template_entity_input[key] != entity_output[key]:
             #         print(template_entity_input[key], entity_output[key])
-            exit('The server did not return proper data!')
+            #raise self.BadResponseError('The server did not return proper data!')
 
         if entity_output.get('superclass'):
             entity_output['superclass'] = self.ilx_base_url + entity_output['superclass']
@@ -309,23 +325,20 @@ class InterLexClient:
         prime_entity_url = self.base_url + 'ilx/add'
         add_entity_url = self.base_url + 'term/add'
 
-        ### Checking if key/value format is currect ###
+        ### Checking if key/value format is correct ###
         # Seeing if you are missing a needed key
         if (set(entity) & needed_in_entity) != needed_in_entity:
-            exit(
-                'You need key(s): '+ str(needed_in_entity - set(entity))
-            )
+            raise self.MissingKeyError(
+                'You need key(s): '+ str(needed_in_entity - set(entity)))
         # Seeing if you have other options not included in the description
         elif (set(entity) | options_in_entity) != options_in_entity:
-            exit(
-                'Unexpected key(s): ' + str(set(entity) - options_in_entity)
-            )
+            self.IncorrecKeyError(
+                'Unexpected key(s): ' + str(set(entity) - options_in_entity))
         entity['type'] = entity['type'].lower() # BUG: server only takes lowercase
         if entity['type'] not in ['term', 'relationship', 'annotation', 'cde', 'fde', 'pde']:
-            exit(
+            raise TypeError(
                 'Entity should be one of the following: ' +
-                'term, relationship, annotation, cde, fde, pde'
-            )
+                'term, relationship, annotation, cde, fde, pde')
         if entity.get('superclass'):
             entity = self.process_superclass(entity)
         if entity.get('synonyms'):
@@ -358,11 +371,10 @@ class InterLexClient:
                 if prexisting_data:
                     print(
                         'You already added entity', entity['label'],
-                        'with ILX ID:', prexisting_data['ilx']
-                    )
+                        'with ILX ID:', prexisting_data['ilx'])
                     return prexisting_data
-                exit(output)
-            exit(output)
+                self.Error(output)  # FIXME what is the correct error here?
+            self.Error(output)  # FIXME what is the correct error here?
 
         #output['superclasses'][0].pop('dbObj') # BUG: bad data
 

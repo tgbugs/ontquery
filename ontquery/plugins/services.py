@@ -76,7 +76,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                               depth=depth, direction=direction)  # TODO
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
-            #print('aaaaaaaaaaaaaaaaa', len(edges))   # TODO len(set(???))
         else:
             if inverse:  # it is probably a bad idea to try to be clever here
                 predicate = self.inverses[predicate]
@@ -352,26 +351,26 @@ class InterLexRemote(OntService):  # note to self
                     objs = [objs]
                 for object in objs:
                     # server output doesnt include their ILX IDs ... so it's not worth getting
-                    resp = self.add_triple(subject, predicate, object)
+                    tresp = self.add_triple(subject, predicate, object)
                     # TODO stick the responding predicates etc in if success
 
-        if resp['comment'] is not None:
+        if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
         return QueryResult(
              query_args = {},
              iri=resp['iri'],
              curie=resp['curie'],
-             label = resp['label'],
+             label=resp['label'],
              labels=tuple(),
              #abbrev=None,  # TODO
              #acronym=None,  # TODO
              definition=resp['definition'],
-             synonyms= tuple([syn['literal'] for syn in server_populated_output['synonyms']]),
+             synonyms=tuple(resp['synonyms']),
              #deprecated=None,
              #prefix=None,
              #category=None,
-             predicates = out_predicates,
+             predicates=out_predicates,
              #_graph=None,
              source=self,
         )
