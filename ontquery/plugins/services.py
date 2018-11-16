@@ -292,6 +292,7 @@ class InterLexRemote(OntService):  # note to self
         super().__init__(*args, **kwargs)
 
     def setup(self):
+        OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
         if self.api_key is not None and self.apiEndpoint is not None:
             self.ilx_cli = InterLexClient(api_key=self.api_key,
                                           base_url=self.apiEndpoint,)
@@ -383,8 +384,8 @@ class InterLexRemote(OntService):  # note to self
 
         # this split between annotations and relationships is severely annoying
         # because you have to know before hand which one it is (sigh)
-        #s = OntId(subject) # FIXME: forces pyontutils namespace to be used
-        #p = OntId(predicate) # FIXME: forces pyontutils namespace to be used
+        s = OntId(subject)
+        p = OntId(predicate)
         o = self._get_type(object)
         if type(o) == str:
             func = self.ilx_cli.add_annotation
@@ -393,9 +394,16 @@ class InterLexRemote(OntService):  # note to self
             o = 'ilx_' + o.suffix
         else:
             raise TypeError(f'what are you giving me?! {object!r}')
-
-        resp = func(term_ilx_id = subject, # DEBUG: OntId can't handle tmp_ IDs # 'ilx_' + s.suffix,
-                    annotation_type_ilx_id =  predicate, # DEBUG: OntId can't handle tmp_ IDs # 'ilx_' + p.suffix,
+        if s.prefix == 'ILXTEMP':
+            s_fragment_prefix = 'tmp_'
+        else:
+            s_fragment_prefix = 'ilx_'
+        if p.prefix == 'ILXTEMP':
+            p_fragment_prefix = 'tmp_'
+        else:
+            p_fragment_prefix = 'ilx_'
+        resp = func(term_ilx_id = s_fragment_prefix + s.suffix,
+                    annotation_type_ilx_id =  p_fragment_prefix + p.suffix,
                     annotation_value = o)
         return resp
 
