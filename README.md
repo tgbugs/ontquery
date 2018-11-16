@@ -64,6 +64,7 @@ https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-3692
 
 ```python
 import ontquery as oq
+import os
 InterLexRemote = oq.plugin.get('InterLex')
 
 api_key = os.environ['INTERLEX_API_KEY']
@@ -72,6 +73,7 @@ ilx_cli = InterLexRemote(
     # When ready, should be changed to 'https://scicrunch.org/api/1/' for production (default)
     apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
+ilx_cli.setup()
 
 # NEEDS: label, type, subThingOf
 server_populated_output = ilx_cli.add_entity(

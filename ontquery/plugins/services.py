@@ -344,8 +344,10 @@ class InterLexRemote(OntService):  # note to self
         )
         out_predicates = {}
         if predicates:
-            ilx_url_prefix = 'http://uri.interlex.org/base/'  # FIXME hardcoded
-            subject = ilx_url_prefix + server_populated_output['ilx'],
+            if not resp['ilx'].startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+                subject = 'http://uri.interlex.org/base/' + resp['ilx']
+            else:
+                subject = resp['ilx']
             for predicate, objs in predicates.items():
                 if not isinstance(objs, list):
                     objs = [objs]
@@ -381,8 +383,8 @@ class InterLexRemote(OntService):  # note to self
 
         # this split between annotations and relationships is severely annoying
         # because you have to know before hand which one it is (sigh)
-        s = OntId(subject)
-        p = OntId(predicate)
+        #s = OntId(subject) # FIXME: forces pyontutils namespace to be used
+        #p = OntId(predicate) # FIXME: forces pyontutils namespace to be used
         o = self._get_type(object)
         if type(o) == str:
             func = self.ilx_cli.add_annotation
@@ -392,8 +394,8 @@ class InterLexRemote(OntService):  # note to self
         else:
             raise TypeError(f'what are you giving me?! {object!r}')
 
-        resp = func(term_ilx_id = 'ilx_' + s.suffix,
-                    annotation_type_ilx_id = 'ilx_' + p.suffix,
+        resp = func(term_ilx_id = subject, # DEBUG: OntId can't handle tmp_ IDs # 'ilx_' + s.suffix,
+                    annotation_type_ilx_id =  predicate, # DEBUG: OntId can't handle tmp_ IDs # 'ilx_' + p.suffix,
                     annotation_value = o)
         return resp
 

@@ -119,7 +119,7 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
 
         if curie_or_iri is not None:
             if (curie_or_iri.startswith('http://') or
-                curie_or_iri.startswith('https://') or 
+                curie_or_iri.startswith('https://') or
                 curie_or_iri.startswith('file://')):
                 iri_ci = curie_or_iri
                 curie_ci = cls._namespaces.qname(iri_ci)
@@ -370,7 +370,7 @@ class OntTerm(OntId):
             # can't gurantee that all endpoints work on the expanded iri
             #print(self.iri, self.kwargs)
             results_gen = self.query(iri=self.iri, curie=self.curie, **extra_kwargs)
-        
+
         i = None
         for i, result in enumerate(results_gen):
             if i > 0:
