@@ -181,7 +181,7 @@ class InterLexClient:
         definition: str = None,
         comment: str = None,
         superclass: str = None,
-        synonyms: list = None) -> List[dict]:
+        synonyms: list = None) -> dict:
 
         template_entity_input = {k:v for k, v in locals().items() if k != 'self' and v}
         if template_entity_input.get('superclass'):
@@ -196,7 +196,6 @@ class InterLexClient:
             'label': label,
             'type': type,
         }
-
 
         if definition:
             entity_input['definition'] = definition
@@ -378,10 +377,81 @@ class InterLexClient:
 
         #output['superclasses'][0].pop('dbObj') # BUG: bad data
 
-        # server output incomplete compared to search via ilx ids
+        # BUG: server output incomplete compared to search via ilx ids
         output = self.get_entity(output['ilx'])
 
         return output
+
+    def update_entity(
+        self,
+        ilx_id: str,
+        label: str = None,
+        type: str = None,
+        definition: str = None,
+        comment: str = None,
+        superclass: str = None,
+        synonyms: list = None) -> dict:
+        """ Updates pre-existing entity as long as the api_key is from the account that created it
+
+        Args:
+            label: name of entity
+            type: entities type
+                Can be any of the following: term, cde, fde, pde, annotation, relationship
+            definition: entities definition
+            comment: a foot note regarding either the interpretation of the data or the data itself
+            superclass: entity is a sub-part of this entity
+                Example: Organ is a superclass to Brain
+            synonyms: entity synonyms
+
+        Returns:
+            Server response that is a nested dictionary format
+        """
+
+        existing_entity = self.get_entity(ilx_id=ilx_id)
+        if not existing_entity['id']: # TODO: Need to make a proper ilx_id check error
+            exit(
+                'ilx_id provided does not exist'
+            )
+        update_url = self.base_url + 'term/edit/{id}'.format(id=existing_entity['id'])
+
+        if label:
+            existing_entity['label'] = label
+
+        if type:
+            existing_entity['type'] = type
+
+        if definition:
+            existing_entity['definition'] = definition
+
+        if comment:
+            existing_entity['comment'] = comment
+
+        if superclass:
+            existing_entity['superclass'] = {'ilx_id': superclass}
+            existing_entity = self.process_superclass(existing_entity)
+
+        if synonyms:
+            if existing_entity['synonyms']:
+                existing_synonyms = [syn_data['literal'].lower() for syn_data in existing_entity['synonyms']]
+                for synonym in synonyms:
+                    if synonym.lower() not in existing_synonyms:
+                        existing_entity['synonyms'].append({'literal': synonym})
+            else:
+                existing_entity['synonyms'] = [{'literal': syn} for syn in synonyms]
+
+        response = self.post(
+            url = update_url,
+            data = existing_entity,
+        )
+
+        # BUG: server response is bad and needs to actually search again to get proper format
+        response = self.get_entity(response['ilx'])
+        ics = [(e['iri'], e['curie'])
+               for e in response['existing_ids']]
+        response['iri'], response['curie'] = sorted((i, c)
+                                                    for i, c in ics
+                                                    if 'ilx_' in i)[0]
+        return response
 
     def get_annotation_via_tid(self, tid: str) -> dict:
         """ Gets annotation via anchored entity id """
@@ -453,6 +523,60 @@ class InterLexClient:
                 exit(output)
             exit(output)
 
+        return output
+
+    def delete_annotation(
+        self,
+        term_ilx_id: str,
+        annotation_type_ilx_id: str,
+        annotation_value: str) -> dict:
+        """ If annotation doesnt exist, add it
+        """
+
+        term_data = self.get_entity(term_ilx_id)
+        if not term_data['id']:
+            exit(
+                'term_ilx_id: ' + term_ilx_id + ' does not exist'
+            )
+        anno_data = self.get_entity(annotation_type_ilx_id)
+        if not anno_data['id']:
+            exit(
+                'annotation_type_ilx_id: ' + annotation_type_ilx_id +
+                ' does not exist'
+            )
+
+        entity_annotations = self.get_annotation_via_tid(term_data['id'])
+        annotation_id = ''
+
+        for annotation in entity_annotations:
+            if str(annotation['tid']) == str(term_data['id']):
+                if str(annotation['annotation_tid']) == str(anno_data['id']):
+                    if str(annotation['value']) == str(annotation_value):
+                        annotation_id = annotation['id']
+                        break
+        if not annotation_id:
+            print('''WARNING: Annotation you wanted to delete does not exist ''')
+            return None
+
+        url = self.base_url + 'term/edit-annotation/{annotation_id}'.format(
+            annotation_id = annotation_id
+        )
+
+        data = {
+            'tid': ' ', # for delete
+            'annotation_tid': ' ', # for delete
+            'value': ' ', # for delete
+            'term_version': ' ',
+            'annotation_term_version': ' ',
+        }
+
+        output = self.post(
+            url = url,
+            data = data,
+        )
+
+        # check output
+        print(output)
         return output
 
     def get_relationship_via_tid(self, tid: str) -> dict:
@@ -529,7 +653,7 @@ class InterLexClient:
 def example():
     sci = InterLexClient(
         api_key = os.environ.get('INTERLEX_API_KEY'),
-        base_url = 'https://beta.scicrunch.org/api/1/',
+        base_url = 'https://beta.scicrunch.org/api/1/', # NEVER CHANGE
     )
     entity = {
         'label': 'brain113',
@@ -572,22 +696,26 @@ def example():
         'relationship_ilx': 'ilx_0115023', # Related to
         'entity2_ilx': 'ilx_0108124', #organ
     }
-    entity2 = {
-        'label': 'brain115',
-        'type': 'term', # broken at the moment NEEDS PDE HARDCODED
-        'definition': 'Part of the central nervous system',
-        'comment': 'Cannot live without it',
-        #'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-        'superclass': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-        'synonyms': ['Encephalon', 'Cerebro'],
-        # 'predicates': {
-        #     'http://uri.interlex.org/base/tmp_0381624': 'sample_value' # hasDbXref beta ID
-        # }
+    update_entity_data = {
+        'ilx_id': 'ilx_0101431',
+        'label': 'Brain',
+        'definition': 'update_test!!',
+        'type': 'fde',
+        'comment': 'test comment',
+        'superclass': 'ilx_0108124',
+        'synonyms': ['test', 'test2', 'test2'],
     }
-    print(sci.add_raw_entity(entity))
-    print(sci.add_entity(**entity2))
-    print(sci.add_annotation(**annotation))
-    print(sci.add_relationship(**relationship))
+    resp = sci.delete_annotation(**{
+        'term_ilx_id': 'ilx_0101431', # brain ILX ID
+        'annotation_type_ilx_id': 'ilx_0115071', # hasConstraint ILX ID
+        'annotation_value': 'test_12345',
+    })
+    print(resp)
+    #print([syn['literal'] for syn in sci.update_entity(**update_entity_data)['synonyms']])
+    # print(sci.add_raw_entity(entity))
+    # print(sci.add_entity(**simple_entity))
+    # print(sci.add_annotation(**annotation))
+    # print(sci.add_relationship(**relationship))
 
 if __name__ == '__main__':
     example()
