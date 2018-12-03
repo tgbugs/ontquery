@@ -12,6 +12,7 @@ ilxremote = InterLexRemote(
     apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
 ilxremote.setup()
+
 ilx_cli = ilxremote.ilx_cli
 
 
@@ -276,3 +277,56 @@ def test_add_entity_minimum():
 
     assert added_entity_data['label'] == entity['label']
     assert added_entity_data['type'] == entity['type']
+
+def test_update_entity():
+
+    def rando_str():
+        return 'test_' + id_generator(size=12)
+
+    label = 'Brain'
+    type = 'fde'
+    superclass = 'ilx_0108124'
+    definition = rando_str()
+    comment = rando_str()
+    synonym = rando_str()
+
+    update_entity_data = {
+        'ilx_id': 'ilx_0101431',
+        'label': label,
+        'definition': definition,
+        'type': type,
+        'comment': comment,
+        'superclass': superclass,
+        'synonyms': ['test', synonym],
+    }
+
+    updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
+    synonyms = [syn['literal'] for syn in updated_entity_data['synonyms']]
+
+    assert updated_entity_data['label'] == label
+    assert updated_entity_data['definition'] == definition
+    assert updated_entity_data['type'] == type
+    assert updated_entity_data['comment'] == comment
+    assert updated_entity_data['superclasses'][0]['ilx'] == superclass
+    # test if random synonym was added
+    assert synonym in synonyms
+    # test if dupclicates weren't created
+    assert synonyms.count('test') == 1
+
+def test_delete_annotation():
+    annotation_value = 'test_' + id_generator()
+    resp = ilx_cli.add_annotation(**{
+        'term_ilx_id': 'ilx_0101431', # brain ILX ID
+        'annotation_type_ilx_id': 'tmp_0381624', # hasDbXref ILX ID
+        'annotation_value': annotation_value,
+    })
+    assert resp['value'] == annotation_value
+    resp = ilx_cli.delete_annotation(**{
+        'term_ilx_id': 'ilx_0101431', # brain ILX ID
+        'annotation_type_ilx_id': 'tmp_0381624', # hasDbXref ILX ID
+        'annotation_value': annotation_value,
+    })
+    # If there is a response than it means it worked. If you try this again it will 404 if my net
+    # doesnt catch it
+    assert resp['id'] != None
+    assert resp['value'] == ' '
