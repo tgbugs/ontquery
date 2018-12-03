@@ -333,6 +333,78 @@ class InterLexRemote(OntService):  # note to self
             comment = comment,
             predicates = predicates)
 
+    def add_predicates(self, resp: dict, predicates: dict) -> list:
+        tresp = []
+        if not resp['ilx'].startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+            subject = 'http://uri.interlex.org/base/' + resp['ilx']
+        else:
+            subject = resp['ilx']
+        for predicate, objs in predicates.items():
+            if not isinstance(objs, list):
+                objs = [objs]
+            for object in objs:
+                # server output doesnt include their ILX IDs ... so it's not worth getting
+                tresp.append(self.add_triple(subject, predicate, object))
+                # TODO stick the responding predicates etc in if success
+        return tresp
+
+    def delete_predicates(self, resp: dict, predicates: dict) -> list:
+        tresp = []
+        if not resp['ilx'].startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+            subject = 'http://uri.interlex.org/base/' + resp['ilx']
+        else:
+            subject = resp['ilx']
+        for predicate, objs in predicates.items():
+            if not isinstance(objs, list):
+                objs = [objs]
+            for object in objs:
+                # server output doesnt include their ILX IDs ... so it's not worth getting
+                tresp.append(self.delete_triple(subject, predicate, object))
+                # TODO stick the responding predicates etc in if success
+        return tresp
+
+    def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
+                      definition: str=None, synonyms=tuple(), comment: str=None,
+                      predicates_to_add: dict=None, predicates_to_delete: dict=None):
+        resp = self.ilx_cli.update_entity(
+            ilx_id = ilx_id,
+            label = label,
+            type = type,
+            superclass = subThingOf,
+            definition = definition,
+            comment = comment,
+            synonyms = synonyms,
+        )
+
+        out_predicates = {}
+
+        if predicates_to_add:
+            tresp = self.add_predicates(resp, predicates_to_add)
+
+        if predicates_to_delete:
+            tresp = self.delete_predicates(resp, predicates_to_delete)
+
+        if 'comment' in resp:  # filtering of missing fields is done in the client
+            out_predicates['comment'] = resp['comment']
+
+        return QueryResult(
+             query_args = {},
+             iri=resp['iri'],
+             curie=resp['curie'],
+             label=resp['label'],
+             labels=tuple(),
+             #abbrev=None,  # TODO
+             #acronym=None,  # TODO
+             definition=resp['definition'],
+             synonyms=tuple(resp['synonyms']),
+             #deprecated=None,
+             #prefix=None,
+             #category=None,
+             predicates=out_predicates,
+             #_graph=None,
+             source=self,
+        )
+
     def add_entity(self, type, subThingOf, label, definition: str=None,
                    synonyms=tuple(), comment: str=None, predicates: dict=None):
         resp = self.ilx_cli.add_entity(
@@ -344,18 +416,9 @@ class InterLexRemote(OntService):  # note to self
             synonyms = synonyms,
         )
         out_predicates = {}
+
         if predicates:
-            if not resp['ilx'].startswith('http://uri.interlex.org/base/'): # FIXME: need formality
-                subject = 'http://uri.interlex.org/base/' + resp['ilx']
-            else:
-                subject = resp['ilx']
-            for predicate, objs in predicates.items():
-                if not isinstance(objs, list):
-                    objs = [objs]
-                for object in objs:
-                    # server output doesnt include their ILX IDs ... so it's not worth getting
-                    tresp = self.add_triple(subject, predicate, object)
-                    # TODO stick the responding predicates etc in if success
+            tresp = self.add_predicates(resp, predicates)
 
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
@@ -402,6 +465,37 @@ class InterLexRemote(OntService):  # note to self
             p_fragment_prefix = 'tmp_'
         else:
             p_fragment_prefix = 'ilx_'
+        # TODO: check if add_relationship works
+        resp = func(term_ilx_id = s_fragment_prefix + s.suffix,
+                    annotation_type_ilx_id =  p_fragment_prefix + p.suffix,
+                    annotation_value = o)
+        return resp
+
+    def delete_triple(self, subject, predicate, object):
+        """ Triple of curied or full iris to delete to graph.
+            Subject should be an interlex"""
+
+        # this split between annotations and relationships is severely annoying
+        # because you have to know before hand which one it is (sigh)
+        s = OntId(subject)
+        p = OntId(predicate)
+        o = self._get_type(object)
+        if type(o) == str:
+            func = self.ilx_cli.delete_annotation
+        elif type(o) == OntId:
+            func = self.ilx_cli.delete_relationship
+            o = 'ilx_' + o.suffix
+        else:
+            raise TypeError(f'what are you giving me?! {object!r}')
+        if s.prefix == 'ILXTEMP':
+            s_fragment_prefix = 'tmp_'
+        else:
+            s_fragment_prefix = 'ilx_'
+        if p.prefix == 'ILXTEMP':
+            p_fragment_prefix = 'tmp_'
+        else:
+            p_fragment_prefix = 'ilx_'
+        # TODO: check if delete_relationship works
         resp = func(term_ilx_id = s_fragment_prefix + s.suffix,
                     annotation_type_ilx_id =  p_fragment_prefix + p.suffix,
                     annotation_value = o)
