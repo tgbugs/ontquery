@@ -100,4 +100,15 @@ server_populated_output = ilx_cli.add_pde(
         'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
     }
 )
+
+# NEEDS: ilx_id
+response = ilx_cli.update_entity(
+    label = 'New Label', # Should be avoided unless there is a typo
+    type = 'term', # Just in case intended type wasn't created
+    ilx_id = 'tmp_0101431', # entity "brain" ilx_id example
+    definition = 'update!',
+    comment = 'update!',
+    subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
+    synonyms = ['Encephalon', 'Cerebro'],
+)
 ```
