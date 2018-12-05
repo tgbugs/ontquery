@@ -176,6 +176,16 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
         # even though this is a property
 
     @property
+    def namespace(self):
+        if self.prefix:
+            return self.namespaces[self.prefix]
+
+    @property
+    def iprefix(self):
+        """ alias for self.namespace """
+        return self.namespace
+
+    @property
     def curie(self):
         if self.prefix or self.suffix:
             return ':'.join((self.prefix, self.suffix))
