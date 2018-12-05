@@ -26,6 +26,9 @@ class InterLexClient:
     class SuperClassDoesNotExistError(Error):
         """ The superclass listed does not exist! """
 
+    class EntityDoesNotExistError(Error):
+        """ The entity listed does not exist! """
+
     class BadResponseError(Error): pass
 
     class NoLabelError(Error): pass
@@ -218,7 +221,12 @@ class InterLexClient:
         entity_output['iri'], entity_output['curie'] = sorted((i, c)
                                                               for i, c in ics
                                                               if 'ilx_' in i)[0]
-        entity_output['synonyms'] = [s['literal'] for s in raw_entity_outout['synonyms']]
+        ### FOR NEW BETA. Old can have 'ilx_' in the ids ###
+        if 'tmp' in raw_entity_outout['ilx']:
+            _id = raw_entity_outout['ilx'].split('_')[-1]
+            entity_output['iri'] = 'http://uri.interlex.org/base/tmp_' + _id
+            entity_output['curie'] = 'TMP:' + _id
+
         for key, value in template_entity_input.items():
             if key == 'superclass':
                 entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
@@ -241,8 +249,8 @@ class InterLexClient:
         if entity_output.get('superclass'):
             entity_output['superclass'] = self.ilx_base_url + entity_output['superclass']
         entity_output['ilx'] = self.ilx_base_url + raw_entity_outout['ilx']
-        return entity_output
 
+        return entity_output
 
     def add_raw_entity(self, entity: dict) -> dict:
         """ Adds entity if it does not already exist under your user ID.
@@ -358,6 +366,7 @@ class InterLexClient:
             ilx_id = ilx_data['fragment'] # beta.scicrunch.org
         entity['label'] = entity.pop('term') # term/add nuance
         entity['ilx'] = ilx_id # need entity ilx_id to place entity in db
+        entity['annotations'] = ['hello!!!']
         output = self.post(
             url = add_entity_url,
             data = entity.copy(),
@@ -374,8 +383,6 @@ class InterLexClient:
                     return prexisting_data
                 self.Error(output)  # FIXME what is the correct error here?
             self.Error(output)  # FIXME what is the correct error here?
-
-        #output['superclasses'][0].pop('dbObj') # BUG: bad data
 
         # BUG: server output incomplete compared to search via ilx ids
         output = self.get_entity(output['ilx'])
@@ -407,11 +414,15 @@ class InterLexClient:
             Server response that is a nested dictionary format
         """
 
+        template_entity_input = {k:v for k, v in locals().copy().items() if k != 'self'}
+        if template_entity_input.get('superclass'):
+            template_entity_input['superclass'] = self.fix_ilx(template_entity_input['superclass'])
+
         existing_entity = self.get_entity(ilx_id=ilx_id)
         if not existing_entity['id']: # TODO: Need to make a proper ilx_id check error
-            exit(
-                'ilx_id provided does not exist'
-            )
+            raise self.EntityDoesNotExistError(
+                f'ilx_id provided {ilx_id} does not exist')
+
         update_url = self.base_url + 'term/edit/{id}'.format(id=existing_entity['id'])
 
         if label:
@@ -430,14 +441,30 @@ class InterLexClient:
             existing_entity['superclass'] = {'ilx_id': superclass}
             existing_entity = self.process_superclass(existing_entity)
 
+        # If a match use old data, else append new synonym
         if synonyms:
             if existing_entity['synonyms']:
-                existing_synonyms = [syn_data['literal'].lower() for syn_data in existing_entity['synonyms']]
+                new_existing_synonyms = []
+                existing_synonyms = {syn['literal'].lower():syn for syn in existing_entity['synonyms']}
                 for synonym in synonyms:
-                    if synonym.lower() not in existing_synonyms:
-                        existing_entity['synonyms'].append({'literal': synonym})
-            else:
-                existing_entity['synonyms'] = [{'literal': syn} for syn in synonyms]
+                    existing_synonym = existing_synonyms.get(synonym.lower())
+                    if not existing_synonym:
+                        new_existing_synonyms.append({'literal': synonym})
+                    else:
+                        new_existing_synonyms.append(existing_synonym)
+                existing_synonyms['synonyms'] = new_existing_synonyms
+
+        # Just in case I need this...
+        # if synonyms_to_delete:
+        #     if existing_entity['synonyms']:
+        #         remaining_existing_synonyms = []
+        #         existing_synonyms = {syn['literal'].lower():syn for syn in existing_entity['synonyms']}
+        #         for synonym in synonyms:
+        #             if existing_synonyms.get(synonym.lower()):
+        #                 existing_synonyms.pop(synonym.lower())
+        #             else:
+        #                 print('WARNING: synonym you wanted to delete', synonym, 'does not exist')
+        #         existing_entity['synonyms'] = list(existing_synonyms.values())
 
         response = self.post(
             url = update_url,
@@ -445,13 +472,36 @@ class InterLexClient:
         )
 
         # BUG: server response is bad and needs to actually search again to get proper format
-        response = self.get_entity(response['ilx'])
+        raw_entity_outout = self.get_entity(response['ilx'])
+
+        entity_output = {}
         ics = [(e['iri'], e['curie'])
-               for e in response['existing_ids']]
-        response['iri'], response['curie'] = sorted((i, c)
+               for e in raw_entity_outout['existing_ids']]
+        entity_output['iri'], entity_output['curie'] = sorted((i, c)
                                                     for i, c in ics
                                                     if 'ilx_' in i)[0]
-        return response
+        ### FOR NEW BETA. Old can have 'ilx_' in the ids ###
+        if 'tmp' in raw_entity_outout['ilx']:
+            _id = raw_entity_outout['ilx'].split('_')[-1]
+            entity_output['iri'] = 'http://uri.interlex.org/base/tmp_' + _id
+            entity_output['curie'] = 'TMP:' + _id
+
+        for key, value in template_entity_input.items():
+            if key == 'superclass':
+                entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
+            elif key == 'synonyms':
+                entity_output[key] = [syn['literal']
+                                      for syn in raw_entity_outout['synonyms']]
+            elif key == 'ilx_id':
+                pass
+            else:
+                entity_output[key] = str(raw_entity_outout[key])
+
+        if entity_output.get('superclass'):
+            entity_output['superclass'] = self.ilx_base_url + entity_output['superclass']
+        entity_output['ilx'] = self.ilx_base_url + raw_entity_outout['ilx']
+
+        return entity_output
 
     def get_annotation_via_tid(self, tid: str) -> dict:
         """ Gets annotation via anchored entity id """
@@ -576,7 +626,6 @@ class InterLexClient:
         )
 
         # check output
-        print(output)
         return output
 
     def get_relationship_via_tid(self, tid: str) -> dict:
@@ -656,7 +705,7 @@ def example():
         base_url = 'https://beta.scicrunch.org/api/1/', # NEVER CHANGE
     )
     entity = {
-        'label': 'brain113',
+        'label': 'brain115',
         'type': 'fde', # broken at the moment NEEDS PDE HARDCODED
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
@@ -705,13 +754,13 @@ def example():
         'superclass': 'ilx_0108124',
         'synonyms': ['test', 'test2', 'test2'],
     }
-    resp = sci.delete_annotation(**{
-        'term_ilx_id': 'ilx_0101431', # brain ILX ID
-        'annotation_type_ilx_id': 'ilx_0115071', # hasConstraint ILX ID
-        'annotation_value': 'test_12345',
-    })
-    print(resp)
-    #print([syn['literal'] for syn in sci.update_entity(**update_entity_data)['synonyms']])
+    # resp = sci.delete_annotation(**{
+    #     'term_ilx_id': 'ilx_0101431', # brain ILX ID
+    #     'annotation_type_ilx_id': 'ilx_0115071', # hasConstraint ILX ID
+    #     'annotation_value': 'test_12345',
+    # })
+    # print(resp)
+    # print(sci.update_entity(**update_entity_data))
     # print(sci.add_raw_entity(entity))
     # print(sci.add_entity(**simple_entity))
     # print(sci.add_annotation(**annotation))
