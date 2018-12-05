@@ -259,6 +259,7 @@ def test_add_entity():
     assert added_entity_data['synonyms'][0] == entity['synonyms'][0]
     assert added_entity_data['synonyms'][1] == entity['synonyms'][1]
 
+
 def test_add_entity_minimum():
     random_label = 'test_' + id_generator(size=12)
 
@@ -277,6 +278,7 @@ def test_add_entity_minimum():
 
     assert added_entity_data['label'] == entity['label']
     assert added_entity_data['type'] == entity['type']
+
 
 def test_update_entity():
 
@@ -301,17 +303,16 @@ def test_update_entity():
     }
 
     updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-    synonyms = [syn['literal'] for syn in updated_entity_data['synonyms']]
 
     assert updated_entity_data['label'] == label
     assert updated_entity_data['definition'] == definition
     assert updated_entity_data['type'] == type
     assert updated_entity_data['comment'] == comment
-    assert updated_entity_data['superclasses'][0]['ilx'] == superclass
+    assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass
     # test if random synonym was added
-    assert synonym in synonyms
+    assert synonym in update_entity_data['synonyms']
     # test if dupclicates weren't created
-    assert synonyms.count('test') == 1
+    assert update_entity_data['synonyms'].count('test') == 1
 
 def test_delete_annotation():
     annotation_value = 'test_' + id_generator()
