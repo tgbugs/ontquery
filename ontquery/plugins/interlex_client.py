@@ -366,7 +366,7 @@ class InterLexClient:
             ilx_id = ilx_data['fragment'] # beta.scicrunch.org
         entity['label'] = entity.pop('term') # term/add nuance
         entity['ilx'] = ilx_id # need entity ilx_id to place entity in db
-        entity['annotations'] = ['hello!!!']
+
         output = self.post(
             url = add_entity_url,
             data = entity.copy(),
