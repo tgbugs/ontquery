@@ -78,6 +78,7 @@ ilx_cli.setup()
 # NEEDS: label, type, subThingOf
 server_populated_output = ilx_cli.add_entity(
     type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
+    # subThingOf can take either iri or curie form of ID
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
     label = 'Label of entity you wish to create',
     definition = 'Entities definition',
@@ -105,7 +106,7 @@ server_populated_output = ilx_cli.add_pde(
 response = ilx_cli.update_entity(
     label = 'New Label', # Should be avoided unless there is a typo
     type = 'term', # Just in case intended type wasn't created
-    ilx_id = 'tmp_0101431', # entity "brain" ilx_id example
+    ilx_id = 'TMP:0101431', # entity "brain" ilx_id example
     definition = 'update!',
     comment = 'update!',
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
