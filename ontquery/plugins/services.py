@@ -333,13 +333,13 @@ class InterLexRemote(OntService):  # note to self
             comment = comment,
             predicates = predicates)
 
-    def add_predicates(self, resp: dict, predicates: dict) -> list:
+    def add_predicates(self, ilx_curieoriri: str, predicate_objects_dict: dict) -> list:
         tresp = []
-        if not resp['ilx'].startswith('http://uri.interlex.org/base/'): # FIXME: need formality
-            subject = 'http://uri.interlex.org/base/' + resp['ilx']
+        if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+            subject = 'http://uri.interlex.org/base/' + ilx_curieoriri
         else:
-            subject = resp['ilx']
-        for predicate, objs in predicates.items():
+            subject = ilx_curieoriri
+        for predicate, objs in predicate_objects_dict.items():
             if not isinstance(objs, list):
                 objs = [objs]
             for object in objs:
@@ -353,7 +353,7 @@ class InterLexRemote(OntService):  # note to self
 
         tresp = None
         if predicates:
-            tresp = self.add_predicates(resp, predicates_to_add)
+            tresp = self.add_predicates(ilx_curieoriri=ilx_id, predicate_objects_dict=predicates)
 
         resp = self.ilx_cli.update_entity(
             ilx_id = ilx_id,
@@ -402,7 +402,7 @@ class InterLexRemote(OntService):  # note to self
         out_predicates = {}
 
         if predicates:
-            tresp = self.add_predicates(resp, predicates)
+            tresp = self.add_predicates(ilx_curieoriri=resp['ilx'], predicate_objects_dict=predicates)
             resp['annotations'] = tresp # TODO: Creates a record for annotations in term_versions table
 
         if 'comment' in resp:  # filtering of missing fields is done in the client
