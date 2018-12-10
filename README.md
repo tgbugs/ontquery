@@ -59,6 +59,8 @@ https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-3687
 
 https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-369215854
 
+# InterlexRemote Notes
+ilx_id and any key that takes a uri value can also be given a curie of that uri or a fragment and it will still work.
 
 # InterLexRemote Usage
 
