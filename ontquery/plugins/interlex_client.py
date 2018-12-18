@@ -654,7 +654,7 @@ class InterLexClient:
         entity1_data = self.get_entity(entity1_ilx)
         if not entity1_data['id']:
             exit(
-                'entity1_ilx: ' + entity1_data + ' does not exist'
+                'entity1_ilx: ' + entity1_ilx + ' does not exist'
             )
         relationship_data = self.get_entity(relationship_ilx)
         if not relationship_data['id']:
@@ -664,7 +664,7 @@ class InterLexClient:
         entity2_data = self.get_entity(entity2_ilx)
         if not entity2_data['id']:
             exit(
-                'entity2_ilx: ' + entity2_data + ' does not exist'
+                'entity2_ilx: ' + entity2_ilx + ' does not exist'
             )
 
         data = {
@@ -696,6 +696,69 @@ class InterLexClient:
                             return term_relationship
                 exit(output)
             exit(output)
+
+        return output
+
+    def delete_relationship(
+        self,
+        entity1_ilx: str,
+        relationship_ilx: str,
+        entity2_ilx: str) -> dict:
+        """ Adds relationship connection in Interlex
+
+        A relationship exists as 3 different parts:
+            1. entity with type term, cde, fde, or pde
+            2. entity with type relationship that connects entity1 to entity2
+                -> Has its' own meta data, so no value needed
+            3. entity with type term, cde, fde, or pde
+        """
+
+        entity1_data = self.get_entity(entity1_ilx)
+        if not entity1_data['id']:
+            exit(
+                'entity1_ilx: ' + entity1_data + ' does not exist'
+            )
+        relationship_data = self.get_entity(relationship_ilx)
+        if not relationship_data['id']:
+            exit(
+                'relationship_ilx: ' + relationship_ilx + ' does not exist'
+            )
+        entity2_data = self.get_entity(entity2_ilx)
+        if not entity2_data['id']:
+            exit(
+                'entity2_ilx: ' + entity2_data + ' does not exist'
+            )
+
+        data = {
+            'term1_id': ' ', #entity1_data['id'],
+            'relationship_tid': ' ', #relationship_data['id'],
+            'term2_id': ' ',#entity2_data['id'],
+            'term1_version': entity1_data['version'],
+            'term2_version': entity2_data['version'],
+            'relationship_term_version': relationship_data['version'],
+            'orig_uid': self.user_id, # BUG: php lacks orig_uid update
+        }
+
+        entity_relationships = self.get_relationship_via_tid(entity1_data['id'])
+        # TODO: parse through entity_relationships to see if we have a match; else print warning and return None
+
+        relationship_id = None
+        for relationship in entity_relationships:
+            if str(relationship['term1_id']) == str(entity1_data['id']):
+                if str(relationship['term2_id']) == str(entity2_data['id']):
+                    if str(relationship['relationship_tid']) == str(relationship_data['id']):
+                        relationship_id = relationship['id']
+                        break
+        if not relationship_id:
+            print('''WARNING: Annotation you wanted to delete does not exist ''')
+            return None
+
+        url = self.base_url + 'term/edit-relationship/{id}'.format(id=relationship_id)
+
+        output = self.post(
+            url = url,
+            data = data,
+        )
 
         return output
 
@@ -759,6 +822,12 @@ def example():
     #     'annotation_type_ilx_id': 'ilx_0115071', # hasConstraint ILX ID
     #     'annotation_value': 'test_12345',
     # })
+    relationship = {
+        'entity1_ilx': 'http://uri.interlex.org/base/ilx_0100001', # (R)N6 chemical ILX ID
+        'relationship_ilx': 'http://uri.interlex.org/base/ilx_0112772', # Afferent projection ILX ID
+        'entity2_ilx': 'http://uri.interlex.org/base/ilx_0100000', #1,2-Dibromo chemical ILX ID
+    }
+    print(sci.add_relationship(**relationship))
     # print(resp)
     # print(sci.update_entity(**update_entity_data))
     # print(sci.add_raw_entity(entity))
