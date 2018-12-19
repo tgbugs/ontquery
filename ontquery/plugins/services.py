@@ -404,10 +404,6 @@ class InterLexRemote(OntService):  # note to self
                       definition: str=None, synonyms=tuple(), comment: str=None,
                       predicates_to_add: dict=None, predicates_to_delete: dict=None):
 
-        tresp = None
-        if predicates:
-            tresp = self.add_predicates(ilx_curieoriri=ilx_id, predicate_objects_dict=predicates)
-
         resp = self.ilx_cli.update_entity(
             ilx_id = ilx_id,
             label = label,
@@ -419,9 +415,11 @@ class InterLexRemote(OntService):  # note to self
             # predicates = tresp,
         )
 
+        tresp = None
         if predicates_to_add:
             trep = self.add_predicates(ilx_curieoriri=resp['ilx'], predicate_objects_dict=predicates_to_add)
 
+        tresp = None
         if predicates_to_delete:
             trep = self.delete_predicates(ilx_curieoriri=resp['ilx'], predicate_objects_dict=predicates_to_delete)
 
@@ -451,6 +449,15 @@ class InterLexRemote(OntService):  # note to self
         """ Triple of curied or full iris to add to graph.
             Subject should be an interlex"""
 
+        def filter_ontid(ontid):
+            if ontid.startswith('http://'):
+                pass
+            elif ontid.prefix == 'ILXTEMP':
+                ontid = 'tmp_' + ontid.suffix
+            else:
+                ontid = 'ilx_' + ontid.suffix
+            return ontid
+
         # this split between annotations and relationships is severely annoying
         # because you have to know before hand which one it is (sigh)
         s = OntId(subject)
@@ -460,27 +467,28 @@ class InterLexRemote(OntService):  # note to self
             func = self.ilx_cli.add_annotation
         elif type(o) == OntId:
             func = self.ilx_cli.add_relationship
-            o = 'ilx_' + o.suffix
+            o = filter_ontid(o)
         else:
             raise TypeError(f'what are you giving me?! {object!r}')
-        if s.prefix == 'ILXTEMP':
-            s_fragment_prefix = 'tmp_'
-        else:
-            s_fragment_prefix = 'ilx_'
-        if p.prefix == 'ILXTEMP':
-            p_fragment_prefix = 'tmp_'
-        else:
-            p_fragment_prefix = 'ilx_'
-        # TODO: OntId not working for relationships 
-        print(s_fragment_prefix + s.suffix, p_fragment_prefix + p.suffix, o)
-        resp = func(s_fragment_prefix + s.suffix,
-                    p_fragment_prefix + p.suffix,
-                    o)
+
+        s = filter_ontid(s)
+        p = filter_ontid(p)
+
+        resp = func(s, p, o)
         return resp
 
     def delete_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
             Subject should be an interlex"""
+
+        def filter_ontid(ontid):
+            if ontid.startswith('http://'):
+                pass
+            elif ontid.prefix == 'ILXTEMP':
+                ontid = 'tmp_' + ontid.suffix
+            else:
+                ontid = 'ilx_' + ontid.suffix
+            return ontid
 
         # this split between annotations and relationships is severely annoying
         # because you have to know before hand which one it is (sigh)
@@ -491,21 +499,15 @@ class InterLexRemote(OntService):  # note to self
             func = self.ilx_cli.delete_annotation
         elif type(o) == OntId:
             func = self.ilx_cli.delete_relationship
-            o = 'ilx_' + o.suffix
+            o = filter_ontid(o)
         else:
             raise TypeError(f'what are you giving me?! {object!r}')
-        if s.prefix == 'ILXTEMP':
-            s_fragment_prefix = 'tmp_'
-        else:
-            s_fragment_prefix = 'ilx_'
-        if p.prefix == 'ILXTEMP':
-            p_fragment_prefix = 'tmp_'
-        else:
-            p_fragment_prefix = 'ilx_'
+
+        s = filter_ontid(s)
+        p = filter_ontid(p)
+
         # TODO: check if add_relationship works
-        resp = func(s_fragment_prefix + s.suffix,
-                    p_fragment_prefix + p.suffix,
-                    o)
+        resp = func(s, p, o)
         return resp
 
     def _get_type(self, entity):
