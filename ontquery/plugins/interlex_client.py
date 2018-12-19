@@ -452,7 +452,7 @@ class InterLexClient:
                         new_existing_synonyms.append({'literal': synonym})
                     else:
                         new_existing_synonyms.append(existing_synonym)
-                existing_synonyms['synonyms'] = new_existing_synonyms
+                existing_entity['synonyms'] = new_existing_synonyms
 
         # Just in case I need this...
         # if synonyms_to_delete:
