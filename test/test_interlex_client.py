@@ -375,7 +375,7 @@ def test_entity_remote():
         'label': random_label,
         'type': 'term', # broken at the moment NEEDS PDE HARDCODED
         'definition': 'Part of the central nervous system',
-        # 'comment': 'Cannot live without it',
+        'comment': 'Cannot live without it',
         # 'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
         'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
         'synonyms': ['Encephalon', 'Cerebro'],
@@ -387,7 +387,7 @@ def test_entity_remote():
     ilxremote_resp = ilxremote.add_entity(**entity)
     added_entity_data = ilx_cli.get_entity(ilxremote_resp['curie'])
     added_annotation = ilx_cli.get_annotation_via_tid(added_entity_data['id'])[0]
-    #added_relationship = ilx_cli.get_relationship_via_tid(added_entity_data['id'])[0]
+    added_relationship = ilx_cli.get_relationship_via_tid(added_entity_data['id'])[0]
 
     assert ilxremote_resp['label'] == entity['label']
     # assert ilxremote_resp['type'] == entity['type']
@@ -396,5 +396,49 @@ def test_entity_remote():
     # assert ilxremote_resp['superclass'] == entity['superclass']
     assert ilxremote_resp['synonyms'][0] == entity['synonyms'][0]
     assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
+
+    assert added_annotation['value'] == 'sample_value'
     assert added_annotation['annotation_term_ilx'] == 'tmp_0381624'
-    # assert added_relationship['ilx'] == 'ilx_0112772'
+    assert added_relationship['relationship_term_ilx'] == 'ilx_0112772'
+    assert added_relationship['term2_ilx'] == 'ilx_0100001'
+
+    entity = {
+        'ilx_id': ilxremote_resp['curie'],
+        'label': random_label + '_update',
+        # 'type': 'term', # broken at the moment NEEDS PDE HARDCODED
+        'definition': 'Updated definition!',
+        'comment': 'Cannot live without it UPDATE',
+        'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
+        'synonyms': ['Encephalon', 'Cerebro_update'],
+        'predicates_to_add': {
+            # DUPCLICATE CHECK
+            'http://uri.interlex.org/base/tmp_0381624': 'sample_value', # hasDbXref beta ID | annotation
+            # NEW VALUES
+            'http://uri.interlex.org/base/tmp_0381624': 'sample_value2', # hasDbXref beta ID | annotation
+            'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100000', # relationship
+        },
+        'predicates_to_delete': {
+            # DELETE ORIGINAL
+            'http://uri.interlex.org/base/tmp_0381624': 'sample_value', # hasDbXref beta ID | annotation
+            'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
+        }
+    }
+    ilxremote_resp = ilxremote.update_entity(**entity)
+    added_entity_data = ilx_cli.get_entity(ilxremote_resp['curie'])
+    added_annotations = ilx_cli.get_annotation_via_tid(added_entity_data['id'])
+    added_relationships = ilx_cli.get_relationship_via_tid(added_entity_data['id'])
+
+    assert ilxremote_resp['label'] == entity['label']
+    # assert ilxremote_resp['type'] == entity['type']
+    assert ilxremote_resp['definition'] == entity['definition']
+    # assert ilxremote_resp['comment'] == entity['comment']
+    # assert ilxremote_resp['superclass'] == entity['superclass']
+    assert ilxremote_resp['synonyms'][0] == entity['synonyms'][0]
+    assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
+
+    assert len(added_annotations) == 1
+    assert len(added_relationships) == 1
+    assert added_annotations[0]['annotation_term_ilx'] == 'tmp_0381624'
+    assert added_annotations[0]['value'] == 'sample_value2'
+    assert added_relationships[0]['relationship_term_ilx'] == 'ilx_0112772'
+    assert added_relationships[0]['term2_ilx'] == 'ilx_0100000'
