@@ -192,7 +192,9 @@ class QueryResult:
     def OntTerm(self):  # FIXME naming
         if self.iri is None:
             raise exc.ShouldNotHappenError(f'I can\'t believe you\'ve done this! {self!r}')
-        return self._OntTerm(iri=self.iri)  # TODO works best with a cache
+        ot = self._OntTerm(iri=self.iri)  # TODO works best with a cache
+        ot._query_result = self
+        return ot
 
     @property
     def hasOntTerm(self):  # FIXME naming

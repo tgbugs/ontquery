@@ -119,6 +119,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             self.prefixes != self.search_prefixes):
             prefix = self.search_prefixes
 
+        search_expressions = cullNone(label=label, term=term, search=search, abbrev=abbrev)
         qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
         predicates = tuple(self.OntId(p) if ':' in p else
@@ -181,7 +182,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                  for predicate in predicates  # TODO depth=1 means go ahead and retrieve?
                                  if predicate in result}  # FIXME hasheqv on OntId
             # print(red.format('PR:'), predicate_results, result)
-            qr = QueryResult(query_args={**qualifiers, **identifiers, 'predicates':predicates},
+            qr = QueryResult(query_args={**search_expressions,
+                                         **qualifiers,
+                                         **identifiers,
+                                         'predicates':predicates},
                              iri=result['iri'],
                              curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
                              label=ni(result['labels']),
