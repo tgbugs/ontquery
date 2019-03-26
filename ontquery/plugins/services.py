@@ -29,7 +29,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             requests
         except NameError:
             raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
-        self.basePath = apiEndpoint
+        self.apiEndpoint = apiEndpoint
         self.api_key = api_key
         self.OntId = OntId
         super().__init__()
@@ -53,9 +53,12 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def setup(self):
         # TODO make it possible to set these properties dynamically
         # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
-        self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose, key=self.api_key)
-        self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose, key=self.api_key)
-        self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose, key=self.api_key)
+        self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
+                                       basePath=self.apiEndpoint, key=self.api_key)
+        self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
+                                       basePath=self.apiEndpoint, key=self.api_key)
+        self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
+                                       basePath=self.apiEndpoint, key=self.api_key)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.prefixes = sorted(self.curies)
         self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
