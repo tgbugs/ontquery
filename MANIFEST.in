@@ -3,4 +3,7 @@ recursive-exclude pyontutils.egg-info *
 exclude .gitignore
 exclude .travis.yml
 exclude MANIFEST.in
+recursive-include test *
+include ontquery/plugins/namespaces.py
 include ontquery/plugins/scigraph_client.py
+recursive-exclude */__pycache__ *

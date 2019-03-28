@@ -1,15 +1,21 @@
 import unittest
-from pyontutils import namespaces
+
+try:
+    from pyontutils.namespaces import PREFIXES as CURIE_MAP
+except ModuleNotFoundError:
+    from ontquery.plugins.namespaces import CURIE_MAP
+
 import ontquery as oq
+
 
 class TestQname(unittest.TestCase):
     def setUp(self):
-        oq.OntCuries(namespaces.PREFIXES)
+        oq.OntCuries(CURIE_MAP)
 
     def test_exact(self):
         suffix = ''
         failed = []
-        for prefix, iri in namespaces.PREFIXES.items():
+        for prefix, iri in CURIE_MAP.items():
             e, g, o = self.helper(iri, prefix, suffix)
             if not (e == g == o):
                 failed.append((e, g, o))
@@ -28,7 +34,7 @@ class TestQname(unittest.TestCase):
 
     def test_more(self):
         failed = []
-        for prefix, namespace in namespaces.PREFIXES.items():
+        for prefix, namespace in CURIE_MAP.items():
             for suffix in self.suffixes:
                 iri = namespace + suffix
                 e, g, o = self.helper(iri, prefix, suffix)

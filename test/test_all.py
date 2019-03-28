@@ -1,23 +1,19 @@
 import os
 import unittest
 import rdflib
-from pyontutils import scigraph_client  # this must be imported first to preserve the original path
+try:
+    from pyontutils.namespaces import PREFIXES as CURIE_MAP
+    from pyontutils import scigraph
+    orig_basepath = 'https://scicrunch.org/api/1/scigraph'  # FIXME hardcoding
+    if 'SCICRUNCH_API_KEY' in os.environ:
+        scigraph.scigraph_client.BASEPATH = orig_basepath
+    else:
+        scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
+except ModuleNotFoundError:
+    from ontquery.plugins.namespaces import CURIE_MAP
+    from ontquery.plugins import scigraph_client as scigraph
 
-# orig_basepath = scigraph_client.BASEPATH
-# FIXME nosetests is somehow importing something at a point that I cannot detect
-# that overwrites this with the devconfig options, despite it working correctly with python -m unittest
-orig_basepath = 'https://scicrunch.org/api/1/scigraph'
-
-from pyontutils import namespaces
-from pyontutils import scigraph
-from pyontutils import config
-from pyontutils import core
 import ontquery as oq
-
-if 'SCICRUNCH_API_KEY' in os.environ:
-    scigraph.scigraph_client.BASEPATH = orig_basepath
-else:
-    scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
 
 class OntTerm(oq.OntTerm):
     """ Test subclassing """
@@ -28,14 +24,20 @@ OntTerm.bindQueryResult()
 
 class TestAll(unittest.TestCase):
     def setUp(self):
-        oq.OntCuries(namespaces.PREFIXES)
         #self.query = oq.OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as oq?
         #bs = oq.BasicService()  # TODO
         #self.query = oq.OntQuery(bs, upstream=OntTerm)
         #oq.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            services = oq.plugin.get('SciCrunch')(api_key=config.get_api_key()),
-        else: services = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph'),
+            services = oq.plugin.get('SciCrunch')(api_key=os.environ['SCICRUNCH_API_KEY']),
+        else:
+            services = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph'),
+
+        # this was an ok idea, but better to also have known good local prefixes
+        # probably need to clean up an clarify the bad old
+        #services[0].setup()  # explicit call to setup so we can populate OntCuries
+        #oq.OntCuries(services[0].curies)
+        oq.OntCuries(CURIE_MAP)
 
         self.query = oq.OntQueryCli(*services)
         oq.OntTerm.query = oq.OntQuery(*services)
@@ -116,7 +118,7 @@ class TestAll(unittest.TestCase):
         pt = pqr.OntTerm
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
-        preds2 = OntTerm('UBERON:0000955')(core.rdfs.subClassOf)
+        preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
 
         assert pqr.predicates
         assert preds

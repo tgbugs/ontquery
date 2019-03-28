@@ -10,6 +10,7 @@ RELEASE = '--release' in sys.argv
 if RELEASE:
     sys.argv.remove('--release')
 
+namespaces = 'ontquery/plugins/namespaces.py'
 scigraph_client = 'ontquery/plugins/scigraph_client.py'
 
 files = [
@@ -27,7 +28,23 @@ files = [
 ]
 
 if RELEASE:
-    os.system('scigraph-codegen -a https://scicrunch.org/api/1/scigraph -o ' + scigraph_client)
+    # namespaces
+    from pyontutils.namespaces import PREFIXES
+
+    lines = ['CURIE_MAP = {\n'] + [f'    {k!r}: {v!r},\n'
+                                   for k, v in sorted(PREFIXES.items())] + ['}']
+    with open(namespaces, 'wt') as f:
+        f.writelines(lines)
+
+    # scigraph_client
+    status_code = os.system(('scigraph-codegen '
+                            '-a https://scicrunch.org/api/1/scigraph -o ')
+                            + scigraph_client)
+    if status_code:
+        raise OSError(f'scigraph-codegen failed with status {status_code}')
+
+    # append to files
+    files.append(namespaces)
     files.append(scigraph_client)
 
 try:
@@ -54,6 +71,9 @@ try:
         keywords='ontology terminology scigraph interlex term lookup ols',
         package_dir={'ontquery':'export'},
         packages=['ontquery', 'ontquery.plugins'],
+        python_requires='>=3.6',
+        setup_requires=['pytest-runner'],
+        tests_require=['pytest', 'rdflib', 'requests'],
         install_requires=[
         ],
         extras_require={'dev':['pyontutils',],
@@ -67,4 +87,5 @@ try:
 finally:
     shutil.rmtree('export')
     if RELEASE:
+        os.remove(namespaces)
         os.remove(scigraph_client)
