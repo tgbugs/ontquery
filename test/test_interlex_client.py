@@ -5,6 +5,23 @@ from ontquery.plugins.interlex_client import InterLexClient
 from ontquery.plugins.services import InterLexRemote
 import string
 
+def test_api_key():
+    api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
+    ilxremote = InterLexRemote(
+        api_key = api_key,
+        apiEndpoint = 'https://beta.scicrunch.org/api/1/',
+    )
+    ilxremote.setup()
+    ilx_cli = ilxremote.ilx_cli
+    assert ilx_cli.api_key == api_key
+    with pytest.raises( ilx_cli.IncorrectAPIKeyError,
+                        match = "api_key given is incorrect." ):
+        ilxremote = InterLexRemote(
+            api_key = 'fake_key_12345',
+            apiEndpoint = 'https://beta.scicrunch.org/api/1/',
+        )
+        ilxremote.setup()
+
 
 api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
 ilxremote = InterLexRemote(
@@ -12,7 +29,6 @@ ilxremote = InterLexRemote(
     apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
 ilxremote.setup()
-
 ilx_cli = ilxremote.ilx_cli
 
 
@@ -314,6 +330,7 @@ def test_update_entity():
     # test if dupclicates weren't created
     assert update_entity_data['synonyms'].count('test') == 1
 
+
 def test_annotation():
     annotation_value = 'test_' + id_generator()
     resp = ilx_cli.add_annotation(**{
@@ -331,6 +348,7 @@ def test_annotation():
     # doesnt catch it
     assert resp['id'] != None
     assert resp['value'] == ' '
+
 
 def test_relationship():
     random_label = 'my_test100' + id_generator()
@@ -364,8 +382,6 @@ def test_relationship():
     assert relationship_resp['relationship_tid'] == ' '
     assert relationship_resp['term2_id'] == ' '
 
-def test_pde_remote():
-    pass
 
 def test_entity_remote():
     random_label = 'test_' + id_generator(size=12)
@@ -440,5 +456,6 @@ def test_entity_remote():
     assert len(added_relationships) == 1
     assert added_annotations[0]['annotation_term_ilx'] == 'tmp_0381624'
     assert added_annotations[0]['value'] == 'sample_value2'
+    # would check term1_ilx, but whoever made it forgot to make it a key...
     assert added_relationships[0]['relationship_term_ilx'] == 'ilx_0112772'
     assert added_relationships[0]['term2_ilx'] == 'ilx_0100000'
