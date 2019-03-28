@@ -59,6 +59,8 @@ https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-3687
 
 https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-369215854
 
+# InterlexRemote Notes
+ilx_id and any key that takes a uri value can also be given a curie of that uri or a fragment and it will still work.
 
 # InterLexRemote Usage
 
@@ -76,28 +78,58 @@ ilx_cli = InterLexRemote(
 ilx_cli.setup()
 
 # NEEDS: label, type, subThingOf
-server_populated_output = ilx_cli.add_entity(
+response = ilx_cli.add_entity(
     type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
+    # subThingOf can take either iri or curie form of ID
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
     label = 'Label of entity you wish to create',
     definition = 'Entities definition',
     comment = 'A comment to help understand entity',
     synonyms = ['synonym1', 'synonym2', 'etc'],
     predicates = {
-        # annotation_type_ilx_id : 'annotation_value',
-        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
+        # annotation_entity_ilx_id : 'annotation_value',
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
+        # relationship_entity_ilx_id : 'entity2_ilx_id',
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
     }
 )
 
 # NEEDS: label, type
-server_populated_output = ilx_cli.add_pde(
+response = ilx_cli.add_pde(
     label = 'Label of entity you wish to create',
     definition = 'Entities definition',
     comment = 'A comment to help understand entity',
     synonyms = ['synonym1', 'synonym2', 'etc'],
     predicates = {
-        # annotation_type_ilx_id : 'annotation_value',
-        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
+        # annotation_entity_ilx_id : 'annotation_value',
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
+        # relationship_entity_ilx_id : 'entity2_ilx_id',
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
     }
+)
+
+# NEEDS: ilx_id
+response = ilx_cli.update_entity(
+    label = 'New Label', # Should be avoided unless there is a typo
+    type = 'term', # Just in case intended type wasn't created
+    ilx_id = 'TMP:0101431', # entity "brain" ilx_id example
+    definition = 'update!',
+    comment = 'update!',
+    # Optional
+    subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
+    synonyms = ['Encephalon', 'Cerebro'],
+    predicates_to_add = {
+        # Annotation
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12346',
+        # Relationship
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100000', # relationship
+    },
+    # Need to be exact or they will be ignored
+    predicates_to_delete = {
+        # Annotation
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
+        # Relationship
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
+    },
 )
 ```
