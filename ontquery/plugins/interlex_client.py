@@ -39,15 +39,26 @@ class InterLexClient:
 
     class IncorrectKeyError(Error): pass
 
+    class IncorrectAPIKeyError(Error): pass
+
     default_base_url = 'https://scicrunch.org/api/1/'
     ilx_base_url = 'http://uri.interlex.org/base/'
 
     def __init__(self, api_key: str, base_url: str = default_base_url):
         self.api_key = api_key
         self.base_url = base_url
-        self.user_id = str(self.get(
-            url = self.default_base_url + 'user/info?key=' + self.api_key
-        )['id'])
+        user_info_url = self.default_base_url + 'user/info?key=' + self.api_key
+        self.check_api_key(user_info_url)
+        self.user_id = str(self.get(user_info_url)['id'])
+
+    def check_api_key(self, url):
+        response = requests.get(
+            url,
+            headers = {'Content-type': 'application/json'},
+            auth = ('scicrunch', 'perl22(query)') # for test2.scicrunch.org
+        )
+        if response.status_code not in [200, 201]: # Safety catch.
+            raise self.IncorrectAPIKeyError('api_key given is incorrect.')
 
     def process_response(self, response: requests.models.Response) -> dict:
         """ Checks for correct data response and status codes """
@@ -764,7 +775,10 @@ class InterLexClient:
 
         return output
 
-def example():
+def examples():
+    ''' Examples of how to use. Default are that some functions are commented out in order
+        to not cause harm to existing metadata within the database.
+    '''
     sci = InterLexClient(
         api_key = os.environ.get('INTERLEX_API_KEY'),
         base_url = 'https://beta.scicrunch.org/api/1/', # NEVER CHANGE
@@ -834,9 +848,9 @@ def example():
     # print(resp)
     # print(sci.update_entity(**update_entity_data))
     # print(sci.add_raw_entity(entity))
-    print(sci.add_entity(**simple_entity))
+    # print(sci.add_entity(**simple_entity))
     # print(sci.add_annotation(**annotation))
     # print(sci.add_relationship(**relationship))
 
 if __name__ == '__main__':
-    example()
+    examples()
