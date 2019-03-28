@@ -72,8 +72,7 @@ try:
         package_dir={'ontquery':'export'},
         packages=['ontquery', 'ontquery.plugins'],
         python_requires='>=3.6',
-        setup_requires=['pytest-runner'],
-        tests_require=['pytest', 'rdflib', 'requests'],
+        tests_require=['pytest', 'pytest-runner', 'rdflib', 'requests'],
         install_requires=[
         ],
         extras_require={'dev':['pyontutils',],
