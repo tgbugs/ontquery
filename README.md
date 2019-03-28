@@ -4,6 +4,16 @@
 
 a framework querying ontology terms
 
+# Installation
+Ontquery supports two different use cases each with their own installation instructions.  
+
+By default ontquery installs only the stripped down core libraries so that it can be embedded an reused in
+other applications that need to reduce their dependnecies. For this use case packages can include ontquery
+as a dependency in their package requirements without any special changes e.g. `ontquery>=0.0.6`.  
+
+The second use case enables remote services via a plugin infrastructure.
+To install this version you should install or require using the [pip extras syntax](https://packaging.python.org/tutorials/installing-packages/#installing-setuptools-extras) e.g. `pip install ontquery[services]>=0.6.0`.
+
 # SciCrunch api key
 If you don't have your own SciGraph instance you will need a SciCunch API key in order to run the demos (e.g. `python __init__.py`).
 
