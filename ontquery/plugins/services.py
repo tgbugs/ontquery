@@ -304,7 +304,10 @@ class InterLexRemote(OntService):  # note to self
             self.ilx_cli = InterLexClient(api_key=self.api_key,
                                           base_url=self.apiEndpoint,)
         else:
-            pass  # expect attribute errors for ilx_cli
+            # expect attribute errors for ilx_cli
+
+            print('WARNING: You have not set an API key for the SciCrunch API! '
+                  'InterLexRemote will error if you try to use it.')
 
         super().setup()
 

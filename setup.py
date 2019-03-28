@@ -17,6 +17,7 @@ files = [
     'ontquery/exceptions.py',
     'ontquery/plugin.py',
     'ontquery/plugins/__init__.py',
+    'ontquery/plugins/interlex_client.py',
     'ontquery/plugins/services.py',
     'ontquery/query.py',
     'ontquery/services.py',
@@ -36,7 +37,7 @@ try:
         shutil.copyfile(f, f.replace('ontquery', 'export'))
     setup(
         name='ontquery',
-        version='0.0.5',
+        version='0.0.6',
         description='a framework querying ontology terms',
         long_description=long_description,
         long_description_content_type='text/markdown',
@@ -44,8 +45,13 @@ try:
         author='Tom Gillespie',
         author_email='tgbugs@gmail.com',
         license='MIT',
-        classifiers=[],
-        keywords='ontology terminology scigraph interlex term lookup',
+        classifiers=[
+            'Development Status :: 4 - Beta',
+            'License :: OSI Approved :: MIT License',
+            'Programming Language :: Python :: 3.6',
+            'Programming Language :: Python :: 3.7',
+        ],
+        keywords='ontology terminology scigraph interlex term lookup ols',
         package_dir={'ontquery':'export'},
         packages=['ontquery', 'ontquery.plugins'],
         install_requires=[

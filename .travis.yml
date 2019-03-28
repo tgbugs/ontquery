@@ -19,13 +19,14 @@ before_install:
   - sudo apt-get install libhunspell-dev
 
 install:
+  - pip install --upgrade pytest pytest-cov
+  - pip install coverage coveralls && export HAS_COVERALLS=1
   - pip install pipenv
-  - pip install coverage coveralls nose-timer && export HAS_COVERALLS=1
   - pipenv install --system --skip-lock --deploy
   - pipenv install --dev --system --skip-lock --deploy
 
 script:
-  - PYTHONWARNINGS=default pipenv run nosetests --with-coverage --cover-tests --cover-package=ontquery
+  - PYTHONWARNINGS=ignore pipenv run pytest --verbose --cov=ontquery
 
 after_success:
   - if [[ $HAS_COVERALLS ]] ; then coveralls ; fi
