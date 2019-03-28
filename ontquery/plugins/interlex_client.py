@@ -39,15 +39,26 @@ class InterLexClient:
 
     class IncorrectKeyError(Error): pass
 
+    class IncorrectAPIKeyError(Error): pass
+
     default_base_url = 'https://scicrunch.org/api/1/'
     ilx_base_url = 'http://uri.interlex.org/base/'
 
     def __init__(self, api_key: str, base_url: str = default_base_url):
         self.api_key = api_key
         self.base_url = base_url
-        self.user_id = str(self.get(
-            url = self.default_base_url + 'user/info?key=' + self.api_key
-        )['id'])
+        user_info_url = self.default_base_url + 'user/info?key=' + self.api_key
+        self.check_api_key(user_info_url)
+        self.user_id = str(self.get(user_info_url)['id'])
+
+    def check_api_key(self, url):
+        response = requests.get(
+            url,
+            headers = {'Content-type': 'application/json'},
+            auth = ('scicrunch', 'perl22(query)') # for test2.scicrunch.org
+        )
+        if response.status_code not in [200, 201]: # Safety catch.
+            raise self.IncorrectAPIKeyError('api_key given is incorrect.')
 
     def process_response(self, response: requests.models.Response) -> dict:
         """ Checks for correct data response and status codes """
@@ -255,65 +266,65 @@ class InterLexClient:
     def add_raw_entity(self, entity: dict) -> dict:
         """ Adds entity if it does not already exist under your user ID.
 
-        Need to provide a list of dictionaries that have at least the key/values
-        for label and type. If given a key, the values provided must be in the
-        format shown in order for the server to except them. You can input
-        multiple synonyms, or existing_ids.
+            Need to provide a list of dictionaries that have at least the key/values
+            for label and type. If given a key, the values provided must be in the
+            format shown in order for the server to except them. You can input
+            multiple synonyms, or existing_ids.
 
-        Entity type can be any of the following: term, pde, fde, cde, annotation, or relationship
+            Entity type can be any of the following: term, pde, fde, cde, annotation, or relationship
 
-        Options Template:
-            entity = {
-                'label': '',
-                'type': '',
-                'definition': '',
-                'comment': '',
-                'superclass': {
-                    'ilx_id': ''
-                },
-                'synonyms': [
-                    {
-                        'literal': ''
+            Options Template:
+                entity = {
+                    'label': '',
+                    'type': '',
+                    'definition': '',
+                    'comment': '',
+                    'superclass': {
+                        'ilx_id': ''
                     },
-                ],
-                'existing_ids': [
-                    {
-                        'iri': '',
-                        'curie': '',
-                    },
-                ],
-            }
+                    'synonyms': [
+                        {
+                            'literal': ''
+                        },
+                    ],
+                    'existing_ids': [
+                        {
+                            'iri': '',
+                            'curie': '',
+                        },
+                    ],
+                }
 
-        Minimum Needed:
-            entity = {
-                'label': '',
-                'type': '',
-            }
+            Minimum Needed:
+                entity = {
+                    'label': '',
+                    'type': '',
+                }
 
-        Example:
-            entity = {
-                'label': 'brain',
-                'type': 'pde',
-                'definition': 'Part of the central nervous system',
-                'comment': 'Cannot live without it',
-                'superclass': {
-                    'ilx_id': 'ilx_0108124', # ILX ID for Organ
-                },
-                'synonyms': [
-                    {
-                        'literal': 'Encephalon'
+            Example:
+                entity = {
+                    'label': 'brain',
+                    'type': 'pde',
+                    'definition': 'Part of the central nervous system',
+                    'comment': 'Cannot live without it',
+                    'superclass': {
+                        'ilx_id': 'ilx_0108124', # ILX ID for Organ
                     },
-                    {
-                        'literal': 'Cerebro'
-                    },
-                ],
-                'existing_ids': [
-                    {
-                        'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_796',
-                        'curie': 'BIRNLEX:796',
-                    },
-                ],
-            }
+                    'synonyms': [
+                        {
+                            'literal': 'Encephalon'
+                        },
+                        {
+                            'literal': 'Cerebro'
+                        },
+                    ],
+                    'existing_ids': [
+                        {
+                            'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_796',
+                            'curie': 'BIRNLEX:796',
+                        },
+                    ],
+                }
         """
 
         needed_in_entity = set([
@@ -400,18 +411,18 @@ class InterLexClient:
         synonyms: list = None) -> dict:
         """ Updates pre-existing entity as long as the api_key is from the account that created it
 
-        Args:
-            label: name of entity
-            type: entities type
-                Can be any of the following: term, cde, fde, pde, annotation, relationship
-            definition: entities definition
-            comment: a foot note regarding either the interpretation of the data or the data itself
-            superclass: entity is a sub-part of this entity
-                Example: Organ is a superclass to Brain
-            synonyms: entity synonyms
+            Args:
+                label: name of entity
+                type: entities type
+                    Can be any of the following: term, cde, fde, pde, annotation, relationship
+                definition: entities definition
+                comment: a foot note regarding either the interpretation of the data or the data itself
+                superclass: entity is a sub-part of this entity
+                    Example: Organ is a superclass to Brain
+                synonyms: entity synonyms
 
-        Returns:
-            Server response that is a nested dictionary format
+            Returns:
+                Server response that is a nested dictionary format
         """
 
         template_entity_input = {k:v for k, v in locals().copy().items() if k != 'self'}
@@ -486,9 +497,11 @@ class InterLexClient:
             entity_output['iri'] = 'http://uri.interlex.org/base/tmp_' + _id
             entity_output['curie'] = 'TMP:' + _id
 
+        print(template_entity_input)
         for key, value in template_entity_input.items():
             if key == 'superclass':
-                entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
+                if raw_entity_outout.get('superclasses'):
+                    entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
             elif key == 'synonyms':
                 entity_output[key] = [syn['literal']
                                       for syn in raw_entity_outout['synonyms']]
@@ -762,7 +775,10 @@ class InterLexClient:
 
         return output
 
-def example():
+def examples():
+    ''' Examples of how to use. Default are that some functions are commented out in order
+        to not cause harm to existing metadata within the database.
+    '''
     sci = InterLexClient(
         api_key = os.environ.get('INTERLEX_API_KEY'),
         base_url = 'https://beta.scicrunch.org/api/1/', # NEVER CHANGE
@@ -797,6 +813,7 @@ def example():
         'comment': entity['comment'],
         'superclass': entity['superclass']['ilx_id'],
         'synonyms': [syn['literal'] for syn in entity['synonyms']],
+        'predicates': {'tmp_0381624': 'http://example_dbxref'}
     }
     annotation = {
         'term_ilx_id': 'ilx_0101431', # brain ILX ID
@@ -827,7 +844,7 @@ def example():
         'relationship_ilx': 'http://uri.interlex.org/base/ilx_0112772', # Afferent projection ILX ID
         'entity2_ilx': 'http://uri.interlex.org/base/ilx_0100000', #1,2-Dibromo chemical ILX ID
     }
-    print(sci.add_relationship(**relationship))
+    # print(sci.add_relationship(**relationship))
     # print(resp)
     # print(sci.update_entity(**update_entity_data))
     # print(sci.add_raw_entity(entity))
@@ -836,4 +853,4 @@ def example():
     # print(sci.add_relationship(**relationship))
 
 if __name__ == '__main__':
-    example()
+    examples()
