@@ -54,7 +54,7 @@ try:
         shutil.copyfile(f, f.replace('ontquery', 'export'))
     setup(
         name='ontquery',
-        version='0.0.6',
+        version='0.0.7',
         description='a framework querying ontology terms',
         long_description=long_description,
         long_description_content_type='text/markdown',
