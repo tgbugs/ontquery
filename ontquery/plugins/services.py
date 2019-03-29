@@ -400,8 +400,8 @@ class InterLexRemote(OntService):  # note to self
              labels=tuple(),
              #abbrev=None,  # TODO
              #acronym=None,  # TODO
-             definition=resp['definition'],
-             synonyms=tuple(resp['synonyms']),
+             definition=resp.get('definition', None),
+             synonyms=tuple(resp.get('synonyms', tuple())),
              #deprecated=None,
              #prefix=None,
              #category=None,
