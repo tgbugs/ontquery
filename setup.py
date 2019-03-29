@@ -52,6 +52,7 @@ try:
     os.mkdir('export/plugins')
     for f in files:
         shutil.copyfile(f, f.replace('ontquery', 'export'))
+    tests_require = ['pytest', 'pytest-runner', 'rdflib', 'requests']
     setup(
         name='ontquery',
         version='0.0.7',
@@ -72,11 +73,12 @@ try:
         package_dir={'ontquery':'export'},
         packages=['ontquery', 'ontquery.plugins'],
         python_requires='>=3.6',
-        tests_require=['pytest', 'pytest-runner', 'rdflib', 'requests'],
+        tests_require=tests_require,
         install_requires=[
         ],
         extras_require={'dev':['pyontutils',],
-                        'services':['rdflib', 'requests']},
+                        'services':['rdflib', 'requests'],
+                        'test': tests_require},
         entry_points={
             'console_scripts': [
             ],
