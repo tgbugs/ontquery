@@ -1,9 +1,11 @@
-recursive-exclude export *
-recursive-exclude pyontutils.egg-info *
-exclude .gitignore
-exclude .travis.yml
-exclude MANIFEST.in
 recursive-include test *
 include ontquery/plugins/namespaces.py
 include ontquery/plugins/scigraph_client.py
-recursive-exclude */__pycache__ *
+exclude .gitignore
+exclude .travis.yml
+exclude MANIFEST.in
+recursive-exclude export *
+recursive-exclude *.egg-info *
+recursive-exclude * *.pyc
+recursive-exclude * *.swp
+recursive-exclude * *.swo
