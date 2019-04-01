@@ -259,6 +259,7 @@ class InterLexRemote(OntService):  # note to self
     defaultEndpoint = 'https://scicrunch.org/api/1/'
     def __init__(self, *args, api_key=None, apiEndpoint=defaultEndpoint, host='uri.interlex.org', port='',
                  user_curies: dict={'ILX', 'http://uri.interlex.org/base/ilx_'},  # FIXME hardcoded
+                 readonly=False,
                  **kwargs):
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
@@ -284,6 +285,7 @@ class InterLexRemote(OntService):  # note to self
         self.host = host
         self.port = port
         self.user_curies = user_curies
+        self.readonly = readonly
         self._graph_cache = {}
 
         self.Graph = rdflib.Graph
@@ -303,7 +305,7 @@ class InterLexRemote(OntService):  # note to self
         if self.api_key is not None and self.apiEndpoint is not None:
             self.ilx_cli = InterLexClient(api_key=self.api_key,
                                           base_url=self.apiEndpoint,)
-        else:
+        elif not self.readonly:
             # expect attribute errors for ilx_cli
 
             print('WARNING: You have not set an API key for the SciCrunch API! '
@@ -326,7 +328,7 @@ class InterLexRemote(OntService):  # note to self
                   synonyms=tuple(),
                   comment=None,
                   predicates: dict=None):
-        return self.add('term', subClassOf, label, definition, synonyms, comment, predicates)
+        return self.add_entity('term', subClassOf, label, definition, synonyms, comment, predicates)
 
     def add_pde(self,
                 label,
@@ -375,6 +377,10 @@ class InterLexRemote(OntService):  # note to self
 
     def add_entity(self, type, subThingOf, label, definition: str=None,
                    synonyms=tuple(), comment: str=None, predicates: dict=None):
+
+        if self.readonly:
+            raise exc.ReadOnlyError('InterLexRemote is in readonly mode.')
+
         resp = self.ilx_cli.add_entity(
             label = label,
             type = type,
