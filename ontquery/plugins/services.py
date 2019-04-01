@@ -35,6 +35,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         super().__init__()
 
     @property
+    def readonly(self):
+        return True
+
+    @property
     def inverses(self):
         inverses = {self.OntId(k):self.OntId(v)
                     for _k, _v in self.known_inverses
