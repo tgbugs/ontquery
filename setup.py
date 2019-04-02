@@ -1,6 +1,7 @@
 import os
 import sys
 import shutil
+from pathlib import Path
 from setuptools import setup
 from ontquery import __version__
 
