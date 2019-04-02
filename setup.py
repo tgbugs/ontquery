@@ -2,6 +2,7 @@ import os
 import sys
 import shutil
 from setuptools import setup
+from ontquery import __version__
 
 with open('README.md', 'rt') as f:
     long_description = f.read()
@@ -28,24 +29,26 @@ files = [
 ]
 
 if RELEASE:
-    # namespaces
-    from pyontutils.namespaces import PREFIXES
-
-    lines = ['CURIE_MAP = {\n'] + [f'    {k!r}: {v!r},\n'
-                                   for k, v in sorted(PREFIXES.items())] + ['}']
-    with open(namespaces, 'wt') as f:
-        f.writelines(lines)
-
-    # scigraph_client
-    status_code = os.system(('scigraph-codegen '
-                            '-a https://scicrunch.org/api/1/scigraph -o ')
-                            + scigraph_client)
-    if status_code:
-        raise OSError(f'scigraph-codegen failed with status {status_code}')
-
     # append to files
     files.append(namespaces)
     files.append(scigraph_client)
+
+    # namespaces
+    if not Path(namespaces).exists():
+        from pyontutils.namespaces import PREFIXES
+
+        lines = ['CURIE_MAP = {\n'] + [f'    {k!r}: {v!r},\n'
+                                       for k, v in sorted(PREFIXES.items())] + ['}']
+        with open(namespaces, 'wt') as f:
+            f.writelines(lines)
+
+    # scigraph_client
+    if not Path(scigraph_client).exists():
+        status_code = os.system(('scigraph-codegen '
+                                '-a https://scicrunch.org/api/1/scigraph -o ')
+                                + scigraph_client)
+        if status_code:
+            raise OSError(f'scigraph-codegen failed with status {status_code}')
 
 try:
     os.mkdir('export')
@@ -55,7 +58,7 @@ try:
     tests_require = ['pytest', 'pytest-runner', 'rdflib', 'requests']
     setup(
         name='ontquery',
-        version='0.0.8',
+        version=__version__,
         description='a framework querying ontology terms',
         long_description=long_description,
         long_description_content_type='text/markdown',
