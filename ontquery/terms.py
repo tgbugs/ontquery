@@ -504,12 +504,17 @@ class OntTerm(OntId):
         out = {}
         for result in results_gen:  # FIXME should only be one?!
             for k, v in result.predicates.items():
+                if isinstance(v, OntId):
+                    v = v,
+
                 if as_term:
-                    if isinstance(v, OntId):
-                        v = self.__class__(v)
-                    elif isinstance(v, tuple):
-                        v = tuple(self.__class__(v) if isinstance(v, OntId) else v for v in v)
-                out[k] = v  # FIXME last one wins?!?!
+                    v = tuple(self.__class__(v) if isinstance(v, OntId) else v for v in v)
+
+                if k in out:
+                    out[k] += v
+                else:
+                    out[k] = v
+
         self.predicates.update(out)  # FIXME klobbering issues
         return out
 

@@ -695,9 +695,13 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         owlClass = None
         owl = rdflib.OWL
         for p, o in gen:
+            if isinstance(o, rdflib.BNode):
+                continue
+
             pn = translate.get(p, None)
             if isinstance(o, rdflib.Literal):
                 o = o.toPython()
+
             #elif p == rdflib.RDF.type and o == owl.Class:
             elif p == rdflib.RDF.type and o in (owl.Class, owl.ObjectProperty,
                                                 owl.DatatypeProperty, owl.AnnotationProperty):
@@ -707,8 +711,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 # TODO translation and support for query result structure
                 # FIXME lists instead of klobbering results with mulitple predicates
                 if isinstance(o, rdflib.URIRef):
-                    o = self.OntId(o)  # FIXME we we try to use OntTerm directly everything breaks
+                    o = self.OntId(o)  # FIXME we try to use OntTerm directly everything breaks
                     # FIXME these OntIds also do not derive from rdflib... sigh
+                # FIXME doesn't this klobber when there is more than one object per predicate !??!? !??!!
                 out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
