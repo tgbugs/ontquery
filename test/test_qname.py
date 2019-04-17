@@ -1,4 +1,5 @@
 import unittest
+from test import common
 
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
@@ -9,6 +10,7 @@ import ontquery as oq
 
 
 class TestQname(unittest.TestCase):
+    suffixes = common.suffixes
     def setUp(self):
         oq.OntCuries(CURIE_MAP)
 
@@ -22,15 +24,6 @@ class TestQname(unittest.TestCase):
 
         if failed:
             raise AssertionError(str(failed))
-
-    suffixes = (
-        '',
-        'hello',
-        'world',
-        '1234567',
-        '1232/123123/asdfasdf',
-        'lol_this#is/even-worse/_/123'
-    )
 
     def test_more(self):
         failed = []

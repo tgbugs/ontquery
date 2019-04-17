@@ -134,7 +134,7 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
                 iri_ci = cls._make_iri(prefix, suffix)
 
         if curie is not None and curie != iri:
-            prefix, suffix = curie.split(':')
+            prefix, suffix = curie.split(':', 1)
             iri_c = cls._make_iri(prefix, suffix)
 
         iris = iri_ps, iri_ci, iri_c, iri
