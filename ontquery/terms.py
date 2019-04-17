@@ -384,8 +384,10 @@ class OntTerm(OntId):
         i = None
         for i, result in enumerate(results_gen):
             if i > 0:
-                if result.curie == old_result.curie:
+                if result.iri == old_result.iri:
                     i = 0  # if we get the same record from multiple places it is ok
+                    if result.curie != old_result.curie:
+                        pass  # TODO log warning
                 else:
                     if i == 1:
                         print(repr(TermRepr(**old_result)), '\n')
