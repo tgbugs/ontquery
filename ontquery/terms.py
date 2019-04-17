@@ -506,7 +506,7 @@ class OntTerm(OntId):
         out = {}
         for result in results_gen:  # FIXME should only be one?!
             for k, v in result.predicates.items():
-                if isinstance(v, OntId):
+                if not isinstance(v, tuple):
                     v = v,
 
                 if as_term:
