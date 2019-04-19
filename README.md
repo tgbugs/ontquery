@@ -1,6 +1,7 @@
 # ontquery
 [![PyPI version](https://badge.fury.io/py/ontquery.svg)](https://pypi.org/project/ontquery/)
 [![Build Status](https://travis-ci.org/tgbugs/ontquery.svg?branch=master)](https://travis-ci.org/tgbugs/ontquery)
+[![Coverage Status](https://coveralls.io/repos/github/tgbugs/ontquery/badge.svg?branch=master)](https://coveralls.io/github/tgbugs/ontquery?branch=master)
 
 a framework querying ontology terms
 
