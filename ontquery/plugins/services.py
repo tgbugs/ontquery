@@ -619,6 +619,7 @@ class InterLexRemote(OntService):  # note to self
                 qrd.update(n)
                 qrd['predicates'].update(cullNone(**qr['predicates']))
 
+            qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
             yield QueryResult(kwargs, **qrd)
 
