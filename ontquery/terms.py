@@ -427,6 +427,9 @@ class OntTerm(OntId):
 
                 #print(keyword, value)
                 if keyword not in self.__firsts:  # already managed by OntId
+                    if keyword == 'source':  # FIXME the things i do in the name of documentability >_<
+                        keyword = '_source'
+
                     setattr(self, keyword, value)  # TODO value lists...
             self.validated = True
 
@@ -476,6 +479,15 @@ class OntTerm(OntId):
         """ return debug information """
         if self._graph:
             print(self._graph.serialize(format='nifttl').decode())
+
+    @property
+    def source(self):
+        """ The service that the term came from.
+            It is not obvious that source is being set from QueryResult.
+            I'm sure there are other issues like this due to the strange
+            interaction between OntTerm and QueryResult. """
+
+        return self._source
 
     @classmethod
     def search(cls, expression, prefix=None, filters=tuple(), limit=40):
