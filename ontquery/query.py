@@ -24,7 +24,14 @@ class OntQuery:
         self._services = tuple(_services)
 
     def add(self, *services):
+        """ add low priority services """
+        # FIXME dupes
         self._services += services
+
+    def ladd(self, *services):
+        """ add high priority services """
+        # FIXME dupes
+        self._services = services + self._services
 
     @property
     def predicates(self):
@@ -40,6 +47,12 @@ class OntQuery:
     @property
     def services(self):
         return self._services
+
+    # see if we can get away with using ladd
+    #@services.setter
+    #def services(self, value):
+        #""" sometimes we need to reorder services """
+        #self._services = value
 
     def __iter__(self):  # make it easier to init filtered queries
         yield from self.services
