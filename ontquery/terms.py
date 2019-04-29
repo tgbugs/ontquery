@@ -459,7 +459,7 @@ class OntTerm(OntId):
                     setattr(self, k, v)
                 raise exc.NotFoundError(f'No results for {self!r}')
             else:
-                print(red.format('WARNING:'), repr(self), '\n')
+                print(red.format('WARNING:'), repr(self), '\n')  # FIXME log
 
             return
             # TODO this needs to go in a separate place, not here
@@ -533,6 +533,9 @@ class OntTerm(OntId):
                     out[k] += v
                 else:
                     out[k] = v
+
+        if not hasattr(self, 'predicates'):
+            self.predicates = {}
 
         self.predicates.update(out)  # FIXME klobbering issues
         return out
