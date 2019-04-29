@@ -48,6 +48,11 @@ class OntCuries(metaclass=dictclass):
         return cls._dict
 
     @classmethod
+    def populate(cls, graph):
+        """ populate an rdflib graph with these curies """
+        [graph.bind(k, v) for k, v in cls._dict.items()]
+
+    @classmethod
     def qname(cls, iri):
         # while / is not *technically* allowed in prefix names by ttl
         # RDFa and JSON-LD do allow it, so we are going to allow it too
