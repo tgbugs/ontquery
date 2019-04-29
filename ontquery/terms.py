@@ -515,6 +515,7 @@ class OntTerm(OntId):
         """ Retrieve additional metadata for the current term. If None is provided
             as the first argument the query runs against all predicates defined for
             each service. """
+        single_out = not predicates
         if predicate is None:
             predicates = self.query.predicates
         else:
@@ -538,7 +539,12 @@ class OntTerm(OntId):
             self.predicates = {}
 
         self.predicates.update(out)  # FIXME klobbering issues
-        return out
+
+        if single_out:
+            if out:
+                return out[predicate]
+        else:
+            return out
 
     def __repr__(self):  # TODO fun times here
         return super().__repr__()
