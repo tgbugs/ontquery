@@ -112,7 +112,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     seen.add(object)
                     yield self.OntId(object) # FIXME TODO this is _very_ inefficient for multiple lookups...
         else:
-            objects = (self.OntId(e[o]) for e in edges if e[s] == subject.curie)
+            objects = (self.OntId(e[o]) for e in edges if e[s] == subject.curie
+                       and not [v for k, v in e.items()
+                                if k != 'meta' and v.startswith('_:')])
             yield from objects
 
     def query(self, iri=None, curie=None,
