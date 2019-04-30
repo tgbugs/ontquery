@@ -96,6 +96,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             #subjects = set(subject.curie)
             seen = {subject.curie}
             for i, e in enumerate(self.sgg.ordered(subject.curie, edges, inverse=inverse)):
+                if e.startswith('_:'):
+                    continue  # FIXME warn on these ? bnode getting pulled in ...
                 #print('record number:', i)  # FIXME
                 # FIXME need to actually get the transitive closure, this doesn't actually work
                 #if e[s] in subjects:

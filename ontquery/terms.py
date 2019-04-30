@@ -205,7 +205,7 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
         if prefix in namespaces:
             return namespaces[prefix] + suffix
         else:
-            raise cls.UnknownPrefixError(f'Unknown curie prefix: {prefix}')
+            raise cls.UnknownPrefixError(f'Unknown curie prefix: {prefix} for {prefix}:{suffix}')
 
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
@@ -542,7 +542,8 @@ class OntTerm(OntId):
 
         if single_out:
             if out:
-                return out[predicate]
+                if predicate in out:  # FIXME rdflib services promiscuously returns predicates
+                    return out[predicate]
         else:
             return out
 
