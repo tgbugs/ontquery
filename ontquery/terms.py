@@ -544,6 +544,8 @@ class OntTerm(OntId):
             if out:
                 if predicate in out:  # FIXME rdflib services promiscuously returns predicates
                     return out[predicate]
+
+            return tuple()  # more consistent return value so can always iterate
         else:
             return out
 
