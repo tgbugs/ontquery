@@ -110,6 +110,9 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
 
     def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
 
+        if type(curie_or_iri) == cls:
+            return curie_or_iri
+
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
             cls._oneshot_old_repr_args = None
