@@ -593,6 +593,9 @@ class InterLexRemote(OntService):  # note to self
                 self._graph_cache[url] = None
                 return None
             ttl = resp.content
+            if ttl.startswith(b'<!DOCTYPE HTML PUBLIC'):
+                return None  # FIXME disambiguation multi results page
+
             graph = self.Graph().parse(data=ttl, format='turtle')
             self._graph_cache[url] = graph
 
