@@ -3,6 +3,7 @@ import unittest
 from uuid import uuid4
 import rdflib
 import ontquery as oq
+from .common import test_graph
 
 # FIXME TODO per service ... + mismatch warning
 oq.OntCuries({'rdf': str(rdflib.RDF),
@@ -131,13 +132,4 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
 
 
 class TestRdflib(ServiceBase, unittest.TestCase):
-    g = rdflib.Graph()
-    triples = (('UBERON:0000955', 'rdf:type', 'owl:Class'),
-               ('UBERON:0000955', 'rdfs:label', 'brain'),
-               ('BIRNLEX:796', 'rdf:type', 'owl:Class'),
-               ('BIRNLEX:796', 'rdfs:label', 'Brain'),
-              )
-    for proto_t in triples:
-        g.add(rdflib.URIRef(OntId(e)) if ':' in e else rdflib.Literal(e) for e in proto_t)
-
-    remote = oq.plugin.get('rdflib')(g)
+    remote = oq.plugin.get('rdflib')(test_graph)

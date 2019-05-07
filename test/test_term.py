@@ -1,18 +1,18 @@
+import copy
 import unittest
 from test import common
-
-try:
-    from pyontutils.namespaces import PREFIXES as CURIE_MAP
-except ModuleNotFoundError:
-    from ontquery.plugins.namespaces import CURIE_MAP
 
 import ontquery as oq
 
 
 class TestOntId(unittest.TestCase):
     suffixes = common.suffixes
+    class_to_test = oq.OntId
+    kwargs_to_test = dict(curie_or_iri='TEMP:test',),
+
     def setUp(self):
-        oq.OntCuries(CURIE_MAP)
+        self.terms_to_test = tuple(self.class_to_test(**kwargs)
+                                   for kwargs in self.kwargs_to_test)
 
     def test_multiple_colons(self):
         failed = []
@@ -30,8 +30,37 @@ class TestOntId(unittest.TestCase):
         if failed:
             raise AssertionError(str(failed))
 
-    @staticmethod
-    def helper(iri, prefix, suffix):
+    @classmethod
+    def helper(cls, iri, prefix, suffix):
         expect = prefix + ':' + suffix
-        got = oq.OntId(curie=expect, iri=iri)
+        got = cls.class_to_test(curie=expect, iri=iri)
         return expect, got
+
+    def test_copy(self):
+        for oid in self.terms_to_test:
+            noid = copy.copy(oid)
+            assert oid == oid
+
+    def test_deepcopy(self):
+        for oid in self.terms_to_test:
+            noid = copy.deepcopy(oid)
+            assert oid == oid
+
+
+class TestOntTerm(TestOntId):
+    class_to_test = oq.OntTerm
+    kwargs_to_test = dict(curie_or_iri='TEMP:test',), dict(curie_or_iri='TEMP:test', label='test'),
+    test_copy = TestOntId.test_copy
+    test_deepcopy = TestOntId.test_deepcopy
+
+    def setUp(self):
+        super().setUp()
+        remote = oq.plugin.get('rdflib')(common.test_graph)
+        self.class_to_test.query = oq.OntQuery(remote)
+
+    def test_copy_preds(self):
+        ot = self.class_to_test('UBERON:0000955')
+        ot(None)
+        newot = copy.deepcopy(ot)
+        assert ot.predicates and newot.predicates
+        assert newot.predicates == ot.predicates

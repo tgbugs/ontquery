@@ -1,4 +1,5 @@
 import sys
+import copy
 from itertools import chain
 from . import exceptions as exc, trie
 from .utils import cullNone, red
@@ -149,7 +150,7 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
         unique_iris = set(i for i in iris if i is not None)
 
         if len(unique_iris) > 1:
-            ValueError(f'All ways of constructing iris not match! {sorted(unique_iris)}')
+            raise ValueError(f'All ways of constructing iris not match! {sorted(unique_iris)}')
         else:
             iri = next(iter(unique_iris))
 
@@ -283,6 +284,20 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
         out = self._repr_base.format(**self._repr_args)
         self.reset_repr_args()
         return out
+
+    def __copy__(self):
+        cls = self.__class__
+        result = cls.__new__(cls, iri=self.iri)
+        result.__dict__.update(self.__dict__)
+        return result
+
+    def __deepcopy__(self, memo):
+        cls = self.__class__
+        result = cls.__new__(cls, iri=self.iri)
+        memo[id(self)] = result
+        for k, v in self.__dict__.items():
+            setattr(result, k, copy.deepcopy(v, memo))
+        return result
 
 
 class OntTerm(OntId):
