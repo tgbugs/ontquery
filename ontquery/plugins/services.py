@@ -75,12 +75,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
         # TODO how to handle depth? this is not an obvious or friendly way to do this
-        if ':' in predicate and predicate.prefix in ('owl', 'rdfs'):
-            p = predicate.suffix
-        else:
-            p = predicate
-        d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=p,
+
+        d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=predicate,
                                               depth=depth, direction=direction)  # TODO
+
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
         else:
@@ -92,6 +90,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         s, o = 'sub', 'obj'
         if inverse:
             s, o = o, s
+
         if depth > 1:
             #subjects = set(subject.curie)
             seen = {subject.curie}
@@ -111,6 +110,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     # direct atestation ... which suggests that we probably need/want a bulk constructor
                     seen.add(object)
                     yield self.OntId(object) # FIXME TODO this is _very_ inefficient for multiple lookups...
+
         else:
             objects = (self.OntId(e[o]) for e in edges if e[s] == subject.curie
                        and not [v for k, v in e.items()
@@ -135,8 +135,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         search_expressions = cullNone(label=label, term=term, search=search, abbrev=abbrev)
         qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
-        predicates = tuple(self.OntId(p) if ':' in p else
-                           p for p in predicates)
+        predicates = tuple(self.OntId(p)
+                           if not isinstance(p, self.OntId) and ':' in p
+                           else p for p in predicates)
         if identifiers:
             identifier = self.OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
@@ -145,9 +146,21 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 for predicate in predicates:
+                    if predicate.prefix in ('owl', 'rdfs'):
+                        unshorten = predicate
+                        predicate = predicate.suffix
+                    else:
+                        unshorten = None
+
                     values = tuple(sorted(self._graphQuery(identifier, predicate,
                                                            depth=depth, direction=direction)))
                     if values:
+                        # I think this is the right place to unshorten
+                        # I don't think we have any inverses that require unshortning
+                        if unshorten is not None:
+                            short = predicate
+                            predicate = unshorten
+
                         result[predicate] = values
 
                     if predicate in self.inverses:

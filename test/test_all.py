@@ -15,6 +15,7 @@ except ModuleNotFoundError:
 
 import ontquery as oq
 
+
 class OntTerm(oq.OntTerm):
     """ Test subclassing """
 
@@ -119,16 +120,34 @@ class TestAll(unittest.TestCase):
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
+        t = OntTerm('UBERON:0000955')
+        preds3 = t(rdflib.RDFS.subClassOf)
+        preds4 = t('rdfs:subClassOf')
+        t2 = OntTerm('UBERON:0000955', predicates=(rdflib.RDFS.subClassOf,))
+        preds5 = t2.predicates
 
-        assert pqr.predicates
-        assert preds
-        assert preds1
-        assert preds2
+        print(preds)
+        print(t.source)
+        print(preds2)
+        print(preds3)
+        print(preds4)
+        print(preds5)
+        test_preds = [pqr.predicates,
+                      preds,
+                      preds1,
+                      preds2,
+                      preds3,
+                      preds4]
+        bads = [(i - 1, p) for i, p in enumerate(test_preds) if not p]
+        assert not bads, bads
 
         assert isinstance(pqr.predicates, dict)
         assert isinstance(preds, dict)
         assert isinstance(preds1, dict)
-        assert isinstance(preds2, dict)
+        assert isinstance(preds2, tuple)
+        assert isinstance(preds3, tuple)
+        assert isinstance(preds4, tuple)
+        assert isinstance(preds5, dict)
 
     def test_curies(self):
         oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'

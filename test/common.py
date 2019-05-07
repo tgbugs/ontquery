@@ -24,6 +24,7 @@ triples = (('UBERON:0000955', 'rdf:type', 'owl:Class'),
            ('BIRNLEX:796', 'rdf:type', 'owl:Class'),
            ('BIRNLEX:796', 'rdfs:label', 'Brain'),
 )
+
 for proto_t in triples:
     test_graph.add(rdflib.URIRef(oq.OntId(e)) if ':' in e else rdflib.Literal(e) for e in proto_t)
 

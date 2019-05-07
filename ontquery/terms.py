@@ -1,3 +1,4 @@
+import rdflib
 import sys
 import copy
 from itertools import chain
@@ -538,6 +539,7 @@ class OntTerm(OntId):
             predicates = self.query.predicates
         else:
             predicates = (predicate,) + predicates  # ensure at least one
+
         results_gen = self.query(iri=self, predicates=predicates, depth=depth, direction=direction)
         out = {}
         for result in results_gen:  # FIXME should only be one?!
@@ -560,8 +562,9 @@ class OntTerm(OntId):
 
         if single_out:
             if out:
-                if predicate in out:  # FIXME rdflib services promiscuously returns predicates
-                    return out[predicate]
+                p = OntId(predicate).curie  # need to normalize here since we don't above
+                if p in out:  # FIXME rdflib services promiscuously returns predicates
+                    return out[p]
 
             return tuple()  # more consistent return value so can always iterate
         else:
