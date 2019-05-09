@@ -424,7 +424,9 @@ class OntTerm(OntId):
             for keyword, value in result.items():
                 # TODO open vs closed world
                 orig_value = self.orig_kwargs.get(keyword, None)
-                if orig_value is not None and value is not None and orig_value != value:
+                empty_iterable = hasattr(orig_value, '__iter__') and not orig_value
+                if ((orig_value is not None and not empty_iterable)
+                    and value is not None and orig_value != value):
                     if str(orig_value) == value:
                         pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
                     elif (keyword == 'label' and
