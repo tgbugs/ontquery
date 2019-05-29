@@ -2,6 +2,7 @@ import rdflib
 import sys
 import copy
 from itertools import chain
+from urllib.parse import quote
 from . import exceptions as exc, trie
 from .utils import cullNone, red
 
@@ -211,6 +212,10 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
             return namespaces[prefix] + suffix
         else:
             raise cls.UnknownPrefixError(f'Unknown curie prefix: {prefix} for {prefix}:{suffix}')
+
+    @property
+    def quoted(self):
+        return quote(self.iri, safe=tuple())
 
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
