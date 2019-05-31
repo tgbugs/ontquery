@@ -465,6 +465,7 @@ class OntTerm(OntId):
             self.validated = True
 
         if i is None:
+            self._source = None
             self.validated = False
             for keyword in set(keyword  # FIXME repr_arg_order should not be what is setting this?!?!
                                for keywords in self.repr_arg_order
