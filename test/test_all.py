@@ -4,7 +4,7 @@ import rdflib
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
     from pyontutils import scigraph
-    orig_basepath = 'https://scicrunch.org/api/1/scigraph'  # FIXME hardcoding
+    orig_basepath = 'https://scicrunch.org/api/1/sparc-scigraph'  # FIXME hardcoding
     if 'SCICRUNCH_API_KEY' in os.environ:
         scigraph.scigraph_client.BASEPATH = orig_basepath
     else:
@@ -184,3 +184,19 @@ class TestAll(unittest.TestCase):
             raise AssertionError('should have failed with ValueError')
         except ValueError:
             pass
+
+    def test_prefix(self):
+        for prefix in 'UBERON', 'FMA':
+            qr = self.query(term='brain', prefix=prefix)
+            print(qr)
+
+        asdf
+
+    def test_prefixs(self):
+        qr = self.query(term='brain', prefix=('UBERON', 'BIRNLEX', 'FMA'))
+        print(qr)
+        asdf
+
+    def test_exclude_prefix(self):
+        qr = self.query(term='brain', exclude_prefix=('FMA',))
+        assert not [t for t in qr if t.prefix == 'FMA']

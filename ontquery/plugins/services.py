@@ -20,6 +20,9 @@ try:
 except ModuleNotFoundError as rdflib_missing:
     pass  # we warn later if this fails
 
+_empty_tuple = tuple()
+
+
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
@@ -119,21 +122,36 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
     def query(self, iri=None, curie=None,
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
-              prefix=None, category=None,
+              prefix=tuple(), category=None, exclude_prefix=tuple(),
               predicates=tuple(), depth=1,
               direction='OUTGOING', limit=10):
         # use explicit keyword arguments to dispatch on type
-        if prefix is not None and prefix not in self.curies:
-            raise ValueError(f'{prefix} not in {self.__class__.__name__}.prefixes')
+        if prefix is not None and prefix != _empty_tuple:
+            if isinstance(prefix, str):
+                prefix = prefix,
+
+            bads = [p for p in prefix if p not in self.curies]
+            if bads:
+                raise ValueError(f'None of {bads} in {self.__class__.__name__}.prefixes')
+
         if category is not None and category not in self.categories:
             raise ValueError(f'{category} not in {self.__class__.__name__}.categories')
 
-        if (prefix is None and any((label, term, search, abbrev)) and
+        if ((prefix is None or prefix == tuple()) and
+            any((label, term, search, abbrev)) and
             self.prefixes != self.search_prefixes):
             prefix = self.search_prefixes
 
-        search_expressions = cullNone(label=label, term=term, search=search, abbrev=abbrev)
-        qualifiers = cullNone(prefix=prefix, category=category, limit=limit)
+        if exclude_prefix:
+            prefix = tuple(p for p in prefix if p not in exclude_prefix)
+
+        search_expressions = cullNone(label=label,
+                                      term=term,
+                                      search=search,
+                                      abbrev=abbrev)
+        qualifiers = cullNone(prefix=prefix,
+                              category=category,
+                              limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
         predicates = tuple(self.OntId(p)
                            if not isinstance(p, self.OntId) and ':' in p
@@ -555,7 +573,8 @@ class InterLexRemote(OntService):  # note to self
         except OntId.Error:
             return entity
 
-    def query(self, iri=None, curie=None, label=None, term=None, predicates=None, **_):
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
+              prefix=tuple(), exclude_prefix=tuple(), **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
             with requests.Session() as s:
@@ -613,6 +632,13 @@ class InterLexRemote(OntService):  # note to self
             self._graph_cache[url] = graph
 
         ia_iri = isAbout(graph)
+        i = OntId(ia_iri)
+        if exclude_prefix and i.prefix in exclude_prefix:
+            return None
+
+        if prefix and i.prefix not in prefix:  # FIXME alternate ids ...
+            return None
+            
         rdll = rdflibLocal(graph)
 
         if True:
@@ -621,7 +647,7 @@ class InterLexRemote(OntService):  # note to self
             qrd = {'predicates': {}}  # FIXME iri can be none?
             toskip = 'predicates',
             if curie is None and iri is None:
-                i = OntId(ia_iri)
+                #i = OntId(ia_iri)
                 qrd['curie'] = i.curie
                 qrd['iri'] = i.iri
                 toskip += 'curie', 'iri'

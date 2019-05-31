@@ -59,7 +59,7 @@ class OntQuery:
 
     def __call__(self,
                  term=None,           # put this first so that the happy path query('brain') can be used, matches synonyms
-                 prefix=None,         # limit search within this prefix
+                 prefix=tuple(),      # limit search within these prefixes
                  category=None,       # like prefix but works on predefined categories of things like 'anatomical entity' or 'species'
                  label=None,          # exact matches only
                  abbrev=None,         # alternately `abbr` as you have
@@ -71,8 +71,10 @@ class OntQuery:
                  depth=1,
                  direction='OUTGOING',
                  limit=10,
+                 exclude_prefix=tuple(),
     ):
-        qualifiers = cullNone(prefix=prefix,
+        qualifiers = cullNone(prefix=prefix if prefix else None,
+                              exclude_prefix=exclude_prefix if exclude_prefix else None,
                               category=category)
         queries = cullNone(abbrev=abbrev,
                            label=label,
