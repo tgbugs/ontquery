@@ -9,7 +9,7 @@ from ontquery.terms import OntId  # FIXME doen't want to import OntId ...
 
 
 class OntQuery:
-    def __init__(self, *services, prefix=None, category=None):  # services from OntServices
+    def __init__(self, *services, prefix=None, category=None, OntTerm=None):  # services from OntServices
         # check to make sure that prefix valid for ontologies
         # more config
         _services = [] 
@@ -22,6 +22,7 @@ class OntQuery:
             _services.append(service)
 
         self._services = tuple(_services)
+        self._OntTerm = OntTerm
 
     def add(self, *services):
         """ add low priority services """
@@ -109,6 +110,9 @@ class OntQuery:
             for i, result in enumerate(service.query(**kwargs)):
                 #print(red.format('AAAAAAAAAA'), result)
                 if result:
+                    if self._OntTerm is not None:
+                        result._OntTerm = self._OntTerm
+
                     yield result
                     if search is None and term is None and result.label:
                         return  # FIXME order services based on which you want first for now, will work on merging later
@@ -247,4 +251,4 @@ class QueryResult:
         raise ValueError('Cannot set results of a query.')
 
     def __repr__(self):
-        return f'QueryResult({self.__dict!r})'
+        return f'{self.__class__.__name__}({self.__dict!r})'
