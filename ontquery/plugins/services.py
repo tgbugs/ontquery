@@ -810,17 +810,22 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             return None
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
-              search=None, prefix=None, all_classes=False, **kwargs):
-        if prefix is not None and all(a is None for a in (iri, curie, label)):
-            iri_prefix = self.graph.namespace_manager.store.namespace(prefix)
-            if iri_prefix is not None:
-                # TODO is this faster or is shortening? this seems like it might be faster ...
-                # unless the graph has it all cached
-                for _iri in sorted(u for u in set(e for t in self.graph for e in t
-                                               if isinstance(e, rdflib.URIRef))
-                                if self._prefix(u) == prefix):
-                    yield from self.query(iri=_iri)
-                return
+              search=None, prefix=tuple(), exclude_prefix=tuple(), all_classes=False, **kwargs):
+        if prefix is not None and prefix is not _empty_tuple and all(a is None for a in (iri, curie, label, term)):
+            if isinstance(prefix, str):
+                prefix = prefix,
+
+            for p in prefix:
+                iri_prefix = self.graph.namespace_manager.store.namespace(p)
+                if iri_prefix is not None:
+                    # TODO is this faster or is shortening? this seems like it might be faster ...
+                    # unless the graph has it all cached
+                    for _iri in sorted(u for u in set(e for t in self.graph for e in t
+                                                if isinstance(e, rdflib.URIRef))
+                                       if self._prefix(u) == p):
+                        yield from self.query(iri=_iri)
+
+            return
 
         # right now we only support exact matches to labels FIXME
         kwargs['curie'] = curie
@@ -847,6 +852,14 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     for predicate in predicates:
                         gen = self.graph.subjects(predicate, rdflib.Literal(object))
                         for subject in gen:
+                            if prefix or exclude_prefix:
+                                oid = self.OntId(subject)
+                                if prefix and oid.prefix not in prefix:
+                                    continue
+
+                                if exclude_prefix and oid.prefix in exclude_prefix:
+                                    continue
+
                             yield from self.query(iri=subject)
                             return  # FIXME we can only search one thing at a time... first wins
 
