@@ -23,6 +23,12 @@ class OntQuery:
 
         self._services = tuple(_services)
         self._OntTerm = OntTerm
+        if OntTerm:
+            moid = [c for c in OntTerm.mro() if c.__name__ == 'OntId']
+        else:
+            moid = None
+
+        self._OntId = moid[0] if moid else None
 
     def add(self, *services):
         """ add low priority services """
@@ -39,7 +45,7 @@ class OntQuery:
         unique_predicates = set()
         for service in self.services:
             if not service.started:
-                service.setup()
+                service.setup(OntId=self._OntId)
             for predicate in service.predicates:
                 unique_predicates.add(predicate)
 
@@ -103,7 +109,7 @@ class OntQuery:
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
         for j, service in enumerate(self.services):
             if not service.started:
-                service.setup()
+                service.setup(OntId=self._OntId)
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             # TODO don't pass empty kwargs to services that can't handle them?
@@ -121,7 +127,8 @@ class OntQuery:
 class OntQueryCli(OntQuery):
     raw = False  # return raw QueryResults
 
-    def __init__(self, *services, prefix=None, category=None, query=None):
+    def __init__(self, *services, prefix=None, category=None, query=None,
+                 OntTerm=None):
         if query is not None:
             if services:
                 raise ValueError('*services and query= are mutually exclusive arguments, '
@@ -130,6 +137,8 @@ class OntQueryCli(OntQuery):
             self._services = query.services
         else:
             self._services = services
+
+        self._OntTerm = OntTerm
 
     @mimicArgs(OntQuery.__call__)
     def __call__(self, *args, **kwargs):
@@ -184,6 +193,8 @@ class QueryResult:
                  prefix=None,
                  category=None,
                  predicates=None,  # FIXME dict
+                 type=None,
+                 types=tuple(),
                  _graph=None,
                  source=None,
     ):
@@ -197,6 +208,8 @@ class QueryResult:
                          synonyms=synonyms,
                          deprecated=deprecated,
                          predicates=predicates,
+                         type=type,
+                         types=types,
                          _graph=_graph,
                          source=source).items():
             # this must return the empty values for all keys

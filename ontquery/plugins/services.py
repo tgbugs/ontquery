@@ -57,7 +57,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def predicates(self):
         yield from self._predicates
 
-    def setup(self):
+    def setup(self, **kwargs):
         # TODO make it possible to set these properties dynamically
         # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
@@ -73,7 +73,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self._predicates = sorted(set(self.sgg.getRelationships()))
         #self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))  # only on newer versions, update when we switch production over
         self._onts = sorted(o['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'text/plain'))
-        super().setup()
+        super().setup(**kwargs)
 
     def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
@@ -198,6 +198,17 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                         elif inv_values:
                             result[predicate] = inv_values
 
+            res = self.sgg.getNode(identifier)
+            types = tuple()
+            _type = None
+            for _type in res['nodes'][0]['meta']['types']:
+                if _type not in result['categories']:
+                    _type = self.OntId('owl:' + _type)
+                    types += _type,
+
+            result['type'] = types[0] if _type is not None else None
+            result['types'] = types
+
             results = result,
         elif term:
             results = self.sgv.findByTerm(term, searchSynonyms=True, **qualifiers)
@@ -242,6 +253,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              prefix=result['curie'].split(':')[0] if 'curie' in result else None,
                              category=ni(result['categories']),
                              predicates=predicate_results,
+                             type=result['type'] if 'type' in result else None,
+                             types=result['types'] if 'types' in result else tuple(),
                              source=self)
             yield qr
             if count >= limit:  # FIXME deprecated issue
@@ -341,7 +354,7 @@ class InterLexRemote(OntService):  # note to self
         # FIXME can't do this at the moment because interlex itself calls this --- WHOOPS
         super().__init__(*args, **kwargs)
 
-    def setup(self):
+    def setup(self, **kwargs):
         OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
         if self.api_key is not None and self.apiEndpoint is not None:
             self.ilx_cli = InterLexClient(api_key=self.api_key,
@@ -352,7 +365,7 @@ class InterLexRemote(OntService):  # note to self
             print('WARNING: You have not set an API key for the SciCrunch API! '
                   'InterLexRemote will error if you try to use it.')
 
-        super().setup()
+        super().setup(**kwargs)
 
     @property
     def host_port(self):
@@ -638,7 +651,7 @@ class InterLexRemote(OntService):  # note to self
 
         if prefix and i.prefix not in prefix:  # FIXME alternate ids ...
             return None
-            
+
         rdll = rdflibLocal(graph)
 
         if True:
@@ -711,11 +724,11 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def add(self, iri, format):
         pass
 
-    def setup(self):
+    def setup(self, **kwargs):
         # graph is already set up...
         # assume that the graph is static for these
         self._curies = {cp:ip for cp, ip in self.graph.namespaces()}
-        super().setup()
+        super().setup(**kwargs)
 
     @property
     def curies(self):
@@ -754,6 +767,14 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             #elif p == rdflib.RDF.type and o == owl.Class:
             elif p == rdflib.RDF.type and o in (owl.Class, owl.ObjectProperty,
                                                 owl.DatatypeProperty, owl.AnnotationProperty):
+                if 'type' not in out:
+                    out['type'] = o  # FIXME preferred type ...
+                else:
+                    if 'types' not in out:
+                        out['types'] = out['type'],
+
+                    out['types'] += o
+
                 owlClass = True  # FIXME ...
 
             if pn is None:
@@ -802,7 +823,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         if all_classes:
             for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
                 if isinstance(iri, rdflib.URIRef):  # no BNodes
-                    yield from self.by_ident(iri, None, kwargs)
+                    yield from self.by_ident(iri, None, kwargs)  # actually query is done here
         elif iri is not None or curie is not None:
             yield from self.by_ident(iri, curie, kwargs)
         else:

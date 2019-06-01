@@ -22,8 +22,11 @@ class OntService:
     def predicates(self):
         raise NotImplementedError()
 
-    def setup(self):
+    def setup(self, OntId=None, **kwargs):
         self.started = True
+        if OntId is not None:
+            self.OntId = OntId
+
         return self
 
     def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature
@@ -44,8 +47,9 @@ class BasicService(OntService):
         for triple in triples:
             self.graph.add(triple)
 
-    def setup(self):  # inherit this as `class BasicLocalOntService(ontquery.BasicOntService): pass` and load the default graph during setup
-        pass
+    def setup(self, **kwargs):
+        # inherit this as `class BasicLocalOntService(ontquery.BasicOntService): pass` and load the default graph during setup
+        super().setup(**kwargs)
 
     def query(self, iri=None, label=None, term=None, search=None):  # right now we only support exact matches to labels
         if iri is not None:

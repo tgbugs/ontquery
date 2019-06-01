@@ -578,6 +578,32 @@ class OntTerm(OntId):
         else:
             return out
 
+    @property
+    def type(self):
+        if not hasattr(self, '_type'):
+            qr = self.query(self.iri)
+            self._type = qr.type
+            self._types = qr.types
+
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        self._type = value
+
+    @property
+    def types(self):
+        if not hasattr(self, '_types'):
+            qr = self.query(self.iri)
+            self._type = qr.type
+            self._types = qr.types
+
+        return self._types
+
+    @types.setter
+    def types(self, value):
+        self._types = value
+
     def __repr__(self):  # TODO fun times here
         return super().__repr__()
 
