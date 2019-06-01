@@ -712,7 +712,17 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         self.OntId = OntId
         self.graph = graph
         try:
-            self.predicate_mapping = {'label':rdflib.RDFS.label,}
+            self.predicate_mapping = {'label': (rdflib.RDFS.label,),
+                                      'term': (rdflib.RDFS.label,
+                                               rdflib.URIRef(self.OntId('skos:prefLabel')),
+                                               rdflib.URIRef(self.OntId('skos:altLabel')),
+                                               rdflib.URIRef(self.OntId('skos:hiddenLabel')),
+                                               rdflib.URIRef(self.OntId('NIFRID:synonym')),
+                                               rdflib.URIRef(self.OntId('oboInOwl:hasSynonym')),
+                                               rdflib.URIRef(self.OntId('oboInOwl:hasExactSynonym')),
+                                               rdflib.URIRef(self.OntId('oboInOwl:hasNarroSynonym')),
+                                      ),
+            }
         except NameError:
             raise ModuleNotFoundError('You need to install >=rdflib-5.0.0 to use this service') from rdflib_missing
         super().__init__()
@@ -799,7 +809,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         except KeyError:
             return None
 
-    def query(self, iri=None, curie=None, label=None, predicates=None,
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
               search=None, prefix=None, all_classes=False, **kwargs):
         if prefix is not None and all(a is None for a in (iri, curie, label)):
             iri_prefix = self.graph.namespace_manager.store.namespace(prefix)
@@ -816,6 +826,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         kwargs['curie'] = curie
         kwargs['iri'] = iri
         kwargs['label'] = label
+        kwargs['term'] = term
 
         #kwargs['term'] = term
         #kwargs['search'] = search
@@ -828,12 +839,16 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             yield from self.by_ident(iri, curie, kwargs)
         else:
             for keyword, object in kwargs.items():
+                if object is None:
+                    continue
+
                 if keyword in self.predicate_mapping:
-                    predicate = self.predicate_mapping[keyword]
-                    gen = self.graph.subjects(predicate, rdflib.Literal(object))
-                    for subject in gen:
-                        yield from self.query(iri=subject)
-                        return  # FIXME we can only search one thing at a time... first wins
+                    predicates = self.predicate_mapping[keyword]
+                    for predicate in predicates:
+                        gen = self.graph.subjects(predicate, rdflib.Literal(object))
+                        for subject in gen:
+                            yield from self.query(iri=subject)
+                            return  # FIXME we can only search one thing at a time... first wins
 
 
 class StaticIrisRemote(rdflibLocal):
