@@ -63,9 +63,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
                                        basePath=self.apiEndpoint, key=self.api_key)
         self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
-                                       basePath=self.apiEndpoint, key=self.api_key)
+                                  basePath=self.apiEndpoint, key=self.api_key)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
-                                       basePath=self.apiEndpoint, key=self.api_key)
+                                   basePath=self.apiEndpoint, key=self.api_key)
         self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
         self.prefixes = sorted(self.curies)
         self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
@@ -256,6 +256,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                              type=result['type'] if 'type' in result else None,
                              types=result['types'] if 'types' in result else tuple(),
                              source=self)
+            qr._OntTerm = self.OntTerm
             yield qr
             if count >= limit:  # FIXME deprecated issue
                 break
@@ -452,23 +453,25 @@ class InterLexRemote(OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        return QueryResult(
-             query_args = {},
-             iri=resp['iri'],
-             curie=resp['curie'],
-             label=resp['label'],
-             labels=tuple(),
-             #abbrev=None,  # TODO
-             #acronym=None,  # TODO
-             definition=resp.get('definition', None),
-             synonyms=tuple(resp.get('synonyms', tuple())),
-             #deprecated=None,
-             #prefix=None,
-             #category=None,
-             predicates=out_predicates,
-             #_graph=None,
-             source=self,
+        qr = QueryResult(
+            query_args = {},
+            iri=resp['iri'],
+            curie=resp['curie'],
+            label=resp['label'],
+            labels=tuple(),
+            #abbrev=None,  # TODO
+            #acronym=None,  # TODO
+            definition=resp.get('definition', None),
+            synonyms=tuple(resp.get('synonyms', tuple())),
+            #deprecated=None,
+            #prefix=None,
+            #category=None,
+            predicates=out_predicates,
+            #_graph=None,
+            source=self,
         )
+        qr._OntTerm = self.OntTerm
+        return qr
 
     def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
                       definition: str=None, synonyms=tuple(), comment: str=None,
@@ -497,7 +500,7 @@ class InterLexRemote(OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        return QueryResult(
+        qr = QueryResult(
              query_args = {},
              iri=resp['iri'],
              curie=resp['curie'],
@@ -514,6 +517,8 @@ class InterLexRemote(OntService):  # note to self
              #_graph=None,
              source=self,
         )
+        qr._OntTerm = self.OntTerm
+        return qr
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
@@ -682,7 +687,9 @@ class InterLexRemote(OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            yield QueryResult(kwargs, **qrd)
+            qr = QueryResult(kwargs, **qrd)
+            qr._OntTerm = self.OntTerm
+            yield qr
 
         else:
             # TODO cases where ilx is preferred will be troublesome
@@ -694,10 +701,13 @@ class InterLexRemote(OntService):  # note to self
                 if curie:
                     for qr in out:
                         qr = cullNone(**qr)
-                        yield QueryResult(kwargs, #qr._QueryResult__query_args,
+                        qro = QueryResult(kwargs, #qr._QueryResult__query_args,
                                           curie=curie,
                                           **{k:v for k, v in qr.items()
                                              if k != 'curie' })
+                        qro._OntTerm = self.OntTerm
+                        yield qro
+
                     return
 
             yield from out
@@ -800,7 +810,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 out[pn] = o
 
         if o is not None and owlClass is not None:
-            yield QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
+            qr = QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
+            qr._OntTerm = self.OntTerm
+            yield qr
 
     def _prefix(self, iri):
         try:

@@ -22,10 +22,12 @@ class OntService:
     def predicates(self):
         raise NotImplementedError()
 
-    def setup(self, OntId=None, **kwargs):
+    def setup(self, OntId=None, OntTerm=None, **kwargs):
         self.started = True
         if OntId is not None:
             self.OntId = OntId
+        if OntTerm is not None:
+            self.OntTerm = OntTerm
 
         return self
 

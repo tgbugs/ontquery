@@ -45,7 +45,7 @@ class OntQuery:
         unique_predicates = set()
         for service in self.services:
             if not service.started:
-                service.setup(OntId=self._OntId)
+                service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
             for predicate in service.predicates:
                 unique_predicates.add(predicate)
 
@@ -109,7 +109,7 @@ class OntQuery:
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
         for j, service in enumerate(self.services):
             if not service.started:
-                service.setup(OntId=self._OntId)
+                service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             # TODO don't pass empty kwargs to services that can't handle them?
@@ -172,12 +172,6 @@ class QueryResult:
     """ Encapsulate query results and allow for clear and clean documentation
         of how a particular service maps their result terminology onto the
         ontquery keyword api. """
-
-    class _OntTerm_:
-        def __new__(cls, *args, **kwargs):
-            raise TypeError('ontutils.QueryResult._OntTerm has not been set!')
-
-    _OntTerm = _OntTerm_
 
     def __init__(self,
                  query_args,

@@ -335,6 +335,7 @@ class OntTerm(OntId):
         """ Bind this class as the OntTerm for QueryResult """
         from ontquery import query  # FIXME does this work!?
         query.QueryResult._OntTerm = cls
+        raise DeprecationWarning('this does not work as intended')
 
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
                 label=None,
