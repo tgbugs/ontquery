@@ -22,10 +22,8 @@ class OntQuery:
 
         self._services = tuple(_services)
         if instrumented:
-            self._OntTerm = instrumented
-            self._OntId = instrumented._uninstrumeted_class()
-            #moid = [c for c in self._OntTerm.mro() if c.__name__ == 'OntId']
-            #self._OntId = moid[0] if moid else None
+            self._instrumented = instrumented
+            self._OntId = self._instrumented._uninstrumeted_class()
 
         else:
             raise TypeError('instrumented is a required keyword argument')
@@ -44,7 +42,7 @@ class OntQuery:
     def setup(self):
         for service in self.services:
             if not service.started:
-                service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
+                service.setup(instrumented=self._instrumented)
 
         # NOTE if you add a service after the first use of a query
         # you will have to call setup manually, which is reaonsable
@@ -64,8 +62,6 @@ class OntQuery:
     def _predicates_r(self):
         unique_predicates = set()
         for service in self.services:
-            #if not service.started:  # FIXME continual runtime cost >_<
-                #service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
             for predicate in service.predicates:
                 unique_predicates.add(predicate)
 
@@ -133,17 +129,12 @@ class OntQuery:
         # to do it for every single OntService
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
         for j, service in enumerate(self.services):
-            if not service.started:  # FIXME continual runtime cost
-                service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))
             # TODO don't pass empty kwargs to services that can't handle them?
             for i, result in enumerate(service.query(**kwargs)):
                 #print(red.format('AAAAAAAAAA'), result)
                 if result:
-                    if self._OntTerm is not None:
-                        result._OntTerm = self._OntTerm
-
                     yield result
                     if search is None and term is None and result.label:
                         return  # FIXME order services based on which you want first for now, will work on merging later
@@ -160,8 +151,9 @@ class OntQueryCli(OntQuery):
                                  'please remove one')
 
             self._services = query.services
-            self._OntTerm = query._OntTerm
+            self._instrumented = query._instrumented
             self._OntId = query._OntId
+
         else:
             super().__init__(*services, prefix=prefix, category=category,
                              instrumented=instrumented)

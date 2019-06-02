@@ -1,8 +1,8 @@
 import json
 import os
 import requests
-from sys import exit
-from typing import List
+from typing import List, Tuple
+from ontquery.utils import log
 
 
 class InterLexClient:
@@ -29,6 +29,9 @@ class InterLexClient:
     class EntityDoesNotExistError(Error):
         """ The entity listed does not exist! """
 
+    class AlreadyExistsError(Error):
+        """ The entity listed already exists! """
+
     class BadResponseError(Error): pass
 
     class NoLabelError(Error): pass
@@ -44,18 +47,22 @@ class InterLexClient:
     default_base_url = 'https://scicrunch.org/api/1/'
     ilx_base_url = 'http://uri.interlex.org/base/'
 
-    def __init__(self, api_key: str, base_url: str = default_base_url):
-        self.api_key = api_key
+    def __init__(self, base_url: str=default_base_url):
         self.base_url = base_url
+        self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
+        self._kwargs = {}
+        if 'test' in base_url:
+            auth = os.environ['SCICRUNCH_TEST_U'], os.environ['SCICRUNCH_TEST_P']
+            self._kwargs['auth'] = auth
+
         user_info_url = self.default_base_url + 'user/info?key=' + self.api_key
         self.check_api_key(user_info_url)
         self.user_id = str(self.get(user_info_url)['id'])
-
     def check_api_key(self, url):
         response = requests.get(
             url,
             headers = {'Content-type': 'application/json'},
-            auth = ('scicrunch', 'perl22(query)') # for test2.scicrunch.org
+            **self._kwargs
         )
         if response.status_code not in [200, 201]: # Safety catch.
             raise self.IncorrectAPIKeyError('api_key given is incorrect.')
@@ -83,7 +90,7 @@ class InterLexClient:
         response = requests.get(
             url,
             headers = {'Content-type': 'application/json'},
-            auth = ('scicrunch', 'perl22(query)') # for test2.scicrunch.org
+            **self._kwargs
         )
         output = self.process_response(response)
         return output
@@ -97,7 +104,7 @@ class InterLexClient:
             url,
             data = json.dumps(data),
             headers = {'Content-type': 'application/json'},
-            auth = ('scicrunch', 'perl22(query)') # for test2.scicrunch.org
+            **self._kwargs
         )
         output = self.process_response(response)
         return output
@@ -388,11 +395,14 @@ class InterLexClient:
             if 'already exists' in output['errormsg'].lower():
                 prexisting_data = self.check_scicrunch_for_label(entity['label'])
                 if prexisting_data:
-                    print(
-                        'You already added entity', entity['label'],
-                        'with ILX ID:', prexisting_data['ilx'])
+                    log.warning(
+                        'You already added entity ' + entity['label'],
+                        'with ILX ID: ' + prexisting_data['ilx'])
+
                     return prexisting_data
+
                 self.Error(output)  # FIXME what is the correct error here?
+
             self.Error(output)  # FIXME what is the correct error here?
 
         # BUG: server output incomplete compared to search via ilx ids
@@ -497,7 +507,7 @@ class InterLexClient:
             entity_output['iri'] = 'http://uri.interlex.org/base/tmp_' + _id
             entity_output['curie'] = 'TMP:' + _id
 
-        print(template_entity_input)
+        log.info(template_entity_input)
         for key, value in template_entity_input.items():
             if key == 'superclass':
                 if raw_entity_outout.get('superclasses'):
@@ -547,12 +557,12 @@ class InterLexClient:
 
         term_data = self.get_entity(term_ilx_id)
         if not term_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'term_ilx_id: ' + term_ilx_id + ' does not exist'
             )
         anno_data = self.get_entity(annotation_type_ilx_id)
         if not anno_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'annotation_type_ilx_id: ' + annotation_type_ilx_id +
                 ' does not exist'
             )
@@ -578,13 +588,15 @@ class InterLexClient:
                 for term_annotation in term_annotations:
                     if str(term_annotation['annotation_tid']) == str(anno_data['id']):
                         if term_annotation['value'] == data['value']:
-                            print(
+                            log.warning(
                                 'Annotation: [' + term_data['label'] + ' -> ' + anno_data['label'] +
                                 ' -> ' + data['value'] + '], already exists.'
                             )
                             return term_annotation
-                exit(output)
-            exit(output)
+
+                raise self.AlreadyExistsError(output)
+
+            raise self.Error(output)
 
         return output
 
@@ -598,12 +610,12 @@ class InterLexClient:
 
         term_data = self.get_entity(term_ilx_id)
         if not term_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'term_ilx_id: ' + term_ilx_id + ' does not exist'
             )
         anno_data = self.get_entity(annotation_type_ilx_id)
         if not anno_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'annotation_type_ilx_id: ' + annotation_type_ilx_id +
                 ' does not exist'
             )
@@ -618,7 +630,7 @@ class InterLexClient:
                         annotation_id = annotation['id']
                         break
         if not annotation_id:
-            print('''WARNING: Annotation you wanted to delete does not exist ''')
+            log.warning('Annotation you wanted to delete does not exist')
             return None
 
         url = self.base_url + 'term/edit-annotation/{annotation_id}'.format(
@@ -666,17 +678,17 @@ class InterLexClient:
 
         entity1_data = self.get_entity(entity1_ilx)
         if not entity1_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'entity1_ilx: ' + entity1_ilx + ' does not exist'
             )
         relationship_data = self.get_entity(relationship_ilx)
         if not relationship_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'relationship_ilx: ' + relationship_ilx + ' does not exist'
             )
         entity2_data = self.get_entity(entity2_ilx)
         if not entity2_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'entity2_ilx: ' + entity2_ilx + ' does not exist'
             )
 
@@ -701,7 +713,7 @@ class InterLexClient:
                 for term_relationship in term_relationships:
                     if str(term_relationship['term2_id']) == str(entity2_data['id']):
                         if term_relationship['relationship_tid'] == relationship_data['id']:
-                            print(
+                            log.warning(
                                 'relationship: [' + entity1_data['label'] + ' -> ' +
                                 relationship_data['label'] + ' -> ' + entity2_data['label'] +
                                 '], already exists.'
@@ -728,17 +740,17 @@ class InterLexClient:
 
         entity1_data = self.get_entity(entity1_ilx)
         if not entity1_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'entity1_ilx: ' + entity1_data + ' does not exist'
             )
         relationship_data = self.get_entity(relationship_ilx)
         if not relationship_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'relationship_ilx: ' + relationship_ilx + ' does not exist'
             )
         entity2_data = self.get_entity(entity2_ilx)
         if not entity2_data['id']:
-            exit(
+            raise self.EntityDoesNotExistError(
                 'entity2_ilx: ' + entity2_data + ' does not exist'
             )
 
@@ -762,9 +774,10 @@ class InterLexClient:
                     if str(relationship['relationship_tid']) == str(relationship_data['id']):
                         relationship_id = relationship['id']
                         break
+
         if not relationship_id:
-            print('''WARNING: Annotation you wanted to delete does not exist ''')
-            return None
+            log.warning('Annotation you wanted to delete does not exist')
+            return {}
 
         url = self.base_url + 'term/edit-relationship/{id}'.format(id=relationship_id)
 

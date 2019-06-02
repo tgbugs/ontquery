@@ -23,14 +23,15 @@ class OntService:
     def predicates(self):
         raise NotImplementedError()
 
-    def setup(self, OntId=None, OntTerm=None, **kwargs):
-        self.started = True
-        if OntId is not None:
-            self.OntId = OntId
-        if OntTerm is not None:
-            self.OntTerm = OntTerm
-            self.QueryResult = QueryResult.new_from_instrumented(OntTerm)
+    def setup(self, instrumented=None, **kwargs):
+        if instrumented is None:
+            raise TypeError('OntTerm is a required argument!')  # FIXME only require instrumented
 
+        self.OntId = instrumented._uninstrumeted_class()
+        self.OntTerm = instrumented
+        self.QueryResult = QueryResult.new_from_instrumented(instrumented)
+
+        self.started = True
         return self
 
     def query(self, *args, **kwargs):  # needs to conform to the OntQuery __call__ signature

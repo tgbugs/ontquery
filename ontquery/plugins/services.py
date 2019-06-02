@@ -1,3 +1,4 @@
+import os
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone, log
@@ -26,13 +27,13 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
     known_inverses = ('', ''),
-    def __init__(self, api_key=None, apiEndpoint=None, OntId=OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
+    def __init__(self, apiEndpoint=None, OntId=OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
         try:
             requests
         except NameError:
             raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
         self.apiEndpoint = apiEndpoint
-        self.api_key = api_key
+        self.api_key = os.environ.get('SCIGRAPH_API_KEY', None)
         self.OntId = OntId
         super().__init__()
 
@@ -269,19 +270,17 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
 class SciCrunchRemote(SciGraphRemote):
     known_inverses = ('partOf:', 'hasPart:'),
-    defaultEndpoint = 'https://scicrunch.org/api/1/scigraph'
-    def __init__(self, api_key=None, apiEndpoint=defaultEndpoint, OntId=OntId):
-        if api_key is None:
-            import os
-            try:
-                api_key = os.environ['SCICRUNCH_API_KEY']
-            except KeyError:
-                pass
+    defaultEndpoint = 'https://scicrunch.org/api/1/sparc-scigraph'
+    def __init__(self, apiEndpoint=defaultEndpoint, OntId=OntId):
+        super().__init__(apiEndpoint=apiEndpoint, OntId=OntId)
+        if self.api_key is None:
+            self.api_key = os.environ.get('SCICRUNCH_API_KEY', None)
 
-        if api_key is None and apiEndpoint == self.defaultEndpoint:
+    def setup(self, **kwargs):
+        if self.api_key is None and self.apiEndpoint == self.defaultEndpoint:
             raise ValueError('You have not set an API key for the SciCrunch API!')
 
-        super().__init__(api_key=api_key, apiEndpoint=apiEndpoint, OntId=OntId)
+        super().setup(**kwargs)
 
     def termRequest(self, term):
         if term.validated:
@@ -320,24 +319,19 @@ class _InterLexSharedCache:
 class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     known_inverses = ('', ''),
     defaultEndpoint = 'https://scicrunch.org/api/1/'
-    def __init__(self, *args, api_key=None, apiEndpoint=defaultEndpoint, host='uri.interlex.org', port='',
+    def __init__(self, *args, apiEndpoint=defaultEndpoint,
+                 host='uri.interlex.org', port='',
                  user_curies: dict={'ILX', 'http://uri.interlex.org/base/ilx_'},  # FIXME hardcoded
                  readonly=False,
                  **kwargs):
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
-        if api_key is None:
-            import os
-            try:
-                self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
-            except KeyError:
-                self.api_key = None
 
-            if self.api_key is None and apiEndpoint == self.defaultEndpoint:
-                # we don't error here because API keys are not required for viewing
-                log.warning('You have not set an API key for the SciCrunch API!')
-        else:
-            self.api_key = api_key
+        self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
+
+        if self.api_key is None and apiEndpoint == self.defaultEndpoint:
+            # we don't error here because API keys are not required for viewing
+            log.warning('You have not set an API key for the SciCrunch API!')
 
         self.apiEndpoint = apiEndpoint
 
@@ -367,8 +361,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def setup(self, **kwargs):
         OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
         if self.api_key is not None and self.apiEndpoint is not None:
-            self.ilx_cli = InterLexClient(api_key=self.api_key,
-                                          base_url=self.apiEndpoint,)
+            self.ilx_cli = InterLexClient(base_url=self.apiEndpoint)
         elif not self.readonly:
             # expect attribute errors for ilx_cli
 
@@ -507,7 +500,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        yield self.QueryResult(
+        return self.QueryResult(
              query_args = {},
              iri=resp['iri'],
              curie=resp['curie'],
@@ -663,7 +656,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             return None
 
         rdll = rdflibLocal(graph)
-        rdll.setup(OntId=self.OntId, OntTerm=self.OntTerm)
+        rdll.setup(instrumented=self.OntTerm)
 
         if True:
             #qrs = rdll.query(label=label, predicates=predicates, all_classes=True)  # label=label issue?
