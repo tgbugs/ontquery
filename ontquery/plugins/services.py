@@ -71,7 +71,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.categories = self.sgv.getCategories()
         self._predicates = sorted(set(self.sgg.getRelationships()))
         #self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))  # only on newer versions, update when we switch production over
-        self._onts = sorted(o['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'text/plain'))
+        self._onts = sorted(o['iri'] for o in
+                            self.sgc.execute('MATCH (n:Ontology) RETURN n',
+                                             1000,
+                                             'text/plain'))
         super().setup(**kwargs)
 
     def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
@@ -284,10 +287,10 @@ class SciCrunchRemote(SciGraphRemote):
         if term.validated:
             raise TypeError('Can\'t add a term that already exists!')
 
-        print('It seems that you have found a terms that is not in your remote! '
-              'To request inclusion of this term please open the link in a browser or '
-              'run the function returned by this which can be found in the list at '
-              f'{term.__class__.__name__}.termRequests for this term {term!r}.')
+        log.info('It seems that you have found a terms that is not in your remote! '
+                 'To request inclusion of this term please open the link in a browser or '
+                 'run the function returned by this which can be found in the list at '
+                 f'{term.__class__.__name__}.termRequests for this term {term!r}.')
 
         class TermRequest(term.__class__):
             # TODO iri, curie, prefix, label, etc.
@@ -303,7 +306,7 @@ class SciCrunchRemote(SciGraphRemote):
                     self.__done = True
                     # TODO handle terms already requested but not in this session
                 else:
-                    print('This term has already been requested')
+                    log.error('This term has already been requested')
 
             def url_link(self):
                 return post_template + 'TODO-TODO-TODO'
@@ -332,7 +335,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
             if self.api_key is None and apiEndpoint == self.defaultEndpoint:
                 # we don't error here because API keys are not required for viewing
-                print('WARNING: You have not set an API key for the SciCrunch API!')
+                log.warning('You have not set an API key for the SciCrunch API!')
         else:
             self.api_key = api_key
 
@@ -341,7 +344,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         try:
             requests
         except NameError:
-            raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
+            msg = 'You need to install requests to use this service'
+            raise ModuleNotFoundError(msg) from requests_missing
+
         self.host = host
         self.port = port
         self.user_curies = user_curies
@@ -367,8 +372,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         elif not self.readonly:
             # expect attribute errors for ilx_cli
 
-            print('WARNING: You have not set an API key for the SciCrunch API! '
-                  'InterLexRemote will error if you try to use it.')
+            log.warning('You have not set an API key for the SciCrunch API! '
+                        'InterLexRemote will error if you try to use it.')
 
         super().setup(**kwargs)
 
@@ -658,6 +663,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             return None
 
         rdll = rdflibLocal(graph)
+        rdll.setup(OntId=self.OntId, OntTerm=self.OntTerm)
 
         if True:
             #qrs = rdll.query(label=label, predicates=predicates, all_classes=True)  # label=label issue?
@@ -717,6 +723,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def __init__(self, graph, OntId=OntId):
         self.OntId = OntId
         self.graph = graph
+        self._curies = {cp:ip for cp, ip in self.graph.namespaces()}
         try:
             self.predicate_mapping = {'label': (rdflib.RDFS.label,),
                                       'term': (rdflib.RDFS.label,
@@ -730,7 +737,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                                       ),
             }
         except NameError:
-            raise ModuleNotFoundError('You need to install >=rdflib-5.0.0 to use this service') from rdflib_missing
+            msg = 'You need to install >=rdflib-5.0.0 to use this service'
+            raise ModuleNotFoundError(msg) from rdflib_missing
+
         super().__init__()
 
     @property
@@ -743,14 +752,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def setup(self, **kwargs):
         # graph is already set up...
         # assume that the graph is static for these
-        self._curies = {cp:ip for cp, ip in self.graph.namespaces()}
         super().setup(**kwargs)
 
     @property
     def curies(self):
-        if not self.started:
-            self.setup()
-
         return self._curies
 
     @property
@@ -818,7 +823,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
               search=None, prefix=tuple(), exclude_prefix=tuple(), all_classes=False, **kwargs):
-        if prefix is not None and prefix is not _empty_tuple and all(a is None for a in (iri, curie, label, term)):
+        if (prefix is not None and
+            prefix is not _empty_tuple and
+            all(a is None for a in (iri, curie, label, term))):
             if isinstance(prefix, str):
                 prefix = prefix,
 

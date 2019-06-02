@@ -20,9 +20,6 @@ class OntTerm(oq.OntTerm):
     """ Test subclassing """
 
 
-OntTerm.bindQueryResult()
-
-
 class TestAll(unittest.TestCase):
     def setUp(self):
         #self.query = oq.OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as oq?
@@ -40,8 +37,9 @@ class TestAll(unittest.TestCase):
         #oq.OntCuries(services[0].curies)
         oq.OntCuries(CURIE_MAP)
 
-        self.query = oq.OntQueryCli(*services)
-        oq.OntTerm.query = oq.OntQuery(*services)
+
+        self.query = OntTerm.query_init(*services, query_class=oq.OntQueryCli)
+        oq.OntTerm.query_init(*services)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
     def test_query(self):

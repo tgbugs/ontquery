@@ -40,12 +40,32 @@ class OntQuery:
         # FIXME dupes
         self._services = services + self._services
 
-    @property
-    def predicates(self):
-        unique_predicates = set()
+
+    def setup(self):
         for service in self.services:
             if not service.started:
                 service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
+
+        # NOTE if you add a service after the first use of a query
+        # you will have to call setup manually, which is reaonsable
+        # if you are adding a service in that way ...
+
+        self.__call__ = self._rcall__
+        self._predicates = self._predicates_r
+
+    @property
+    def predicates(self):
+        return self._predicates()
+
+    def _predicates(self):
+        self.setup()
+        return self.predicates
+
+    def _predicates_r(self):
+        unique_predicates = set()
+        for service in self.services:
+            #if not service.started:  # FIXME continual runtime cost >_<
+                #service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
             for predicate in service.predicates:
                 unique_predicates.add(predicate)
 
@@ -64,7 +84,12 @@ class OntQuery:
     def __iter__(self):  # make it easier to init filtered queries
         yield from self.services
 
-    def __call__(self,
+    def __call__(self, *args, **kwargs):
+        """ first time only call """
+        self.setup()
+        return self.__call__(*args, **kwargs)
+
+    def _rcall__(self,
                  term=None,           # put this first so that the happy path query('brain') can be used, matches synonyms
                  prefix=tuple(),      # limit search within these prefixes
                  category=None,       # like prefix but works on predefined categories of things like 'anatomical entity' or 'species'
@@ -108,7 +133,7 @@ class OntQuery:
         # to do it for every single OntService
         kwargs = {**qualifiers, **queries, **graph_queries, **identifiers, **control}
         for j, service in enumerate(self.services):
-            if not service.started:
+            if not service.started:  # FIXME continual runtime cost
                 service.setup(OntId=self._OntId, OntTerm=self._OntTerm)
             # TODO query keyword precedence if there is more than one
             #print(red.format(str(kwargs)))

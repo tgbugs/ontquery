@@ -26,12 +26,9 @@ OntId = oq.OntId
 
 class ServiceBase:
     def setUp(self):
-        _query = oq.OntQuery(self.remote)
-        class OntTerm(oq.OntTerm):
-            query = _query
-
+        class OntTerm(oq.OntTerm): pass
+        OntTerm.query_init(self.remote)
         self.OntTerm = OntTerm
-        self.OntTerm.bindQueryResult()
 
     def test_ontid(self):
         t = self.OntTerm(OntId('UBERON:0000955'))
@@ -98,7 +95,7 @@ class _TestIlx(ServiceBase):
         qr = self.remote.add_entity(
             type='term',
             label=f'test term 9000 {uuid4()}',
-            subThingOf='http://uri.interlex.org/base/ilx_0109677',
+            subThingOf='http://uri.interlex.org/base/tmp_0109677',
             definition='hhohohoho')
         print(qr)
         # NOTE the values in the response are a mishmash of garbage because
@@ -110,12 +107,13 @@ class _TestIlx(ServiceBase):
 
 
 if 'CI' not in os.environ:  # production uri resolver doesn't have all the required features yet
-    beta = 'https://beta.scicrunch.org/api/1/'
+    beta = 'https://test.scicrunch.org/api/1/'
     class TestIlx(_TestIlx, unittest.TestCase):
         remote = oq.plugin.get('InterLex')(apiEndpoint=beta,
                                            host='localhost', port='8505')
-        remote.setup()  # have to call this manually since the service is not fed to queries
-        # NOTE this is probably overengineered ...
+        def setUp(self):
+            super().setUp()
+            self.OntTerm.query.setup()
 
 
 class TestSciGraph(ServiceBase, unittest.TestCase):

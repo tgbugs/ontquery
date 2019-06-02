@@ -56,7 +56,7 @@ class TestOntTerm(TestOntId):
     def setUp(self):
         super().setUp()
         remote = oq.plugin.get('rdflib')(common.test_graph)
-        self.class_to_test.query = oq.OntQuery(remote)
+        self.class_to_test.query_init(remote)
 
     def test_copy_preds(self):
         ot = self.class_to_test('UBERON:0000955')

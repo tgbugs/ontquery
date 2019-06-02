@@ -781,7 +781,7 @@ def examples():
     '''
     sci = InterLexClient(
         api_key = os.environ.get('INTERLEX_API_KEY'),
-        base_url = 'https://beta.scicrunch.org/api/1/', # NEVER CHANGE
+        base_url = 'https://test.scicrunch.org/api/1/', # NEVER CHANGE
     )
     entity = {
         'label': 'brain115',

@@ -126,10 +126,7 @@ class QueryResult:
     @property
     def hasOntTerm(self):  # FIXME naming
         # run against _OntTerm to prevent recursion
-        if self._OntTerm == self._OntTerm_:
-            return False
-        else:
-            return True
+        return hasattr(self, '_instrumented')
 
     def keys(self):
         yield from self.__dict.keys()
