@@ -117,7 +117,8 @@ if 'CI' not in os.environ:  # production uri resolver doesn't have all the requi
 
 
 class TestSciGraph(ServiceBase, unittest.TestCase):
-    remote = oq.plugin.get('SciGraph')(api_key=os.environ.get('SCICRUNCH_API_KEY', None))
+    remote = oq.plugin.get('SciGraph')()
+    remote.api_key = os.environ.get('SCICRUNCH_API_KEY', None)
 
     def test_inverse(self):
         t = self.OntTerm('UBERON:0000955')

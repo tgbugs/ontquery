@@ -27,10 +27,12 @@ class TestAll(unittest.TestCase):
         #self.query = oq.OntQuery(bs, upstream=OntTerm)
         #oq.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            services = oq.plugin.get('SciCrunch')(api_key=os.environ['SCICRUNCH_API_KEY']),
+            SCR = oq.plugin.get('SciCrunch')
+            SCR.api_key = os.environ['SCICRUNCH_API_KEY']
         else:
-            services = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph'),
+            SCR = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph')
 
+        services = SCR,
         # this was an ok idea, but better to also have known good local prefixes
         # probably need to clean up an clarify the bad old
         #services[0].setup()  # explicit call to setup so we can populate OntCuries
