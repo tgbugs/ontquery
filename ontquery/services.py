@@ -1,4 +1,4 @@
-from ontquery.utils import Graph
+from .utils import Graph, QueryResult
 
 
 class OntService:
@@ -8,6 +8,7 @@ class OntService:
     def __init__(self):
         if not hasattr(self, '_onts'):
             self._onts = []
+
         self.started = False
 
     def add(self, iri):  # TODO implement with setter/appender?
@@ -28,6 +29,7 @@ class OntService:
             self.OntId = OntId
         if OntTerm is not None:
             self.OntTerm = OntTerm
+            self.QueryResult = QueryResult.new_from_instrumented(OntTerm)
 
         return self
 
@@ -39,7 +41,9 @@ class OntService:
 class BasicService(OntService):
     """ A very simple service for local use only """
     graph = Graph()
-    predicate_mapping = {'label':'http://www.w3.org/2000/01/rdf-schema#label'}  # more... from OntQuery.__call__ and can have more than one...
+    predicate_mapping = {'label': 'http://www.w3.org/2000/01/rdf-schema#label',
+                         'term': 'http://www.w3.org/2000/01/rdf-schema#label'}
+    # more... from OntQuery.__call__ and can have more than one...
 
     @property
     def predicates(self):
@@ -53,7 +57,8 @@ class BasicService(OntService):
         # inherit this as `class BasicLocalOntService(ontquery.BasicOntService): pass` and load the default graph during setup
         super().setup(**kwargs)
 
-    def query(self, iri=None, label=None, term=None, search=None):  # right now we only support exact matches to labels
+    def query(self, iri=None, label=None, term=None, search=None):
+        # right now we only support exact matches to labels
         if iri is not None:
             yield from self.graph.predicate_objects(iri)
         else:

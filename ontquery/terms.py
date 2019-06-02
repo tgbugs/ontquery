@@ -4,7 +4,8 @@ import copy
 from itertools import chain
 from urllib.parse import quote
 from . import exceptions as exc, trie
-from .utils import cullNone, red
+from .utils import cullNone, subclasses, log
+from .query import OntQuery
 
 # FIXME ipython notebook?
 # this still seems wrong, I want to know not how the file is running
@@ -101,7 +102,79 @@ class OntCuries(metaclass=dictclass):
         return iri
 
 
-class OntId(str):  # TODO all terms singletons to prevent nastyness
+class Id:
+    """ base for all identifiers, both local and global """
+
+
+class LocalId(Id):
+    """ Local identifier without the context to globalize it
+        It is usually ok to skip using this class and just
+        use a python string or integer (that is converted to a string)
+    """
+
+
+class Identifier(Id):
+    """ any global identifier, manages the local/global transition """
+
+    @classmethod
+    def query_init(cls, *services, query_class=None, **kwargs):
+        if query_class is None:
+            query_class = OntQuery
+
+        instrumented = cls._instrumeted_class()
+        cls.query = query_class(*services, instrumented=instrumented, **kwargs)
+        return cls.query
+
+    @classmethod
+    def _instrumeted_class(cls):
+        if issubclass(cls, InstrumentedIdentifier): 
+            return cls
+
+        elif issubclass(cls, Identifier):
+            # when initing from an uninstrumented id the last
+            # instrumeted subclass prior to the next uninstrumented
+            # subclass will be used, so if I subclass OntId to create
+            # OrcId (an identifier for residents of Mordor) and also
+            # subclass to create OntTerm, and then OrcRecord, OntId
+            # will pick OntTerm when instrumenting rather than OrcRecord
+
+            candidate = None
+            for sc in subclasses(cls):
+                if issubclass(sc, InstrumentedIdentifier):
+                    candidate = sc
+                elif issubclass(sc, Identifier):
+                    break
+
+            if candidate is None:
+                raise TypeError(f'{cls} has no direct subclasses that are Instrumented')
+
+            return candidate
+
+        else:
+            raise TypeError(f'Don\'t know what to do with a {type(cls)}')
+
+    @classmethod
+    def _uninstrumeted_class(cls):
+        if issubclass(cls, InstrumentedIdentifier): 
+            for candidate in cls.mro():
+                if (issubclass(candidate, Identifier) and not
+                    issubclass(candidate, InstrumentedIdentifier)):
+                    return candidate
+
+            raise TypeError(f'{cls} has no parent that is Uninstrumented')
+
+        elif issubclass(cls, Identifier):
+            return cls
+
+        else:
+            raise TypeError(f'Don\'t know what to do with a {type(cls)}')
+
+
+class InstrumentedIdentifier(Identifier):
+    """ classes that instrument a type of identifier to make it actionable """
+
+
+class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     _namespaces = OntCuries  # overwrite when subclassing to switch curies...
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
@@ -111,7 +184,8 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
     class BadCurieError(Error): pass
     class UnknownPrefixError(Error): pass
 
-    def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None, iri=None, **kwargs):
+    def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None,
+                iri=None, **kwargs):
 
         if type(curie_or_iri) == cls:
             return curie_or_iri
@@ -306,7 +380,7 @@ class OntId(str):  # TODO all terms singletons to prevent nastyness
         return result
 
 
-class OntTerm(OntId):
+class OntTerm(InstrumentedIdentifier, OntId):
     # TODO need a nice way to pass in the ontology query interface to the class at run time to enable dynamic repr if all information did not come back at the same time
     repr_arg_order = (('curie', 'label', 'synonyms', 'definition'),
                       ('curie', 'label', 'synonyms'),
@@ -319,23 +393,7 @@ class OntTerm(OntId):
 
     _cache = {}
 
-    class _Query:
-        services = tuple()
-        def __call__(self, *args, **kwargs):
-            print(red.format('\nWARNING:'), 'no query provided to ontquery.OntTerm\n')
-            return
-            yield
-
-    query = _Query()
-
     __firsts = 'curie', 'iri'
-
-    @classmethod
-    def bindQueryResult(cls):
-        """ Bind this class as the OntTerm for QueryResult """
-        from ontquery import query  # FIXME does this work!?
-        query.QueryResult._OntTerm = cls
-        raise DeprecationWarning('this does not work as intended')
 
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
                 label=None,
@@ -487,7 +545,7 @@ class OntTerm(OntId):
                     setattr(self, k, v)
                 raise exc.NotFoundError(f'No results for {self!r}')
             else:
-                print(red.format('WARNING:'), repr(self), '\n')  # FIXME log
+                log.warning(repr(self) + '\n')
 
             return
             # TODO this needs to go in a separate place, not here

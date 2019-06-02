@@ -5,11 +5,10 @@ identifiers and lookup services for finding and validating them.
 
 from ontquery import plugin, exceptions as exc
 from ontquery.utils import mimicArgs, cullNone
-from ontquery.terms import OntId  # FIXME doen't want to import OntId ...
 
 
 class OntQuery:
-    def __init__(self, *services, prefix=None, category=None, OntTerm=None):  # services from OntServices
+    def __init__(self, *services, prefix=None, category=None, instrumented=None):  # services from OntServices
         # check to make sure that prefix valid for ontologies
         # more config
         _services = [] 
@@ -22,13 +21,14 @@ class OntQuery:
             _services.append(service)
 
         self._services = tuple(_services)
-        self._OntTerm = OntTerm
-        if OntTerm:
-            moid = [c for c in OntTerm.mro() if c.__name__ == 'OntId']
-        else:
-            moid = None
+        if instrumented:
+            self._OntTerm = instrumented
+            self._OntId = instrumented._uninstrumeted_class()
+            #moid = [c for c in self._OntTerm.mro() if c.__name__ == 'OntId']
+            #self._OntId = moid[0] if moid else None
 
-        self._OntId = moid[0] if moid else None
+        else:
+            raise TypeError('instrumented is a required keyword argument')
 
     def add(self, *services):
         """ add low priority services """
@@ -87,7 +87,7 @@ class OntQuery:
                            label=label,
                            term=term,
                            search=search)
-        graph_queries = cullNone(predicates=tuple(OntId(p) if ':' in p else
+        graph_queries = cullNone(predicates=tuple(self._OntId(p) if ':' in p else
                                                   p for p in predicates),  # size must be known no generator
                                  depth=depth,
                                  direction=direction)
@@ -128,17 +128,18 @@ class OntQueryCli(OntQuery):
     raw = False  # return raw QueryResults
 
     def __init__(self, *services, prefix=None, category=None, query=None,
-                 OntTerm=None):
+                 instrumented=None):
         if query is not None:
             if services:
                 raise ValueError('*services and query= are mutually exclusive arguments, '
                                  'please remove one')
 
             self._services = query.services
+            self._OntTerm = query._OntTerm
+            self._OntId = query._OntId
         else:
-            self._services = services
-
-        self._OntTerm = OntTerm
+            super().__init__(*services, prefix=prefix, category=category,
+                             instrumented=instrumented)
 
     @mimicArgs(OntQuery.__call__)
     def __call__(self, *args, **kwargs):
@@ -166,96 +167,3 @@ class OntQueryCli(OntQuery):
             print(f'\nCliQuery {args} {kwargs} returned more than one result. Please review.\n')
         else:
             return func(result)
-
-
-class QueryResult:
-    """ Encapsulate query results and allow for clear and clean documentation
-        of how a particular service maps their result terminology onto the
-        ontquery keyword api. """
-
-    def __init__(self,
-                 query_args,
-                 iri=None,
-                 curie=None,
-                 label=None,
-                 labels=tuple(),
-                 abbrev=None,  # TODO
-                 acronym=None,  # TODO
-                 definition=None,
-                 synonyms=tuple(),
-                 deprecated=None,
-                 prefix=None,
-                 category=None,
-                 predicates=None,  # FIXME dict
-                 type=None,
-                 types=tuple(),
-                 _graph=None,
-                 source=None,
-    ):
-        self.__query_args = query_args  # for debug
-        self.__dict = {}
-        for k, v in dict(iri=iri,
-                         curie=curie,
-                         label=label,
-                         labels=labels,
-                         definition=definition,
-                         synonyms=synonyms,
-                         deprecated=deprecated,
-                         predicates=predicates,
-                         type=type,
-                         types=types,
-                         _graph=_graph,
-                         source=source).items():
-            # this must return the empty values for all keys
-            # so that users don't have to worry about hasattring
-            # to make sure they aren't about to step into a typeless void
-
-            setattr(self, k, v)
-            self.__dict[k] = v
-            #self.__dict__[k] = v
-
-    @property
-    def OntTerm(self):  # FIXME naming
-        if self.iri is None:
-            raise exc.ShouldNotHappenError(f'I can\'t believe you\'ve done this! {self!r}')
-        ot = self._OntTerm(iri=self.iri)  # TODO works best with a cache
-        ot._query_result = self
-        return ot
-
-    @property
-    def hasOntTerm(self):  # FIXME naming
-        # run against _OntTerm to prevent recursion
-        if self._OntTerm == self._OntTerm_:
-            return False
-        else:
-            return True
-
-    def keys(self):
-        yield from self.__dict.keys()
-
-    def values(self):
-        yield from self.__dict.values()
-
-    def items(self):
-        yield from self.__dict.items()
-
-    def __iter__(self):
-        yield from self.__dict
-
-    def __getitem__(self, key):
-        try:
-            return self.__dict[key]
-        except KeyError as e:
-            self.__missing__(key, e)
-
-    def __contains__(self, key):
-        return key in self.__dict
-
-    def __missing__(self, key, e=None):
-        raise KeyError(f'{key} {type(key)}') from e
-
-    def __setitem__(self, key, value):
-        raise ValueError('Cannot set results of a query.')
-
-    def __repr__(self):
-        return f'{self.__class__.__name__}({self.__dict!r})'

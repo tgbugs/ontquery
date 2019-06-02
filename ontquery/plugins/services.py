@@ -1,7 +1,6 @@
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone
-from ontquery.query import QueryResult
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 
@@ -237,27 +236,27 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                  for predicate in predicates  # TODO depth=1 means go ahead and retrieve?
                                  if predicate in result}  # FIXME hasheqv on OntId
             # print(red.format('PR:'), predicate_results, result)
-            qr = QueryResult(query_args={**search_expressions,
-                                         **qualifiers,
-                                         **identifiers,
-                                         'predicates':predicates},
-                             iri=result['iri'],
-                             curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
-                             label=ni(result['labels']),
-                             labels=result['labels'],
-                             definition=ni(result['definitions']),
-                             synonyms=result['synonyms'],
-                             deprecated=result['deprecated'],
-                             acronym=result['acronyms'],
-                             abbrev=result['abbreviations'],
-                             prefix=result['curie'].split(':')[0] if 'curie' in result else None,
-                             category=ni(result['categories']),
-                             predicates=predicate_results,
-                             type=result['type'] if 'type' in result else None,
-                             types=result['types'] if 'types' in result else tuple(),
-                             source=self)
-            qr._OntTerm = self.OntTerm
-            yield qr
+            yield self.QueryResult(
+                query_args={**search_expressions,
+                            **qualifiers,
+                            **identifiers,
+                            'predicates':predicates},
+                iri=result['iri'],
+                curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
+                label=ni(result['labels']),
+                labels=result['labels'],
+                definition=ni(result['definitions']),
+                synonyms=result['synonyms'],
+                deprecated=result['deprecated'],
+                acronym=result['acronyms'],
+                abbrev=result['abbreviations'],
+                prefix=result['curie'].split(':')[0] if 'curie' in result else None,
+                category=ni(result['categories']),
+                predicates=predicate_results,
+                type=result['type'] if 'type' in result else None,
+                types=result['types'] if 'types' in result else tuple(),
+                source=self)
+
             if count >= limit:  # FIXME deprecated issue
                 break
             else:
@@ -309,7 +308,12 @@ class SciCrunchRemote(SciGraphRemote):
                 return post_template + 'TODO-TODO-TODO'
 
 
-class InterLexRemote(OntService):  # note to self
+class _InterLexSharedCache:
+    _graph_cache = {}
+    # FIXME maxsize ??
+
+
+class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     known_inverses = ('', ''),
     defaultEndpoint = 'https://scicrunch.org/api/1/'
     def __init__(self, *args, api_key=None, apiEndpoint=defaultEndpoint, host='uri.interlex.org', port='',
@@ -341,7 +345,6 @@ class InterLexRemote(OntService):  # note to self
         self.port = port
         self.user_curies = user_curies
         self.readonly = readonly
-        self._graph_cache = {}
 
         self.Graph = rdflib.Graph
         self.RDF = rdflib.RDF
@@ -453,7 +456,7 @@ class InterLexRemote(OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        qr = QueryResult(
+        return self.QueryResult(
             query_args = {},
             iri=resp['iri'],
             curie=resp['curie'],
@@ -470,8 +473,6 @@ class InterLexRemote(OntService):  # note to self
             #_graph=None,
             source=self,
         )
-        qr._OntTerm = self.OntTerm
-        return qr
 
     def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
                       definition: str=None, synonyms=tuple(), comment: str=None,
@@ -500,7 +501,7 @@ class InterLexRemote(OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        qr = QueryResult(
+        yield self.QueryResult(
              query_args = {},
              iri=resp['iri'],
              curie=resp['curie'],
@@ -517,8 +518,6 @@ class InterLexRemote(OntService):  # note to self
              #_graph=None,
              source=self,
         )
-        qr._OntTerm = self.OntTerm
-        return qr
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
@@ -687,9 +686,7 @@ class InterLexRemote(OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            qr = QueryResult(kwargs, **qrd)
-            qr._OntTerm = self.OntTerm
-            yield qr
+            yield self.QueryResult(kwargs, **qrd)
 
         else:
             # TODO cases where ilx is preferred will be troublesome
@@ -701,12 +698,10 @@ class InterLexRemote(OntService):  # note to self
                 if curie:
                     for qr in out:
                         qr = cullNone(**qr)
-                        qro = QueryResult(kwargs, #qr._QueryResult__query_args,
-                                          curie=curie,
-                                          **{k:v for k, v in qr.items()
-                                             if k != 'curie' })
-                        qro._OntTerm = self.OntTerm
-                        yield qro
+                        yield self.QueryResult(kwargs, #qr._QueryResult__query_args,
+                                               curie=curie,
+                                               **{k:v for k, v in qr.items()
+                                                  if k != 'curie' })
 
                     return
 
@@ -810,9 +805,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 out[pn] = o
 
         if o is not None and owlClass is not None:
-            qr = QueryResult(kwargs, **out, _graph=self.graph, source=self)  # if you yield here you have to yield from below
-            qr._OntTerm = self.OntTerm
-            yield qr
+            # if you yield here you have to yield from below
+            yield self.QueryResult(kwargs, **out, _graph=self.graph, source=self)
 
     def _prefix(self, iri):
         try:
@@ -847,7 +841,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
         #kwargs['term'] = term
         #kwargs['search'] = search
-        #supported = sorted(QueryResult(kwargs))
+        #supported = sorted(self.QueryResult(kwargs))
         if all_classes:
             for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
                 if isinstance(iri, rdflib.URIRef):  # no BNodes
@@ -927,6 +921,7 @@ def main():
     from IPython import embed
     from pyontutils.namespaces import PREFIXES as uPREFIXES
     from pyontutils.config import get_api_key
+    from ontquery.utils import QueryResult
     curies = OntCuries(uPREFIXES)
     #print(curies)
     i = InterLexRemote()
