@@ -301,7 +301,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         next = (current + 1) % nargs
         cls.repr_args = cls.repr_arg_order[next]
         if verbose:
-            print(cls.__name__, 'will now repr with', cls.repr_args)
+            log.info(f'{cls.__name__} will now repr with {cls.repr_args}')
         setattr(cls, f'_{cls.__name__}__repr_level', next)
 
     @classmethod
@@ -323,7 +323,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         nargs = len(self.repr_arg_order)
         next = (current + 1) % nargs
         self.__class__.repr_args = self.repr_arg_order[next]
-        print(self.__name__, 'will now repr with', self.repr_args)
+        log.info(f'{self.__name__} will now repr with {self.repr_args}')
         setattr(self.__class__, f'_{self.__class__.__name__}__repr_level', next)
 
     @property
@@ -478,8 +478,9 @@ class OntTerm(InstrumentedIdentifier, OntId):
                         pass  # TODO log warning
                 else:
                     if i == 1:
-                        print(repr(TermRepr(**old_result)), '\n')
-                    print(repr(TermRepr(**result)), '\n')
+                        log.info(repr(TermRepr(**old_result)) + '\n')
+
+                    log.info(repr(TermRepr(**result)) + '\n')
                     continue
 
             if i == 0:

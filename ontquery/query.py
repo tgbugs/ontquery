@@ -4,7 +4,7 @@ identifiers and lookup services for finding and validating them.
 """
 
 from ontquery import plugin, exceptions as exc
-from ontquery.utils import mimicArgs, cullNone
+from ontquery.utils import mimicArgs, cullNone, log
 
 
 class OntQuery:
@@ -96,7 +96,7 @@ class OntQuery:
                                iri=iri)
         control = dict(limit=limit)
         if queries and identifiers:
-            print(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')
+            log.warning(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')
             queries = {}
         if 'suffix' in identifiers and 'prefix' not in qualifiers:
             raise ValueError('Queries using suffix= must also include an explicit prefix.')
@@ -155,15 +155,18 @@ class OntQueryCli(OntQuery):
         for i, result in enumerate(super().__call__(*args, **kwargs)):
             if i > 0:
                 if i == 1:
-                    print(f'\n{func(old_result)!r}\n')
-                print(f'\n{func(result)!r}\n')
+                    log.info(f'\n{func(old_result)!r}\n')
+
+                log.info(f'\n{func(result)!r}\n')
                 continue
             if i == 0:
                 old_result = result
 
         if i is None:
-            print(f'\nCliQuery {args} {kwargs} returned no results. Please change your query.\n')
+            log.error(f'\nCliQuery {args} {kwargs} returned no results. Please change your query.\n')
+
         elif i > 0:
-            print(f'\nCliQuery {args} {kwargs} returned more than one result. Please review.\n')
+            log.error(f'\nCliQuery {args} {kwargs} returned more than one result. Please review.\n')
+
         else:
             return func(result)

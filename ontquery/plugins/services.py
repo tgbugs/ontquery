@@ -1,6 +1,6 @@
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
-from ontquery.utils import cullNone
+from ontquery.utils import cullNone, log
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 
@@ -86,7 +86,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         else:
             if inverse:  # it is probably a bad idea to try to be clever here
                 predicate = self.inverses[predicate]
-            print(f'{subject.curie} has no edges with predicate {predicate.curie} ')
+
+            log.warning(f'{subject.curie} has no edges with predicate {predicate.curie} ')
             return
 
         s, o = 'sub', 'obj'
