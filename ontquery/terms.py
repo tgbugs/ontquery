@@ -291,6 +291,10 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     def quoted(self):
         return quote(self.iri, safe=tuple())
 
+    @property
+    def asTerm(self):
+        return self._instrumented_class(self)
+
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
