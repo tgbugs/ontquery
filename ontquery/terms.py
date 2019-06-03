@@ -641,7 +641,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
     @property
     def type(self):
         if not hasattr(self, '_type'):
-            qr = self.query(self.iri)
+            qr = next(self.query(self.iri))
             self._type = qr.type
             self._types = qr.types
 
@@ -654,7 +654,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
     @property
     def types(self):
         if not hasattr(self, '_types'):
-            qr = self.query(self.iri)
+            qr = next(self.query(self.iri))
             self._type = qr.type
             self._types = qr.types
 
