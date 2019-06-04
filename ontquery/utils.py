@@ -27,10 +27,14 @@ def subclasses(start):
             yield sc
             yield from subclasses(sc)
 
-
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
 
+
+def one_or_many(arg):
+    return tuple() if not arg else ((arg,)
+                                    if isinstance(arg, str)
+                                    else arg)
 
 def mimicArgs(function_to_mimic):
     def decorator(function):

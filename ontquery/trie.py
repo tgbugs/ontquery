@@ -62,6 +62,12 @@ def get_longest_namespace(trie, value):
                 return key
             else:
                 return out
-    return None
 
 
+def get_namespaces(trie, value):
+    for key in trie:
+        if value.startswith(key):
+            yield key
+            for ns in get_namespaces(trie[key], value):
+                if ns is not None:
+                    yield ns

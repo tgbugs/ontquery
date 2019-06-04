@@ -14,6 +14,7 @@ except ModuleNotFoundError:
     from ontquery.plugins import scigraph_client as scigraph
 
 import ontquery as oq
+oq.utils.log.setLevel('DEBUG')
 
 
 class OntTerm(oq.OntTerm):
@@ -27,7 +28,7 @@ class TestAll(unittest.TestCase):
         #self.query = oq.OntQuery(bs, upstream=OntTerm)
         #oq.QueryResult._OntTerm = OntTerm
         if 'SCICRUNCH_API_KEY' in os.environ:
-            SCR = oq.plugin.get('SciCrunch')
+            SCR = oq.plugin.get('SciCrunch')()
             SCR.api_key = os.environ['SCICRUNCH_API_KEY']
         else:
             SCR = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph')
@@ -39,8 +40,7 @@ class TestAll(unittest.TestCase):
         #oq.OntCuries(services[0].curies)
         oq.OntCuries(CURIE_MAP)
 
-
-        self.query = OntTerm.query_init(*services, query_class=oq.OntQueryCli)
+        self.query = oq.OntQueryCli(*services, instrumented=OntTerm)
         oq.OntTerm.query_init(*services)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
@@ -51,13 +51,39 @@ class TestAll(unittest.TestCase):
         self.query(search='thalamus')  # will probably fail with many results to choose from
         self.query(prefix='MBA', abbrev='TH')
 
-        uberon = oq.OntQueryCli(*self.query, prefix='UBERON')
+        uberon = oq.OntQueryCli(*self.query, prefix='UBERON', instrumented=OntTerm)
         brain_result = uberon('brain')  # -> OntTerm('UBERON:0000955', label='brain')
 
-        species = oq.OntQuery(*self.query, category='species')
+        species = oq.OntQuery(*self.query, category='species', instrumented=OntTerm)
         mouse_result = species('mouse')  # -> OntTerm('NCBITaxon:10090', label='mouse')
 
         list(self.query.predicates)
+
+    def test_prefix(self):
+        #sgv.findByTerm('nucleus', prefix=['UBERON', 'CHEBI'])
+        # search by term returns all from the first prefix first
+        # which is useless
+        class OntTerm(oq.OntTerm):
+            pass
+        prefix = 'UBERON', 'CHEBI', 'GO'
+        query = OntTerm.query_init(*self.query, prefix=prefix)
+        result = list(query(term='nucleus'))
+        assert [qr for qr in result if qr.OntTerm.prefix == 'UBERON']
+        assert [qr for qr in result if qr.OntTerm.prefix == 'CHEBI']
+        assert [qr for qr in result if qr.OntTerm.prefix == 'GO']
+        assert not [qr for qr in result if qr.OntTerm.suffix == 'SAO']
+
+    def test_category(self):
+        class OntTerm(oq.OntTerm):
+            pass
+
+        #sgv.findByTerm('nucleus', category=['subcellular entity', 'anatomical entity'])
+        cat = 'anatomical entity', 'subcellular entity'
+        query = OntTerm.query_init(*self.query, category=cat)
+        result = list(query(term='nucleus'))
+        assert [qr for qr in result if qr.OntTerm.prefix == 'UBERON']
+        assert [qr for qr in result if qr.OntTerm.prefix == 'GO']
+        assert not [qr for qr in result if qr.OntTerm.suffix == 'CHEBI']
 
     def test_term(self):
         brain = OntTerm('UBERON:0000955')
@@ -186,17 +212,20 @@ class TestAll(unittest.TestCase):
             pass
 
     def test_prefix(self):
+        bads = []
         for prefix in 'UBERON', 'FMA':
-            qr = self.query(term='brain', prefix=prefix)
-            print(qr)
+            gen = oq.OntTerm.query(term='brain', prefix=prefix)
+            bads += [qr for qr in gen if qr.OntTerm.prefix != prefix]
 
-        asdf
+        assert not bads, bads
 
     def test_prefixs(self):
-        qr = self.query(term='brain', prefix=('UBERON', 'BIRNLEX', 'FMA'))
-        print(qr)
-        asdf
+        prefixes = ('UBERON', 'BIRNLEX', 'FMA')
+        gen = oq.OntTerm.query(term='brain', prefix=prefixes)
+        bads = [qr for qr in gen if qr.OntTerm.prefix not in prefixes]
+        assert not bads, bads
 
     def test_exclude_prefix(self):
-        qr = self.query(term='brain', exclude_prefix=('FMA',))
-        assert not [t for t in qr if t.prefix == 'FMA']
+        gen = oq.OntTerm.query(term='brain', exclude_prefix=('FMA',))
+        bads = [qr for qr in gen if qr.OntTerm.prefix == 'FMA']
+        assert not bads, bads

@@ -9,6 +9,40 @@ except ModuleNotFoundError:
 import ontquery as oq
 
 
+class TestOntCuries(unittest.TestCase):
+    def setUp(self):
+        self.OntCuries = type('OntCuries', (oq.OntCuries,), {})
+        self.OntCuries(CURIE_MAP)
+
+    def test_identifier_prefixes_from_curie(self):
+        hit = False
+        for prefix in self.OntCuries:
+            curie = prefix + ':lol'
+            ap = self.OntCuries.identifier_prefixes(curie)
+            if ap == ['obo', 'IAO', 'isAbout']:
+                hit = True
+
+        assert hit
+
+    def test_identifier_prefixes_from_iri(self):
+        hit = False
+        for iri in self.OntCuries.values():
+            ap = self.OntCuries.identifier_prefixes(iri)
+            if ap == ['obo', 'IAO', 'isAbout']:
+                hit = True
+
+        assert hit
+
+    def test_identifier_prefixes_from_prefix(self):
+        hit = False
+        for prefix in self.OntCuries:
+            ap = self.OntCuries.identifier_prefixes(prefix)
+            if ap == ['obo', 'IAO', 'isAbout']:
+                hit = True
+
+        assert hit
+
+
 class TestQname(unittest.TestCase):
     suffixes = common.suffixes
     def setUp(self):

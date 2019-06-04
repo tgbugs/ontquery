@@ -15,6 +15,10 @@ interactive = getattr(sys, 'ps1', sys.flags.interactive)
 
 
 class dictclass(type):
+
+    def values(self):
+        return self._dict.values()
+
     def __setitem__(self, key, value):
         if key not in self._dict:
             self._dict[key] = value
@@ -22,6 +26,9 @@ class dictclass(type):
             pass
         else:
             raise KeyError(f'{key} already set to {self._dict[key]}')
+
+    def __iter__(self):
+        return iter(self._dict)
 
     def __getitem__(self, key):
         return self._dict[key]
@@ -55,6 +62,21 @@ class OntCuries(metaclass=dictclass):
     def populate(cls, graph):
         """ populate an rdflib graph with these curies """
         [graph.bind(k, v) for k, v in cls._dict.items()]
+
+    @classmethod
+    def identifier_prefixes(cls, curie_iri_prefix):
+        return [cls._n_to_p[n] for n in cls.identifier_namespaces(curie_iri_prefix)]
+
+    @classmethod
+    def identifier_namespaces(cls, curie_iri_prefix):
+        if ':' not in curie_iri_prefix:
+            iri = cls._dict[curie_iri_prefix]
+        elif '://' in curie_iri_prefix:
+            iri = curie_iri_prefix
+        else:
+            iri = cls._dict[curie_iri_prefix.split(':', 1)[0]]
+
+        return list(trie.get_namespaces(cls._trie, iri))
 
     @classmethod
     def qname(cls, iri):
@@ -120,6 +142,13 @@ class Identifier(Id):
     def query_init(cls, *services, query_class=None, **kwargs):
         if query_class is None:
             query_class = OntQuery
+
+        if not getattr(query_class, 'raw', True):
+            raise TypeError('FIXME TODO only raw query classes can be used here '
+                            'for non-raw initialize them directly so they won\'t bind '
+                            'as the query for the instrumented form. This thing needs '
+                            'a complete revamp along the lines of pathlib so that an '
+                            'instrumented class can be initialized from the side')
 
         instrumented = cls._instrumeted_class()
         cls.query = query_class(*services, instrumented=instrumented, **kwargs)

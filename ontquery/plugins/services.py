@@ -1,7 +1,7 @@
 import os
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
-from ontquery.utils import cullNone, log
+from ontquery.utils import cullNone, one_or_many, log
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 
@@ -66,7 +66,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                   basePath=self.apiEndpoint, key=self.api_key)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
                                    basePath=self.apiEndpoint, key=self.api_key)
-        self.curies = self.sgc.getCuries()  # TODO can be used to provide curies...
+        self.curies = type('LocalCuries', (OntCuries,), {})
+        self.curies(self.sgc.getCuries())  # TODO can be used to provide curies...
         self.prefixes = sorted(self.curies)
         self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
         self.categories = self.sgv.getCategories()
@@ -126,28 +127,29 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
     def query(self, iri=None, curie=None,
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
-              prefix=tuple(), category=None, exclude_prefix=tuple(),
+              prefix=tuple(), category=tuple(), exclude_prefix=tuple(),
               predicates=tuple(), depth=1,
               direction='OUTGOING', limit=10):
         # use explicit keyword arguments to dispatch on type
-        if prefix is not None and prefix != _empty_tuple:
-            if isinstance(prefix, str):
-                prefix = prefix,
+        prefix = one_or_many(prefix)
+        category = one_or_many(category)
 
-            bads = [p for p in prefix if p not in self.curies]
-            if bads:
-                raise ValueError(f'None of {bads} in {self.__class__.__name__}.prefixes')
+        if prefix and [p for p in prefix if p not in self.curies]:
+            raise ValueError(f'None of {bads} in {self.__class__.__name__}.prefixes')
 
-        if category is not None and category not in self.categories:
+        if category and [c for c in category if c not in self.categories]:
             raise ValueError(f'{category} not in {self.__class__.__name__}.categories')
 
-        if ((prefix is None or prefix == tuple()) and
+        if (not prefix and
             any((label, term, search, abbrev)) and
             self.prefixes != self.search_prefixes):
             prefix = self.search_prefixes
 
         if exclude_prefix:
-            prefix = tuple(p for p in prefix if p not in exclude_prefix)
+            to_exclude = set(self.curies.qname(ep)
+                             for p in exclude_prefix
+                             for ep in self.curies.identifier_prefixes(p))
+            prefix = tuple(p for p in prefix if p not in to_exclude)
 
         search_expressions = cullNone(label=label,
                                       term=term,

@@ -4,13 +4,18 @@ identifiers and lookup services for finding and validating them.
 """
 
 from ontquery import plugin, exceptions as exc
-from ontquery.utils import mimicArgs, cullNone, log
+from ontquery.utils import mimicArgs, cullNone, one_or_many, log
 
 
 class OntQuery:
-    def __init__(self, *services, prefix=None, category=None, instrumented=None):  # services from OntServices
+    def __init__(self, *services, prefix=tuple(), category=tuple(), instrumented=None):
+        # services from OntServices
         # check to make sure that prefix valid for ontologies
         # more config
+
+        self._prefix = one_or_many(prefix)
+        self._category = one_or_many(category)
+
         _services = [] 
         for maybe_service in services:
             if isinstance(maybe_service, str):
@@ -96,14 +101,16 @@ class OntQuery:
                  curie=None,          # if you are querying you can probably just use OntTerm directly and it will error when it tries to look up
                  iri=None,            # the most important one
                  predicates=tuple(),  # provided with an iri or a curie to extract more specific triple information
+                 exclude_prefix=tuple(),
                  depth=1,
                  direction='OUTGOING',
                  limit=10,
-                 exclude_prefix=tuple(),
     ):
+        prefix = one_or_many(prefix) + self._prefix
+        category = one_or_many(category) + self._category
         qualifiers = cullNone(prefix=prefix if prefix else None,
                               exclude_prefix=exclude_prefix if exclude_prefix else None,
-                              category=category)
+                              category=category if category else None)
         queries = cullNone(abbrev=abbrev,
                            label=label,
                            term=term,
@@ -122,7 +129,8 @@ class OntQuery:
         if 'suffix' in identifiers and 'prefix' not in qualifiers:
             raise ValueError('Queries using suffix= must also include an explicit prefix.')
         if len(queries) > 1:
-            raise ValueError('Queries only accept a single non-qualifier argument. Qualifiers are prefix=, category=.')
+            raise ValueError('Queries only accept a single non-qualifier argument. '
+                             'Qualifiers are prefix=, category=.')
         # TODO more conditions here...
 
         # TODO? this is one place we could normalize queries as well instead of having
