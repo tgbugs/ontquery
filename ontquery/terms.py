@@ -635,7 +635,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
         """ Retrieve additional metadata for the current term. If None is provided
             as the first argument the query runs against all predicates defined for
             each service. """
-        single_out = not predicates
+        single_out = not predicates and predicate is not None
         if predicate is None:
             predicates = self.query.predicates
         else:
