@@ -27,7 +27,7 @@ class OntService:
         if instrumented is None:
             raise TypeError('OntTerm is a required argument!')  # FIXME only require instrumented
 
-        self.OntId = instrumented._uninstrumeted_class()
+        self.OntId = instrumented._uninstrumented_class()
         self.OntTerm = instrumented
         self.QueryResult = QueryResult.new_from_instrumented(instrumented)
 

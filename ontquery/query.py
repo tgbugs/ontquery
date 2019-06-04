@@ -28,7 +28,7 @@ class OntQuery:
         self._services = tuple(_services)
         if instrumented:
             self._instrumented = instrumented
-            self._OntId = self._instrumented._uninstrumeted_class()
+            self._OntId = self._instrumented._uninstrumented_class()
 
         else:
             raise TypeError('instrumented is a required keyword argument')

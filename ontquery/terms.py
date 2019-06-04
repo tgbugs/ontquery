@@ -160,18 +160,18 @@ class Identifier(Id):
                             'a complete revamp along the lines of pathlib so that an '
                             'instrumented class can be initialized from the side')
 
-        instrumented = cls._instrumeted_class()
+        instrumented = cls._instrumented_class()
         cls.query = query_class(*services, instrumented=instrumented, **kwargs)
         return cls.query
 
     @classmethod
-    def _instrumeted_class(cls):
+    def _instrumented_class(cls):
         if issubclass(cls, InstrumentedIdentifier): 
             return cls
 
         elif issubclass(cls, Identifier):
             # when initing from an uninstrumented id the last
-            # instrumeted subclass prior to the next uninstrumented
+            # instrumented subclass prior to the next uninstrumented
             # subclass will be used, so if I subclass OntId to create
             # OrcId (an identifier for residents of Mordor) and also
             # subclass to create OntTerm, and then OrcRecord, OntId
@@ -193,7 +193,7 @@ class Identifier(Id):
             raise TypeError(f'Don\'t know what to do with a {type(cls)}')
 
     @classmethod
-    def _uninstrumeted_class(cls):
+    def _uninstrumented_class(cls):
         if issubclass(cls, InstrumentedIdentifier): 
             for candidate in cls.mro():
                 if (issubclass(candidate, Identifier) and not
