@@ -28,12 +28,10 @@ See https://github.com/tgbugs/ontquery/blob/db8cad7463704bce9010651c3744452aa537
 # SciGraphRemote Usage
 ```python
 from ontquery import OntQuery, SciGraphRemote, OntTerm, OntCuries
+from ontquery.plugins.namespaces import CURIE_MAP
 
-import os
-from pyontutils.core import PREFIXES as uPREFIXES
-curies = OntCuries(uPREFIXES)
-api_key = os.environ['SCICRUNCH_API_KEY']
-query = OntQuery(SciGraphRemote(api_key=api_key))
+curies = OntCuries(CURIE_MAP)
+query = OntQuery(SciGraphRemote())
 OntTerm.query = query
 ```
 ```python
@@ -50,7 +48,8 @@ OntTerm('NCBITaxon:10088', label='Mus <mouse, genus>', synonyms=['mouse', 'Mus',
 OntTerm('BIRNLEX:167', label='Mouse', synonyms=['mouse', 'Mus musculus', 'house mouse'])
 ```
 
-The one we are looking for is `Mus musculus`, and we can select that with `OntTerm(label='Mus musculus')` or with `OntTerm(curie='NCBITaxon:10090')`.
+The one we are looking for is `Mus musculus`, and we can select that with
+`OntTerm('NCBITaxon:10090', label='Mus musculus')` or with `OntTerm(curie='NCBITaxon:10090')`.
 
 This workflow works for a variety of categories:
 * species (e.g. 'mouse', 'rat', 'rhesus macaque')
@@ -74,15 +73,16 @@ https://github.com/NeurodataWithoutBorders/nwb-schema/issues/1#issuecomment-3692
 ilx_id and any key that takes a uri value can also be given a curie of that uri or a fragment and it will still work.
 
 # InterLexRemote Usage
+To access InterLex programatically you can set `SCICRUNCH_API_KEY` or
+you can set `INTERLEX_API_KEY` either will work, but `INTERLEX_API_KEY`
+has priority if both are set.
 
 ```python
 import ontquery as oq
 import os
 InterLexRemote = oq.plugin.get('InterLex')
 
-api_key = os.environ['INTERLEX_API_KEY']
 ilx_cli = InterLexRemote(
-    api_key = api_key,
     # When ready, should be changed to 'https://scicrunch.org/api/1/' for production (default)
     apiEndpoint = 'https://beta.scicrunch.org/api/1/',
 )
