@@ -179,7 +179,8 @@ class Identifier(Id):
 
             candidate = None
             for sc in subclasses(cls):
-                if issubclass(sc, InstrumentedIdentifier):
+                if (issubclass(sc, InstrumentedIdentifier) and
+                    not sc.skip_for_instrumentation):
                     candidate = sc
                 elif issubclass(sc, Identifier):
                     break
@@ -211,6 +212,8 @@ class Identifier(Id):
 
 class InstrumentedIdentifier(Identifier):
     """ classes that instrument a type of identifier to make it actionable """
+
+    skip_for_instrumentation = False
 
 
 class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
@@ -332,7 +335,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
     @property
     def asTerm(self):
-        return self._instrumented_class(self)
+        return self._instrumented_class()
 
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
