@@ -59,6 +59,16 @@ class OntCuries(metaclass=dictclass):
         return cls._dict
 
     @classmethod
+    def new(cls):
+        # FIXME yet another pattern that I don't like :/
+        clsdict = dict(_dict={},
+                       _n_to_p={},
+                       _strie={},
+                       _trie={},)
+
+        return type('OntCuries', (OntCuries,), clsdict)
+
+    @classmethod
     def populate(cls, graph):
         """ populate an rdflib graph with these curies """
         [graph.bind(k, v) for k, v in cls._dict.items()]

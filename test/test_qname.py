@@ -11,7 +11,7 @@ import ontquery as oq
 
 class TestOntCuries(unittest.TestCase):
     def setUp(self):
-        self.OntCuries = type('OntCuries', (oq.OntCuries,), {})
+        self.OntCuries = oq.OntCuries.new()
         self.OntCuries(CURIE_MAP)
 
     def test_identifier_prefixes_from_curie(self):
