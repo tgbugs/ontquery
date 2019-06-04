@@ -42,8 +42,9 @@ pytest -v test/test_interlex_client.py
 
 ##### Importing:
 
-```bash
+```python
 from interlex_client import InterLexClient
+
 ```
 
 ##### Setup for **BETA**:
@@ -51,7 +52,6 @@ from interlex_client import InterLexClient
 
 ```python
 ilx_cli = InterLexClient(
-    api_key = os.environ.get("INTERLEX_API_KEY"),
     base_url = "https://beta.scicrunch.org",
 )
 ```
@@ -60,7 +60,6 @@ ilx_cli = InterLexClient(
 
 ```python
 ilx_cli = InterLexClient(
-    api_key = os.environ.get("INTERLEX_API_KEY"),
     base_url = "https://scicrunch.org",
 )
 ```
@@ -217,7 +216,8 @@ fixed.
 ```
 
 ## Notes
-Dictionay outputs from add_entity and add_annotation will not always have string type for the values. That does not matter for the api endpoints, but just in case this data is used somewhere else, this should be noted.
+Dictionay outputs from `add_entity` and `add_annotation` will not always have string type for the values.
+That does not matter for the api endpoints, but just in case this data is used somewhere else, this should be noted.
 
 ## Author
 
