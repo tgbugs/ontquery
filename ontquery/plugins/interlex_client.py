@@ -65,7 +65,8 @@ class InterLexClient:
             **self._kwargs
         )
         if response.status_code not in [200, 201]: # Safety catch.
-            raise self.IncorrectAPIKeyError('api_key given is incorrect.')
+            sec = url.replace(self.api_key, '[secure]')
+            raise self.IncorrectAPIKeyError(f'api_key given is incorrect. {sec}')
 
     def process_response(self, response: requests.models.Response) -> dict:
         """ Checks for correct data response and status codes """
