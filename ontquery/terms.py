@@ -66,7 +66,7 @@ class OntCuries(metaclass=dictclass):
                        _strie={},
                        _trie={},)
 
-        return type('OntCuries', (OntCuries,), clsdict)
+        return type('OntCuries', (OntCuries,), clsdict)  # FIXME this does not subclass propertly even when using cls ... :/
 
     @classmethod
     def populate(cls, graph):
@@ -137,6 +137,11 @@ class OntCuries(metaclass=dictclass):
 class Id:
     """ base for all identifiers, both local and global """
 
+    def normalize(self):
+        # the sane flow for nearly every identifier system is
+        # id -> normalize -> instrument -> resolve -> retrieve meta/data
+        # we leave out the explicit retrieve
+        raise NotImplementedError
 
 class LocalId(Id):
     """ Local identifier without the context to globalize it
@@ -250,7 +255,10 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
                 curie_or_iri.startswith('file://')):
                 iri_ci = curie_or_iri
                 curie_ci = cls._namespaces.qname(iri_ci)
-                prefix, suffix = curie_ci.split(':', 1)
+                if curie_ci != iri_ci:  # FIXME this is bad ... figure out where qname returning None is an issue ...
+                    prefix, suffix = curie_ci.split(':', 1)
+                else:
+                    prefix, suffix = None, None
             else:
                 curie_ci = curie_or_iri
                 try:
@@ -275,14 +283,18 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         if iri is not None:
             # normalization step in case there is a longer prefix match
             curie_i = cls._namespaces.qname(iri)
-            prefix_i, suffix_i = curie_i.split(':', 1)
+            if curie_i != iri:  # FIXME TODO same issue as above with qname returning None
+                prefix_i, suffix_i = curie_i.split(':', 1)
+            else:
+                prefix_i, suffix_i = None, None
+
             #if prefix and prefix_i != prefix:
                 #print('Curie changed!', prefix + ':' + suffix, '->', curie_i)
             prefix, suffix = prefix_i, suffix_i
-            if not suffix.startswith('//') and curie_i == iri:
+            if suffix is not None and not suffix.startswith('//') and curie_i == iri:
                 raise ValueError(f'You have provided a curie {curie_i} as an iri!')
 
-        if ' ' in prefix or ' ' in suffix:
+        if prefix is not None and (' ' in prefix or ' ' in suffix):
             raise cls.BadCurieError(f'{prefix}:{suffix} has an invalid charachter in it!')
 
         self = super().__new__(cls, iri)
