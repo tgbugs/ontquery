@@ -630,6 +630,9 @@ class OntTerm(InstrumentedIdentifier, OntId):
         if self._graph:
             print(self._graph.serialize(format='nifttl').decode())
 
+    def asId(self):
+        return self._uninstrumented_class()
+
     @property
     def source(self):
         """ The service that the term came from.
