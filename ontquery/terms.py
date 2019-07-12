@@ -347,7 +347,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
     @property
     def asTerm(self):
-        return self._instrumented_class()
+        inst_class = self._instrumented_class()
+        return inst_class(self)
 
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
@@ -631,7 +632,8 @@ class OntTerm(InstrumentedIdentifier, OntId):
             print(self._graph.serialize(format='nifttl').decode())
 
     def asId(self):
-        return self._uninstrumented_class()
+        uninst_class = self._uninstrumented_class()
+        return uninst_class(self)
 
     @property
     def source(self):
