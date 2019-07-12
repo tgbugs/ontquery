@@ -92,7 +92,10 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             if inverse:  # it is probably a bad idea to try to be clever here
                 predicate = self.inverses[predicate]
 
-            log.warning(f'{subject.curie} has no edges with predicate {predicate.curie} ')
+            _p = (predicate.curie
+                    if hasattr(predicate, 'curie') and predicate.curie is not None
+                    else predicate)
+            log.warning(f'{subject.curie} has no edges with predicate {_p} ')
             return
 
         s, o = 'sub', 'obj'
@@ -170,7 +173,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 for predicate in predicates:
-                    if predicate.prefix in ('owl', 'rdfs'):
+                    if (hasattr(predicate, 'prefix') and
+                        predicate.prefix in ('owl', 'rdfs')):
                         unshorten = predicate
                         predicate = predicate.suffix
                     else:
@@ -185,6 +189,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                             short = predicate
                             predicate = unshorten
 
+                        # FIXME when using query.predicates need to 'expand'
+                        # the bare string predicates like subClassOf and isDefinedBy ...
                         result[predicate] = values
 
                     if predicate in self.inverses:
