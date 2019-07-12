@@ -420,9 +420,15 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         return f"{self.__class__.__name__}('{id_}')"
 
     def __repr__(self):
-        out = self._repr_base.format(**self._repr_args)
-        self.reset_repr_args()
-        return out
+        try:
+            rargs = self._repr_args
+            if not any(rargs.values()):
+                return self.__class__.__name__ + f'({self.iri})'
+
+            out = self._repr_base.format(**rargs)
+            return out
+        finally:
+            self.reset_repr_args()
 
     def __copy__(self):
         cls = self.__class__
