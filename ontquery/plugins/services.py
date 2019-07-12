@@ -93,8 +93,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 predicate = self.inverses[predicate]
 
             _p = (predicate.curie
-                    if hasattr(predicate, 'curie') and predicate.curie is not None
-                    else predicate)
+                  if hasattr(predicate, 'curie') and predicate.curie is not None
+                  else predicate)
             log.warning(f'{subject.curie} has no edges with predicate {_p} ')
             return
 
