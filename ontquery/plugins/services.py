@@ -131,7 +131,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def query(self, iri=None, curie=None,
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
               prefix=tuple(), category=tuple(), exclude_prefix=tuple(),
-              predicates=tuple(), depth=1,
+              include_deprecated=False, predicates=tuple(), depth=1,
               direction='OUTGOING', limit=10):
         # use explicit keyword arguments to dispatch on type
         prefix = one_or_many(prefix)
@@ -242,7 +242,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         # TODO transform result to expected
         count = 0
         for result in results:
-            if result['deprecated'] and not identifiers:
+            if not include_deprecated and result['deprecated'] and not identifiers:
                 continue
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
             predicate_results = {predicate.curie if ':' in predicate else predicate:result[predicate]  # FIXME hack

@@ -105,6 +105,7 @@ class OntQuery:
                  depth=1,
                  direction='OUTGOING',
                  limit=10,
+                 include_deprecated=False,
     ):
         prefix = one_or_many(prefix) + self._prefix
         category = one_or_many(category) + self._category
@@ -122,7 +123,8 @@ class OntQuery:
         identifiers = cullNone(suffix=suffix,
                                curie=curie,
                                iri=iri)
-        control = dict(limit=limit)
+        control = dict(include_deprecated=include_deprecated,
+                       limit=limit)
         if queries and identifiers:
             log.warning(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')
             queries = {}
@@ -151,13 +153,15 @@ class OntQuery:
 class OntQueryCli(OntQuery):
     raw = False  # return raw QueryResults
 
-    def __init__(self, *services, prefix=None, category=None, query=None,
+    def __init__(self, *services, prefix=tuple(), category=tuple(), query=None,
                  instrumented=None):
         if query is not None:
             if services:
                 raise ValueError('*services and query= are mutually exclusive arguments, '
                                  'please remove one')
 
+            self._prefix = query._prefix
+            self._category = query._category
             self._services = query.services
             self._instrumented = query._instrumented
             self._OntId = query._OntId
@@ -176,6 +180,10 @@ class OntQueryCli(OntQuery):
             else:
                 return result
 
+        return [func(qr) for qr in super().__call__(*args, **kwargs)]
+
+    def _old_call_rest(self):
+        """ oof """
         i = None
         for i, result in enumerate(super().__call__(*args, **kwargs)):
             if i > 0:
