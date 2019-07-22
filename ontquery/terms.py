@@ -214,6 +214,14 @@ class Identifier(Id):
         else:
             raise TypeError(f'Don\'t know what to do with a {type(cls)}')
 
+    def asInstrumented(self):
+        inst_class = self._instrumented_class()
+        return inst_class(self)
+
+    def asUninstrumented(self):
+        uninst_class = self._uninstrumented_class()
+        return uninst_class(self)
+
 
 class InstrumentedIdentifier(Identifier):
     """ classes that instrument a type of identifier to make it actionable """
@@ -226,7 +234,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
                       ('iri',))
-    __firsts = 'curie', 'iri'  # FIXME bad for subclassing __repr__ behavior :/
+    _firsts = 'curie', 'iri'  # FIXME bad for subclassing __repr__ behavior :/
     class Error(Exception): pass
     class BadCurieError(Error): pass
     class UnknownPrefixError(Error): pass
@@ -388,7 +396,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     @property
     def _repr_include_args(self):
         first_done = False
-        firsts = getattr(self.__class__, f'_{self.__class__.__name__}__firsts')
+        #firsts = getattr(self.__class__, f'_{self.__class__.__name__}__firsts')
+        firsts = self._firsts
         for arg in self.__class__.repr_args:  # always use class repr args
             if not hasattr(self, arg) or getattr(self, arg) is None:  # allow repr of uninitialized classes
                 continue
@@ -458,7 +467,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
     _cache = {}
 
-    __firsts = 'curie', 'iri'
+    #__firsts = 'curie', 'iri'
 
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
                 label=None,
@@ -582,7 +591,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
                     #raise ValueError()
 
                 #print(keyword, value)
-                if keyword not in self.__firsts:  # already managed by OntId
+                if keyword not in self._firsts:  # already managed by OntId
                     if keyword == 'source':  # FIXME the things i do in the name of documentability >_<
                         keyword = '_source'
 
@@ -595,7 +604,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
             for keyword in set(keyword  # FIXME repr_arg_order should not be what is setting this?!?!
                                for keywords in self.repr_arg_order
                                for keyword in keywords
-                               if keyword not in self.__firsts):
+                               if keyword not in self._firsts):
                 if keyword in self.orig_kwargs:
                     value = self.orig_kwargs[keyword]
                 else:
@@ -741,7 +750,7 @@ class TermRepr(OntTerm):
     repr_arg_order = (('curie', 'label', 'synonyms'),)
     repr_args = repr_arg_order[0]
     _oneshot_old_repr_args = None
-    __firsts = 'curie', 'iri'
+    _firsts = 'curie', 'iri'
 
     def __new__(cls, *args, **kwargs):
         iri = kwargs['iri']
