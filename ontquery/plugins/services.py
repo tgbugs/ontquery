@@ -597,9 +597,37 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         except OntId.Error:
             return entity
 
+    @property
+    def _is_dev_endpoint(self):
+        return bool(self.port)
+
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
               prefix=tuple(), exclude_prefix=tuple(), **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
+        if iri:
+            oiri = OntId(iri=iri)
+            icurie = oiri.curie
+            if curie and icurie != curie:
+                raise ValueError(f'curie and curied iri do not match {curie} {icurie}')
+            else:
+                curie = icurie
+        elif curie:
+            iri = OntId(curie).iri
+
+        if self._is_dev_endpoint:
+            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+        else:
+            res = self._scicrunch_api_query(kwargs, iri, curie, label, term, predicates)
+
+        if res is not None:
+            yield res
+        else:
+            return
+
+    def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates):
+        pass
+
+    def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
             with requests.Session() as s:
                 s.headers.update(headers)
@@ -617,16 +645,6 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             if r1 or r2:
                 raise ValueError(f'NonUnique value for ontology {r1} or about {r2}')
             return o
-
-        if iri:
-            oiri = OntId(iri=iri)
-            icurie = oiri.curie
-            if curie and icurie != curie:
-                raise ValueError(f'curie and curied iri do not match {curie} {icurie}')
-            else:
-                curie = icurie
-        elif curie:
-            iri = OntId(curie).iri
 
         if curie:
             if curie.startswith('ILX:') and iri:
@@ -694,8 +712,11 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            yield self.QueryResult(kwargs, **qrd)
+            return self.QueryResult(kwargs, **qrd)
 
+    def _dev_query_rest(self):
+        if True:
+            pass
         else:
             # TODO cases where ilx is preferred will be troublesome
             maybe_out = [r for r in rdll.query(curie=curie, label=label, predicates=predicates)]
