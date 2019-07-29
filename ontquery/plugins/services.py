@@ -854,7 +854,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     if 'types' not in out:
                         out['types'] = out['type'],
 
-                    out['types'] += o
+                    out['types'] += o,  # TODO add test
+                    # needs to be tuple for neurondm.OntTerm.query(search='a', prefix=('ilxtr',))
 
                 owlClass = True  # FIXME ...
 
