@@ -3,6 +3,7 @@ import os
 import requests
 from typing import List, Tuple
 from ontquery.utils import log
+from fuzzywuzzy import fuzz, process
 
 
 class InterLexClient:
@@ -58,6 +59,7 @@ class InterLexClient:
         user_info_url = self.default_base_url + 'user/info?key=' + self.api_key
         self.check_api_key(user_info_url)
         self.user_id = str(self.get(user_info_url)['id'])
+
     def check_api_key(self, url):
         response = requests.get(
             url,
@@ -86,8 +88,10 @@ class InterLexClient:
 
         return output['data']
 
-    def get(self, url: str) -> List[dict]:
+    def get(self, url: str, params: dict = {}) -> List[dict]:
         """ Requests data from database """
+        if params:
+            self._kwargs.update({'params': params})
         response = requests.get(
             url,
             headers = {'Content-type': 'application/json'},
@@ -103,7 +107,8 @@ class InterLexClient:
         })
         response = requests.post(
             url,
-            data = json.dumps(data),
+            # elastic takes in dict while other apis need a string... yeah I know...
+            data = json.dumps(data) if 'elastic' not in url else data,
             headers = {'Content-type': 'application/json'},
             **self._kwargs
         )
@@ -159,6 +164,28 @@ class InterLexClient:
                     f'Extra keys not recognized in existing_ids for label: {label}')
         return entity
 
+    def query_elastic(self, term: str, **kwargs) -> List[dict]:
+        ''' Queries Elastic for term
+
+            Blob database that is synced with SQL database. It's terrible for almost everything
+            except querying for entities
+        '''
+        url = self.base_url + 'term/elastic/search'
+        params = {
+            'term': term,
+            'key': self.api_key,
+            **kwargs,
+        }
+        # nested hits keys is correct. max_score initial get
+        hits = self.get(url, params=params)['hits']['hits']
+        if hits:
+            hits = [hit['_source'] for hit in hits]
+            for hit in hits:
+                # For QueryResult
+                hit['iri'] = 'http://uri.interlex.org/base/' + hit['ilx']
+                hit['curie'] = hit['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:')
+        return hits
+
     def crude_search_scicrunch_via_label(self, label:str) -> dict:
         """ Server returns anything that is simlar in any catagory """
         url = self.base_url + 'term/search/{term}?key={api_key}'.format(
@@ -167,12 +194,51 @@ class InterLexClient:
         )
         return self.get(url)
 
+    def query_elastic_with_confidence(self, term: str, confidence: int = 85, **kwargs) -> List[dict]:
+        ''' Search SciCrunch for Loosely matched Terms
+
+            We don't trust elastic up front because it scores on the total entity. All
+            we care about is the match quality on on a single value. Fuzzy will check each value on
+            dict and with return a score from the best matched value in said dict. Elastic also gives
+            the top results even if they are bad. We need a quality control for curators, hence this
+            function.
+        '''
+        query = {
+            'term': term,
+            'from': '0', # elastic doesnt always start at 0 unless given
+            'size': '10', # limit
+            **kwargs,
+        }
+        elastic_hits = self.query_elastic(**query)
+
+        # TODO: This would be cool to do if i figured out how to override processor to except dict choices properly
+        # compares each choice
+        # elastic_hits = process.extract(
+        #     query = term,
+        #     choices = elastic_hits,
+        #     # compares each element individually & orderring doesnt matter
+        #     # EXAMPLE: 'Life Is Good' == 'good is life'
+        #     scorer=fuzz.token_sort_ratio,
+        #     limit=None # default is 5
+        # )
+
+        # Compares each element individually where ordering doesnt matter
+        # & only returns matches with >= confidence score
+        matches = [hit for hit in elastic_hits if fuzz.token_sort_ratio(hit['label'], term) >= confidence]
+        return matches
+
     def check_scicrunch_for_label(self, label: str) -> dict:
-        """ Sees if label with your user ID already exists
+        """ Sees if label with your user ID already exists by searching exact matches.
 
         There are can be multiples of the same label in interlex, but there should only be one
         label with your user id. Therefore you can create labels if there already techniqually
         exist, but not if you are the one to create it.
+
+        Args:
+            label (str): label related to the entity you want to search
+
+        Returns:
+            dictionary of scicrunch fields for a single exact matched entity
         """
         list_of_crude_matches = self.crude_search_scicrunch_via_label(label)
         for crude_match in list_of_crude_matches:
@@ -194,7 +260,11 @@ class InterLexClient:
             identifier = ilx_id,
             api_key = self.api_key,
         )
-        return self.get(url)
+        resp = self.get(url)
+        # work around for ontquery.utils.QueryResult input
+        resp['iri'] = 'http://uri.interlex.org/base/' + resp['ilx']
+        resp['curie'] = resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:')
+        return resp
 
     def add_entity(
         self,
