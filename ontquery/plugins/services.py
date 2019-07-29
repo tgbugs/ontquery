@@ -1,4 +1,5 @@
 import os
+import ontquery
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone, one_or_many, log
@@ -368,6 +369,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def setup(self, **kwargs):
         OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
+
         if self.api_key is not None and self.apiEndpoint is not None:
             self.ilx_cli = InterLexClient(base_url=self.apiEndpoint)
         elif not self.readonly:
@@ -617,6 +619,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if self._is_dev_endpoint:
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
         else:
+            # return
             res = self._scicrunch_api_query(kwargs, iri, curie, label, term, predicates)
 
         if res is not None:
@@ -625,7 +628,42 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             return
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates):
-        pass
+
+        if iri:
+            resps: dict = self.ilx_cli.get_entity(iri)
+        elif curie:
+            resps: dict = self.ilx_cli.get_entity(curie)
+        elif label:
+            # filters elastic for matches with at least 85% confidence using its label keys
+            resps: list = self.ilx_cli.query_elastic_with_confidence(label, confidence=85)
+        elif term:
+            resps: list = self.ilx_cli.query_elastic(term)
+        else:
+            return
+
+        if not resps:
+            return
+        elif isinstance(resps, dict):
+            resps = [resps]
+
+        resp = resps[0] # TODO: BUG: return list or generator doesnt work even though SciGraphRemote does the same
+        return self.QueryResult(
+            query_args = kwargs,
+            iri=resp['iri'],
+            curie=resp['curie'],
+            label=resp['label'],
+            labels=tuple(),
+            #abbrev=None, # TODO
+            #acronym=None, # TODO
+            definition=resp['definition'],
+            synonyms=tuple(resp['synonyms']),
+            #deprecated=None,
+            #prefix=None,
+            #category=None,
+            predicates=predicates,
+            #_graph=None,
+            source=self,
+        )
 
     def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
