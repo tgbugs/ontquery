@@ -54,6 +54,7 @@ class InterLexClient:
         self._kwargs = {}
         if 'test' in base_url:
             auth = os.environ['SCICRUNCH_TEST_U'], os.environ['SCICRUNCH_TEST_P']
+            self.api_key = os.environ.get('INTERLEX_API_KEY_TEST', os.environ.get('SCICRUNCH_API_KEY_TEST', None))
             self._kwargs['auth'] = auth
 
         user_info_url = self.default_base_url + 'user/info?key=' + self.api_key
