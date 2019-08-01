@@ -254,7 +254,7 @@ class InterLexClient:
         # No label AND user id match
         return {}
 
-    def get_entity(self, ilx_id: str) -> dict:
+    def get_entity(self, ilx_id: str, iri_curie: bool = False) -> dict:
         """ Gets full meta data (expect their annotations and relationships) from is ILX ID """
         ilx_id = self.fix_ilx(ilx_id)
         url = self.base_url + "ilx/search/identifier/{identifier}?key={api_key}".format(
@@ -263,8 +263,9 @@ class InterLexClient:
         )
         resp = self.get(url)
         # work around for ontquery.utils.QueryResult input
-        resp['iri'] = 'http://uri.interlex.org/base/' + resp['ilx']
-        resp['curie'] = resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:')
+        if iri_curie:
+            resp['iri'] = 'http://uri.interlex.org/base/' + resp['ilx']
+            resp['curie'] = resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:')
         return resp
 
     def add_entity(
@@ -468,9 +469,8 @@ class InterLexClient:
                 prexisting_data = self.check_scicrunch_for_label(entity['label'])
                 if prexisting_data:
                     log.warning(
-                        'You already added entity ' + entity['label'],
+                        'You already added entity ' + entity['label'] + '\n'
                         'with ILX ID: ' + prexisting_data['ilx'])
-
                     return prexisting_data
 
                 self.Error(output)  # FIXME what is the correct error here?
