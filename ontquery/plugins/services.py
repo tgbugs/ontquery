@@ -619,25 +619,24 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if self._is_dev_endpoint:
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
         else:
-            # return
             res = self._scicrunch_api_query(kwargs, iri, curie, label, term, predicates)
 
         if res is not None:
-            yield res
+            return res
         else:
             return
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates):
 
         if iri:
-            resps: dict = self.ilx_cli.get_entity(iri)
+            resps: dict = self.ilx_cli.get_entity(iri, iri_curie = True)
         elif curie:
-            resps: dict = self.ilx_cli.get_entity(curie)
+            resps: dict = self.ilx_cli.get_entity(curie, iri_curie = True)
         elif label:
             # filters elastic for matches with at least 85% confidence using its label keys
-            resps: list = self.ilx_cli.query_elastic_with_confidence(label, confidence=85)
+            resps: list = self.ilx_cli.query_elastic_with_confidence(label, confidence=85, size=10)
         elif term:
-            resps: list = self.ilx_cli.query_elastic(term)
+            resps: list = self.ilx_cli.query_elastic_with_confidence(term, confidence=85, size=10)
         else:
             return
 
@@ -646,24 +645,24 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         elif isinstance(resps, dict):
             resps = [resps]
 
-        resp = resps[0] # TODO: BUG: return list or generator doesnt work even though SciGraphRemote does the same
-        return self.QueryResult(
-            query_args = kwargs,
-            iri=resp['iri'],
-            curie=resp['curie'],
-            label=resp['label'],
-            labels=tuple(),
-            #abbrev=None, # TODO
-            #acronym=None, # TODO
-            definition=resp['definition'],
-            synonyms=tuple(resp['synonyms']),
-            #deprecated=None,
-            #prefix=None,
-            #category=None,
-            predicates=predicates,
-            #_graph=None,
-            source=self,
-        )
+        for resp in resps:
+            yield self.QueryResult(
+                query_args = kwargs,
+                iri=resp['iri'],
+                curie=resp['curie'],
+                label=resp['label'],
+                labels=tuple(),
+                #abbrev=None, # TODO
+                #acronym=None, # TODO
+                definition=resp['definition'],
+                synonyms=tuple(resp['synonyms']),
+                #deprecated=None,
+                #prefix=None,
+                #category=None,
+                predicates=predicates,
+                #_graph=None,
+                source=self,
+            )
 
     def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
