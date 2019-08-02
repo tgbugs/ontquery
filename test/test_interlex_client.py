@@ -11,14 +11,14 @@ def test_api_key():
     ilxremote.setup(instrumented=oq.OntTerm)
     ilx_cli = ilxremote.ilx_cli
     assert ilx_cli.api_key == ilxremote.api_key
-    os.environ['INTERLEX_API_KEY'] = 'fake_key_12345'  # shadows the scicrunch key in tests
+    os.environ['INTERLEX_API_KEY_TEST'] = 'fake_key_12345'  # shadows the scicrunch key in tests
     with pytest.raises(ilx_cli.IncorrectAPIKeyError,
                        match = "api_key given is incorrect."):
         ilxremote = InterLexRemote(apiEndpoint='https://test.scicrunch.org/api/1/')
         ilxremote.setup(instrumented=oq.OntTerm)
 
-    os.environ.pop('INTERLEX_API_KEY')  # unshadow
-    assert not os.environ.get('INTERLEX_API_KEY')
+    os.environ.pop('INTERLEX_API_KEY_TEST')  # unshadow
+    assert not os.environ.get('INTERLEX_API_KEY_TEST')
 
 
 ilxremote = InterLexRemote(apiEndpoint='https://test.scicrunch.org/api/1/')
