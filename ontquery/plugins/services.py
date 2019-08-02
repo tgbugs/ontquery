@@ -336,7 +336,10 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
 
-        self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
+        if 'test' in apiEndpoint:
+            self.api_key = os.environ.get('INTERLEX_API_KEY_TEST', os.environ.get('SCICRUNCH_API_KEY_TEST', None))
+        else:
+            self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
 
         if self.api_key is None and apiEndpoint == self.defaultEndpoint:
             # we don't error here because API keys are not required for viewing
