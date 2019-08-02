@@ -45,6 +45,8 @@ class InterLexClient:
 
     class IncorrectAPIKeyError(Error): pass
 
+    class IncorrectAuthError(Error): pass
+
     default_base_url = 'https://scicrunch.org/api/1/'
     ilx_base_url = 'http://uri.interlex.org/base/'
 
@@ -53,8 +55,21 @@ class InterLexClient:
         self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
         self._kwargs = {}
         if 'test' in base_url:
-            auth = os.environ['SCICRUNCH_TEST_U'], os.environ['SCICRUNCH_TEST_P']
+            auth = os.environ.get('SCICRUNCH_TEST_U'), os.environ.get('SCICRUNCH_TEST_P')
+            if not auth[0] or not auth[1]:
+                raise self.IncorrectAuthError(
+                    'TEST needs a user & password to get into the https://test.scicrunch.org/ '
+                    'and add them to ~/.bashrc as so:\n'
+                    'export SCICRUNCH_TEST_U=put_user_here\n'
+                    'export SCICRUNCH_TEST_P=put_password_here'
+                )
             self.api_key = os.environ.get('INTERLEX_API_KEY_TEST', os.environ.get('SCICRUNCH_API_KEY_TEST', None))
+            if not self.api_key:
+                raise self.IncorrectAPIKeyError(
+                    'TEST api_key not found. Please go to https://test.scicrunch.org/ '
+                    'and get an api_key. Add it to ~/.basrc as so \n'
+                    'export SCICRUNCH_API_KEY_TEST=your_api_key_here'
+                )
             self._kwargs['auth'] = auth
 
         user_info_url = self.base_url + 'user/info?key=' + self.api_key
