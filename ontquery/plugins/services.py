@@ -123,9 +123,11 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     yield self.OntId(object) # FIXME TODO this is _very_ inefficient for multiple lookups...
 
         else:
+            _has_part_list = ['http://purl.obolibrary.org/obo/BFO_0000051']
             objects = (self.OntId(e[o]) for e in edges if e[s] == subject.curie
                        and not [v for k, v in e.items()
-                                if k != 'meta' and v.startswith('_:')])
+                                if k != 'meta' and v.startswith('_:')]
+                       and ('owlType' not in e['meta'] or e['meta']['owlType'] != _has_part_list))
             yield from objects
 
     def query(self, iri=None, curie=None,
