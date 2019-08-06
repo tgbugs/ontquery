@@ -719,9 +719,18 @@ class OntTerm(InstrumentedIdentifier, OntId):
     @property
     def type(self):
         if not hasattr(self, '_type'):
-            qr = next(self.query(self.iri))
-            self._type = qr.type
-            self._types = qr.types
+            try:
+                qr = next(self.query(self.iri))
+                self._type = qr.type
+                self._types = qr.types
+            except StopIteration as e:
+                # FIXME this happens when a term is moved
+                # from one term type to another and its
+                # original source is lost
+                log.warning(f'No results for {self.__class__.__name__}('
+                            f'{self.iri})')
+                self._type = None
+                self._types = tuple()
 
         return self._type
 
@@ -732,9 +741,18 @@ class OntTerm(InstrumentedIdentifier, OntId):
     @property
     def types(self):
         if not hasattr(self, '_types'):
-            qr = next(self.query(self.iri))
-            self._type = qr.type
-            self._types = qr.types
+            try:
+                qr = next(self.query(self.iri))
+                self._type = qr.type
+                self._types = qr.types
+            except StopIteration as e:
+                # FIXME this happens when a term is moved
+                # from one term type to another and its
+                # original source is lost
+                log.warning(f'No results for {self.__class__.__name__}('
+                            f'{self.iri})')
+                self._type = None
+                self._types = tuple()
 
         return self._types
 
