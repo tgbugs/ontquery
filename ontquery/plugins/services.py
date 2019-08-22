@@ -62,11 +62,11 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         # TODO make it possible to set these properties dynamically
         # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
-                                       basePath=self.apiEndpoint, key=self.api_key)
+                                       basePath=self.apiEndpoint)
         self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
-                                  basePath=self.apiEndpoint, key=self.api_key)
+                                  basePath=self.apiEndpoint)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
-                                   basePath=self.apiEndpoint, key=self.api_key)
+                                   basePath=self.apiEndpoint)
         self.curies = type('LocalCuries', (OntCuries,), {})
         self.curies(self.sgc.getCuries())  # TODO can be used to provide curies...
         self.prefixes = sorted(self.curies)
