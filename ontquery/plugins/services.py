@@ -609,7 +609,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if iri:
             oiri = OntId(iri=iri)
             icurie = oiri.curie
-            if curie and icurie != curie:
+            if curie and icurie and icurie != curie:
                 raise ValueError(f'curie and curied iri do not match {curie} {icurie}')
             else:
                 curie = icurie
