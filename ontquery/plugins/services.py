@@ -60,14 +60,20 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def setup(self, **kwargs):
         # TODO make it possible to set these properties dynamically
         # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
+        if self.api_key is not None:
+            scigraph.restService.api_key = self.api_key
+
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
-                                       basePath=self.apiEndpoint, key=self.api_key)
+                                       basePath=self.apiEndpoint)
         self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
-                                  basePath=self.apiEndpoint, key=self.api_key)
+                                  basePath=self.apiEndpoint)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
-                                   basePath=self.apiEndpoint, key=self.api_key)
+                                   basePath=self.apiEndpoint)
         self.curies = type('LocalCuries', (OntCuries,), {})
-        self.curies(self.sgc.getCuries())  # TODO can be used to provide curies...
+        self._remote_curies = type('RemoteCuries', (OntCuries.new(),), {})
+        curies = self.sgc.getCuries()
+        self.curies(curies)  # TODO can be used to provide curies...
+        self._remote_curies(curies)
         self.prefixes = sorted(self.curies)
         self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
         self.categories = self.sgv.getCategories()
@@ -79,12 +85,12 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                              'text/plain'))
         super().setup(**kwargs)
 
-    def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', inverse=False):
+    def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', entail=True, inverse=False):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
         # TODO how to handle depth? this is not an obvious or friendly way to do this
 
         d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=predicate,
-                                              depth=depth, direction=direction)  # TODO
+                                              depth=depth, direction=direction, entail=entail)  # TODO
 
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
@@ -124,7 +130,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         else:
             _has_part_list = ['http://purl.obolibrary.org/obo/BFO_0000051']
-            objects = (self.OntId(e[o]) for e in edges if e[s] == subject.curie
+            scurie = self._remote_curies.qname(subject)
+            objects = (self.OntId(e[o]) for e in edges if e[s] == scurie
                        and not [v for k, v in e.items()
                                 if k != 'meta' and v.startswith('_:')]
                        and ('owlType' not in e['meta'] or e['meta']['owlType'] != _has_part_list))
@@ -134,7 +141,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
               prefix=tuple(), category=tuple(), exclude_prefix=tuple(),
               include_deprecated=False, predicates=tuple(), depth=1,
-              direction='OUTGOING', limit=10):
+              direction='OUTGOING', entail=True, limit=10):
         # use explicit keyword arguments to dispatch on type
         prefix = one_or_many(prefix)
         category = one_or_many(category)
@@ -182,8 +189,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     else:
                         unshorten = None
 
-                    values = tuple(sorted(self._graphQuery(identifier, predicate,
-                                                           depth=depth, direction=direction)))
+                    values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth,
+                                                           direction=direction, entail=entail)))
                     if values:
                         # I think this is the right place to unshorten
                         # I don't think we have any inverses that require unshortning
@@ -204,7 +211,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                           else direction))
                         inv_values = tuple(sorted(self._graphQuery(identifier, p,
                                                                    depth=depth, direction=inv_direction,
-                                                                   inverse=True)))
+                                                                   entail=entail, inverse=True)))
                         if values or predicate in result:
                             rp = result[predicate]
                             fv = tuple(v for v in inv_values if v not in rp)
