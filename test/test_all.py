@@ -140,7 +140,8 @@ class TestAll(unittest.TestCase):
 
     def test_predicates(self):
         self.query.raw = True
-        pqr = self.query(iri='UBERON:0000955', predicates=('hasPart:',))
+        pqrl = self.query(iri='UBERON:0000955', predicates=('hasPart:',))
+        pqr = pqrl[0]
         self.query.raw = False
         pt = pqr.OntTerm
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')

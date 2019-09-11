@@ -27,6 +27,19 @@ def subclasses(start):
             yield sc
             yield from subclasses(sc)
 
+
+def bunch(pairs):
+    """ pairs -> dict """
+    out = {}
+    for k, v in pairs:
+        if k not in out:
+            out[k] = []
+
+        out[k].append(v)
+
+    return out
+
+
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
 

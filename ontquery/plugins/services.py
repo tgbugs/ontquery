@@ -1,7 +1,7 @@
 import os
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
-from ontquery.utils import cullNone, one_or_many, log
+from ontquery.utils import cullNone, one_or_many, log, bunch
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 
@@ -88,6 +88,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', entail=True, inverse=False):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
         # TODO how to handle depth? this is not an obvious or friendly way to do this
+        if entail and inverse:
+            raise NotImplementedError('Currently cannot handle inverse and entail at the same time.')
 
         d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=predicate,
                                               depth=depth, direction=direction, entail=entail)  # TODO
@@ -108,9 +110,17 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if inverse:
             s, o = o, s
 
+        def properPredicate(e):
+            p = self.OntId(e['pred']) if ':' in e['pred'] else e['pred']
+            if inverse:
+                p = self.inverses[p]
+
+            return p
+
         if depth > 1:
             #subjects = set(subject.curie)
-            seen = {subject.curie}
+            seen = {(predicate.curie if isinstance(predicate, self.OntId) else predicate,
+                     subject.curie)}
             for i, e in enumerate(self.sgg.ordered(subject.curie, edges, inverse=inverse)):
                 if [v for k, v in e.items() if k != 'meta' and v.startswith('_:')]:
                     # FIXME warn on these ? bnode getting pulled in ...
@@ -121,21 +131,25 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 #if e[s] in subjects:
                     #subjects.add(object.curie)
                 object = e[o]
-                if object not in seen:
+                p = e['pred']  # required if entail == True
+                if (p, object) not in seen:
                     # to make OntTerm(object) work we need to be able to use the 'meta' section...
                     # and would have to fetch the object directly anyway since OntTerm requires
                     # direct atestation ... which suggests that we probably need/want a bulk constructor
-                    seen.add(object)
-                    yield self.OntId(object) # FIXME TODO this is _very_ inefficient for multiple lookups...
+                    seen.add((p, object))
+                    yield (properPredicate(e),
+                           self.OntId(object)) # FIXME TODO this is _very_ inefficient for multiple lookups...
 
         else:
             _has_part_list = ['http://purl.obolibrary.org/obo/BFO_0000051']
             scurie = self._remote_curies.qname(subject)
-            objects = (self.OntId(e[o]) for e in edges if e[s] == scurie
-                       and not [v for k, v in e.items()
-                                if k != 'meta' and v.startswith('_:')]
-                       and ('owlType' not in e['meta'] or e['meta']['owlType'] != _has_part_list))
-            yield from objects
+            pred_objects = ((properPredicate(e),
+                             self.OntId(e[o])) for e in edges if e[s] == scurie
+                            #and not print(predicate, scurie, e['pred'], e[o])
+                            and not [v for k, v in e.items()
+                                     if k != 'meta' and v.startswith('_:')]
+                            and ('owlType' not in e['meta'] or e['meta']['owlType'] != _has_part_list))
+            yield from pred_objects
 
     def query(self, iri=None, curie=None,
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
@@ -181,6 +195,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 return
 
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
+                short = None
                 for predicate in predicates:
                     if (hasattr(predicate, 'prefix') and
                         predicate.prefix in ('owl', 'rdfs')):
@@ -192,15 +207,19 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth,
                                                            direction=direction, entail=entail)))
                     if values:
-                        # I think this is the right place to unshorten
-                        # I don't think we have any inverses that require unshortning
-                        if unshorten is not None:
-                            short = predicate
-                            predicate = unshorten
-
                         # FIXME when using query.predicates need to 'expand'
                         # the bare string predicates like subClassOf and isDefinedBy ...
-                        result[predicate] = values
+                        bunched = bunch(values)
+                        for pred, pvalues in bunched.items():
+                            # I think this is the right place to unshorten
+                            # I don't think we have any inverses that require unshortning
+                            if pred == predicate:
+                                if unshorten is not None:
+                                    short = predicate
+                                    predicate = unshorten
+                                    pred = predicate
+
+                            result[pred] = tuple(pvalues)
 
                     if predicate in self.inverses:
                         p = self.inverses[predicate]
@@ -209,15 +228,23 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                          ('INCOMING' if
                                           direction == 'OUTGOING'
                                           else direction))
+
+                        # FIXME I'm betting reverse entailed is completely broken
                         inv_values = tuple(sorted(self._graphQuery(identifier, p,
                                                                    depth=depth, direction=inv_direction,
-                                                                   entail=entail, inverse=True)))
-                        if values or predicate in result:
-                            rp = result[predicate]
-                            fv = tuple(v for v in inv_values if v not in rp)
-                            result[predicate] += fv
-                        elif inv_values:
-                            result[predicate] = inv_values
+                                                                   entail=False, inverse=True)))  # FIXME entail=entail
+                        if inv_values:
+                            bunched = bunch(inv_values)
+                            for pred, ipvalues in bunched.items():
+                                if short is not None and pred == short:
+                                    pred = predicate
+
+                                if pred in result:
+                                    rp = result[pred]
+                                    fv = tuple(v for v in ipvalues if v not in rp)
+                                    result[pred] += fv
+                                else:
+                                    result[pred] = tuple(ipvalues)
 
             res = self.sgg.getNode(identifier)
             types = tuple()
