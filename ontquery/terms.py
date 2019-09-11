@@ -301,7 +301,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
             #if prefix and prefix_i != prefix:
                 #print('Curie changed!', prefix + ':' + suffix, '->', curie_i)
             prefix, suffix = prefix_i, suffix_i
-            if suffix is not None and not suffix.startswith('//') and curie_i == iri:
+            if ((suffix is not None and not suffix.startswith('//') and curie_i == iri)
+                or (suffix is None and '://' not in iri and curie_i == iri)):
                 raise ValueError(f'You have provided a curie {curie_i} as an iri!')
 
         if prefix is not None and (' ' in prefix or ' ' in suffix):
