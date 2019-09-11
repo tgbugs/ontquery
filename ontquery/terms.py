@@ -95,6 +95,8 @@ class OntCuries(metaclass=dictclass):
         # TODO cache the output mapping?
         try:
             namespace, suffix = trie.split_uri(iri)
+            if namespace.endswith('://'):
+                raise ValueError(f'Bad namespace {namespace}')
         except ValueError as e:
             try:
                 namespace = str(iri)
