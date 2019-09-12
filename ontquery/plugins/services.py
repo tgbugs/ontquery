@@ -863,11 +863,17 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 if isinstance(o, rdflib.URIRef):
                     o = self.OntId(o)  # FIXME we try to use OntTerm directly everything breaks
                     # FIXME these OntIds also do not derive from rdflib... sigh
-                # FIXME doesn't this klobber when there is more than one object per predicate !??!? !??!!
-                out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
+
+                c = self.OntId(p).curie
+                if c not in out['predicates']:
+                    out['predicates'][c] = o  # curie to be consistent with OntTerm behavior
+                elif isinstance(out['predicates'][c], str):
+                    out['predicates'][c] = out['predicates'][c], o
+                else:
+                    out['predicates'][c] += o,
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
-                out[pn] = o
+                out[pn] = o  # FIXME kobbering?
 
         if o is not None and owlClass is not None:
             # if you yield here you have to yield from below
