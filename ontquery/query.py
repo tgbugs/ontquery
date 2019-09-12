@@ -106,6 +106,7 @@ class OntQuery:
                  direction='OUTGOING',
                  limit=10,
                  include_deprecated=False,
+                 include_supers=False,
     ):
         prefix = one_or_many(prefix) + self._prefix
         category = one_or_many(category) + self._category
@@ -124,6 +125,7 @@ class OntQuery:
                                curie=curie,
                                iri=iri)
         control = dict(include_deprecated=include_deprecated,
+                       include_supers=include_supers,
                        limit=limit)
         if queries and identifiers:
             log.warning(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')

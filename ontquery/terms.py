@@ -652,7 +652,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
     def asPreferred(self):
         """ Return the term attached to its preferred id """
         if 'TEMP:preferredId' in self.predicates:
-            return self.predicates['TEMP:preferredId'].asTerm()
+            return self.predicates['TEMP:preferredId'][0].asTerm()
         elif self.deprecated:
             rb = self('replacedBy:', as_term=True)
             if rb:
@@ -690,7 +690,8 @@ class OntTerm(InstrumentedIdentifier, OntId):
                           if all(f in s for f in filters)),
                           key=lambda t:t.label)
 
-    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING', as_term=False):
+    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING',
+                 as_term=False, include_supers=False):
         """ Retrieve additional metadata for the current term. If None is provided
             as the first argument the query runs against all predicates defined for
             each service. """
@@ -700,7 +701,8 @@ class OntTerm(InstrumentedIdentifier, OntId):
         else:
             predicates = (predicate,) + predicates  # ensure at least one
 
-        results_gen = self.query(iri=self, predicates=predicates, depth=depth, direction=direction)
+        results_gen = self.query(iri=self, predicates=predicates, depth=depth,
+                                 direction=direction, include_supers=include_supers)
         out = {}
         for result in results_gen:  # FIXME should only be one?!
             for k, v in result.predicates.items():
