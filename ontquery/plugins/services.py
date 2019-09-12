@@ -730,6 +730,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 qrd['curie'] = i.curie
                 qrd['iri'] = i.iri
                 toskip += 'curie', 'iri'
+            else:
+                qrd['predicates']['TEMP:preferredId'] = i  # FIXME this should probably be in the record itself ...
+
             if curie:
                 qrd['curie'] = curie
                 toskip += 'curie',

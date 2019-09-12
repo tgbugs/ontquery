@@ -356,7 +356,6 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     def quoted(self):
         return quote(self.iri, safe=tuple())
 
-    @property
     def asTerm(self):
         inst_class = self._instrumented_class()
         return inst_class(self)
@@ -600,6 +599,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
                     setattr(self, keyword, value)  # TODO value lists...
             self.validated = True
+            self._query_result = result
 
         if i is None:
             self._source = None
@@ -648,6 +648,17 @@ class OntTerm(InstrumentedIdentifier, OntId):
         """ return debug information """
         if self._graph:
             print(self._graph.serialize(format='nifttl').decode())
+
+    def asPreferred(self):
+        """ Return the term attached to its preferred id """
+        if 'TEMP:preferredId' in self.predicates:
+            return self.predicates['TEMP:preferredId'].asTerm()
+        elif self.deprecated:
+            rb = self('replacedBy:', as_term=True)
+            if rb:
+                return rb[0]
+        else:
+            return self
 
     def asId(self):
         uninst_class = self._uninstrumented_class()
