@@ -246,6 +246,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
         if type(curie_or_iri) == cls:
             return curie_or_iri
+        elif isinstance(curie_or_iri, cls):
+            return cls(str(curie_or_iri))
 
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
@@ -286,6 +288,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         unique_iris = set(i for i in iris if i is not None)
 
         if len(unique_iris) > 1:
+            breakpoint()
             raise ValueError(f'All ways of constructing iris not match! {sorted(unique_iris)}')
         else:
             try:
@@ -493,18 +496,49 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
     def _bind_result(self, **kwargs):
         try:
-            result = self._query_result(**kwargs)
+            result = self._get_query_result(**kwargs)
             self._bind_query_result(result, **kwargs)
         except StopIteration:
             self.validated = False
+            self.label = None  # the label attr should always be present even on failure
 
-    def _query_result(self, **kwargs):
+    def _get_query_result(self, **kwargs):
         extra_kwargs = {}
         if 'predicates' in kwargs:
             extra_kwargs['predicates'] = kwargs['predicates']
         # can't gurantee that all endpoints work on the expanded iri
         log.info(repr(self.asId()))
-        return next(self.query(iri=self.iri, curie=self.curie, raw=True, **extra_kwargs))
+        results_gen = self.query(iri=self.iri, curie=self.curie, raw=True, **extra_kwargs)
+        i = None
+        for i, result in enumerate(results_gen):
+            if i > 0:
+                if result.iri == old_result.iri:
+                    i = 0  # if we get the same record from multiple places it is ok
+                    if result.curie != old_result.curie:
+                        log.warn('curies do not match between services!'
+                                 f'{result.curie} != {old_result.curie}')
+                else:
+                    if i == 1:
+                        log.info(repr(old_result.asTerm()))
+                        #log.info(repr(TermRepr(**old_result)) + '\n')
+
+                    log.info(repr(result.asTerm()))
+                    #log.info(repr(TermRepr(**result)) + '\n')
+                    continue
+
+                # TODO merge from multiple goes here?
+
+            if i == 0:
+                old_result = result
+
+            if result.label:  # FIXME first label
+                return result
+
+        if i is None:
+            raise StopIteration
+        else:
+            log.warn(f'No results have labels! {old_result.asTerm()!r} {result.asTerm()!r}')
+            return result
 
     def _bind_query_result(self, result, **kwargs):
         def validate(keyword, value):
@@ -516,8 +550,8 @@ class OntTerm(InstrumentedIdentifier, OntId):
                 if str(orig_value) == value:
                     pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
                 elif (keyword == 'label' and
-                        (orig_value in result['labels'] or
-                        orig_value.lower() == value.lower())):
+                      (orig_value in result['labels'] or
+                       orig_value.lower() == value.lower())):
                     pass
                 elif keyword == 'predicates':
                     pass  # query will not match result
@@ -533,24 +567,18 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
                 else:
                     self.__class__.repr_args = 'curie', keyword
-                    #if validated == False:
-                        #raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
-                                         #f'does not match {keyword}={result[keyword]!r}')
-                    #else:
-                    raise ValueError(f'value {keyword}={orig_value!r} '
-                                     f'does not match {keyword}={result[keyword]!r}')
+                    if 'validated' in kwargs and kwargs['validated'] == False:
+                        raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
+                                         f'does not match {keyword}={result[keyword]!r}')
+                    else:
+                        raise ValueError(f'value {keyword}={orig_value!r} '
+                                         f'does not match {keyword}={result[keyword]!r}')
+
             elif orig_value is None and value is None:
                 pass
 
         for keyword, value in result.items():
             validate(keyword, value)
-            #elif value is None:  # can't error here, need to continue
-                #raise ValueError(f'Originally given {keyword}={orig_value!r} '
-                                    #f'but got {keyword}=None as a result!')
-            #elif orig_value is None:  # not an error
-                #raise ValueError()
-
-            #print(keyword, value)
             if keyword not in self._firsts:  # already managed by OntId
                 if keyword == 'source':  # FIXME the things i do in the name of documentability >_<
                     keyword = '_source'
@@ -574,13 +602,18 @@ class OntTerm(InstrumentedIdentifier, OntId):
     def asPreferred(self):
         """ Return the term attached to its preferred id """
         if 'TEMP:preferredId' in self.predicates:
-            return self.predicates['TEMP:preferredId'][0].asTerm()
+            term = self.predicates['TEMP:preferredId'][0].asTerm()
         elif self.deprecated:
             rb = self('replacedBy:', asTerm=True)
             if rb:
-                return rb[0]
+                term = rb[0]
         else:
-            return self
+            term = self
+
+        if term != self:
+            term._original_term = self  # FIXME naming for prov ...
+
+        return term
 
     def asId(self):
         uninst_class = self._uninstrumented_class()
@@ -633,7 +666,8 @@ class OntTerm(InstrumentedIdentifier, OntId):
                     v = v,
 
                 if asTerm:
-                    v = tuple(self.__class__(v) if isinstance(v, OntId) else v for v in v)
+                    v = tuple(self.__class__(v) if not isinstance(v, self.__class__) and isinstance(v, OntId)
+                              else v for v in v)
                     if asPreferred:
                         v = tuple(t.asPreferred() if isinstance(v, self.__class__) else v for t in v)
 
