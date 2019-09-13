@@ -968,6 +968,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     yield from self.by_ident(iri, None, kwargs)  # actually query is done here
         elif iri is not None or curie is not None:
             yield from self.by_ident(iri, curie, kwargs)
+        elif search is not None:  # prevent search + prefix from behaving like prefix alone
+            return
         else:
             for keyword, object in kwargs.items():
                 if object is None:
