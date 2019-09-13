@@ -601,7 +601,12 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
     def asPreferred(self):
         """ Return the term attached to its preferred id """
+        if not self.validated:
+            # FIXME sort of a nullability issue
+            return self
+
         if 'TEMP:preferredId' in self.predicates:
+            # NOTE having predicates by default is not supported by all remotes
             term = self.predicates['TEMP:preferredId'][0].asTerm()
         elif self.deprecated:
             rb = self('replacedBy:', asTerm=True)
@@ -665,11 +670,12 @@ class OntTerm(InstrumentedIdentifier, OntId):
                 if not isinstance(v, tuple):
                     v = v,
 
+                # FIXME somehow alternate OntTerm implementations are getting pulled in ...
                 if asTerm:
                     v = tuple(self.__class__(v) if not isinstance(v, self.__class__) and isinstance(v, OntId)
                               else v for v in v)
                     if asPreferred:
-                        v = tuple(t.asPreferred() if isinstance(v, self.__class__) else v for t in v)
+                        v = tuple(t.asPreferred() if isinstance(t, self.__class__) else t for t in v)
 
                 if k in out:
                     out[k] += v
