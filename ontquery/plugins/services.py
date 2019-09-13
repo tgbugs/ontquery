@@ -774,7 +774,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 qrd['curie'] = curie
                 toskip += 'curie',
             if iri:
-                qrd['iri'] = iri
+                qrd['iri'] = iri.iri if isinstance(iri, OntId) else iri
                 toskip += 'iri',
 
             for qr in qrs:
