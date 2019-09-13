@@ -901,6 +901,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
                 owlClass = True  # FIXME ...
 
+            if p == owl.deprecated and o:
+                out['deprecated'] = True
+
             if pn is None:
                 # TODO translation and support for query result structure
                 # FIXME lists instead of klobbering results with mulitple predicates
