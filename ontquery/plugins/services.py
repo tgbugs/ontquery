@@ -69,6 +69,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                   basePath=self.apiEndpoint)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
                                    basePath=self.apiEndpoint)
+        self.sgd = scigraph.Dynamic(cache=self.cache, verbose=self.verbose,
+                                    basePath=self.apiEndpoint)
         self.curies = type('LocalCuries', (OntCuries,), {})
         self._remote_curies = type('RemoteCuries', (OntCuries.new(),), {})
         curies = self.sgc.getCuries()
