@@ -288,7 +288,10 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         if len(unique_iris) > 1:
             raise ValueError(f'All ways of constructing iris not match! {sorted(unique_iris)}')
         else:
-            iri = next(iter(unique_iris))
+            try:
+                iri = next(iter(unique_iris))
+            except StopIteration as e:
+                raise TypeError('No identifier was provided!') from e
 
         if iri is not None:
             # normalization step in case there is a longer prefix match
@@ -380,7 +383,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
     @classmethod
     def reset_repr_args(cls):
-        if cls._oneshot_old_repr_args is not None:
+        if hasattr(cls, '_oneshot_old_repr_args') and cls._oneshot_old_repr_args is not None:
             cls.repr_args = cls._oneshot_old_repr_args
             cls._oneshot_old_repr_args = None
 
@@ -470,6 +473,239 @@ class OntTerm(InstrumentedIdentifier, OntId):
     _cache = {}
 
     #__firsts = 'curie', 'iri'
+
+    def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None,
+                iri=None, **kwargs):
+        self = super().__new__(cls,
+                               curie_or_iri=curie_or_iri,
+                               prefix=prefix,
+                               suffix=suffix,
+                               curie=curie,
+                               iri=iri,
+                               **kwargs)
+        kwargs['iri'] = self.iri
+        kwargs['curie'] = self.curie
+        self._bind_result(**kwargs)
+        return self
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def _bind_result(self, **kwargs):
+        try:
+            result = self._query_result(**kwargs)
+            self._bind_query_result(result, **kwargs)
+        except StopIteration:
+            self.validated = False
+
+    def _query_result(self, **kwargs):
+        extra_kwargs = {}
+        if 'predicates' in kwargs:
+            extra_kwargs['predicates'] = kwargs['predicates']
+        # can't gurantee that all endpoints work on the expanded iri
+        log.info(repr(self.asId()))
+        return next(self.query(iri=self.iri, curie=self.curie, raw=True, **extra_kwargs))
+
+    def _bind_query_result(self, result, **kwargs):
+        def validate(keyword, value):
+            # TODO open vs closed world
+            orig_value = kwargs.get(keyword, None)
+            empty_iterable = hasattr(orig_value, '__iter__') and not orig_value
+            if ((orig_value is not None and not empty_iterable)
+                and value is not None and orig_value != value):
+                if str(orig_value) == value:
+                    pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
+                elif (keyword == 'label' and
+                        (orig_value in result['labels'] or
+                        orig_value.lower() == value.lower())):
+                    pass
+                elif keyword == 'predicates':
+                    pass  # query will not match result
+                elif keyword == 'curie':
+                    if hasattr(result.source, '_remote_curies'):
+                        ov = self._uninstrumented_class()(orig_value)
+                        if ov.prefix not in result.source._remote_curies:
+                            log.info(f'curie prefix {ov.prefix} not in remote curies')
+                            return
+
+                    raise ValueError(f'value {keyword}={orig_value!r} '
+                                     f'does not match {keyword}={result[keyword]!r}')
+
+                else:
+                    self.__class__.repr_args = 'curie', keyword
+                    #if validated == False:
+                        #raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
+                                         #f'does not match {keyword}={result[keyword]!r}')
+                    #else:
+                    raise ValueError(f'value {keyword}={orig_value!r} '
+                                     f'does not match {keyword}={result[keyword]!r}')
+            elif orig_value is None and value is None:
+                pass
+
+        for keyword, value in result.items():
+            validate(keyword, value)
+            #elif value is None:  # can't error here, need to continue
+                #raise ValueError(f'Originally given {keyword}={orig_value!r} '
+                                    #f'but got {keyword}=None as a result!')
+            #elif orig_value is None:  # not an error
+                #raise ValueError()
+
+            #print(keyword, value)
+            if keyword not in self._firsts:  # already managed by OntId
+                if keyword == 'source':  # FIXME the things i do in the name of documentability >_<
+                    keyword = '_source'
+
+                setattr(self, keyword, value)  # TODO value lists...
+
+        self.validated = True
+        self._query_result = result
+
+    @classmethod
+    def _from_query_result(cls, result):
+        self = super().__new__(cls, **result)
+        self._bind_query_result(result)
+        return self
+
+    def debug(self):
+        """ return debug information """
+        if self._graph:
+            print(self._graph.serialize(format='nifttl').decode())
+
+    def asPreferred(self):
+        """ Return the term attached to its preferred id """
+        if 'TEMP:preferredId' in self.predicates:
+            return self.predicates['TEMP:preferredId'][0].asTerm()
+        elif self.deprecated:
+            rb = self('replacedBy:', asTerm=True)
+            if rb:
+                return rb[0]
+        else:
+            return self
+
+    def asId(self):
+        uninst_class = self._uninstrumented_class()
+        return uninst_class(self)
+
+    @property
+    def source(self):
+        """ The service that the term came from.
+            It is not obvious that source is being set from QueryResult.
+            I'm sure there are other issues like this due to the strange
+            interaction between OntTerm and QueryResult. """
+
+        return self._source
+
+    @classmethod
+    def search(cls, expression, prefix=None, filters=tuple(), limit=40):
+        """ Something that actually sort of works """
+        OntTerm = cls
+        if expression is None and prefix is not None:
+            # FIXME bad convention
+            return sorted(qr.OntTerm
+                          for qr in OntTerm.query(search=expression,
+                                                  prefix=prefix, limit=limit))
+
+        return sorted(set(next(OntTerm.query(term=s)).OntTerm
+                          for qr in OntTerm.query(search=expression,
+                                                  prefix=prefix, limit=limit)
+                          for s in chain(OntTerm(qr.iri).synonyms, (qr.label,))
+                          if all(f in s for f in filters)),
+                          key=lambda t:t.label)
+
+    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING',
+                 asTerm=False, asPreferred=False, include_supers=False):
+        """ Retrieve additional metadata for the current term. If None is provided
+            as the first argument the query runs against all predicates defined for
+            each service. """
+        asTerm = asTerm or asPreferred
+        single_out = not predicates and predicate is not None
+        if predicate is None:
+            predicates = self.query.predicates
+        else:
+            predicates = (predicate,) + predicates  # ensure at least one
+
+        results_gen = self.query(iri=self, predicates=predicates, depth=depth,
+                                 direction=direction, include_supers=include_supers)
+        out = {}
+        for result in results_gen:  # FIXME should only be one?!
+            for k, v in result.predicates.items():
+                if not isinstance(v, tuple):
+                    v = v,
+
+                if asTerm:
+                    v = tuple(self.__class__(v) if isinstance(v, OntId) else v for v in v)
+                    if asPreferred:
+                        v = tuple(t.asPreferred() if isinstance(v, self.__class__) else v for t in v)
+
+                if k in out:
+                    out[k] += v
+                else:
+                    out[k] = v
+
+        if not hasattr(self, 'predicates'):
+            self.predicates = {}
+
+        self.predicates.update(out)  # FIXME klobbering issues
+
+        if single_out:
+            if out:
+                p = OntId(predicate).curie  # need to normalize here since we don't above
+                if p in out:  # FIXME rdflib services promiscuously returns predicates
+                    return out[p]
+
+            return tuple()  # more consistent return value so can always iterate
+        else:
+            return out
+
+    @property
+    def type(self):
+        if not hasattr(self, '_type'):
+            try:
+                qr = next(self.query(self.iri))
+                self._type = qr.type
+                self._types = qr.types
+            except StopIteration as e:
+                # FIXME this happens when a term is moved
+                # from one term type to another and its
+                # original source is lost
+                log.warning(f'No results for {self.__class__.__name__}('
+                            f'{self.iri})')
+                self._type = None
+                self._types = tuple()
+
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        self._type = value
+
+    @property
+    def types(self):
+        if not hasattr(self, '_types'):
+            try:
+                qr = next(self.query(self.iri))
+                self._type = qr.type
+                self._types = qr.types
+            except StopIteration as e:
+                # FIXME this happens when a term is moved
+                # from one term type to another and its
+                # original source is lost
+                log.warning(f'No results for {self.__class__.__name__}('
+                            f'{self.iri})')
+                self._type = None
+                self._types = tuple()
+
+        return self._types
+
+    @types.setter
+    def types(self, value):
+        self._types = value
+
+    def __repr__(self):  # TODO fun times here
+        return super().__repr__()
+
+class _OntTerm(OntTerm):
+    """ Old OntTerm implementation """
 
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
                 label=None,
@@ -643,141 +879,6 @@ class OntTerm(InstrumentedIdentifier, OntId):
             self.set_next_repr('curie', 'label')
             raise exc.NoExplicitIdError('Your term does not have a valid identifier.\n'
                                         f'Please replace it with {self!r}')
-
-    def debug(self):
-        """ return debug information """
-        if self._graph:
-            print(self._graph.serialize(format='nifttl').decode())
-
-    def asPreferred(self):
-        """ Return the term attached to its preferred id """
-        if 'TEMP:preferredId' in self.predicates:
-            return self.predicates['TEMP:preferredId'][0].asTerm()
-        elif self.deprecated:
-            rb = self('replacedBy:', as_term=True)
-            if rb:
-                return rb[0]
-        else:
-            return self
-
-    def asId(self):
-        uninst_class = self._uninstrumented_class()
-        return uninst_class(self)
-
-    @property
-    def source(self):
-        """ The service that the term came from.
-            It is not obvious that source is being set from QueryResult.
-            I'm sure there are other issues like this due to the strange
-            interaction between OntTerm and QueryResult. """
-
-        return self._source
-
-    @classmethod
-    def search(cls, expression, prefix=None, filters=tuple(), limit=40):
-        """ Something that actually sort of works """
-        OntTerm = cls
-        if expression is None and prefix is not None:
-            # FIXME bad convention
-            return sorted(qr.OntTerm
-                          for qr in OntTerm.query(search=expression,
-                                                  prefix=prefix, limit=limit))
-
-        return sorted(set(next(OntTerm.query(term=s)).OntTerm
-                          for qr in OntTerm.query(search=expression,
-                                                  prefix=prefix, limit=limit)
-                          for s in chain(OntTerm(qr.iri).synonyms, (qr.label,))
-                          if all(f in s for f in filters)),
-                          key=lambda t:t.label)
-
-    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING',
-                 as_term=False, include_supers=False):
-        """ Retrieve additional metadata for the current term. If None is provided
-            as the first argument the query runs against all predicates defined for
-            each service. """
-        single_out = not predicates and predicate is not None
-        if predicate is None:
-            predicates = self.query.predicates
-        else:
-            predicates = (predicate,) + predicates  # ensure at least one
-
-        results_gen = self.query(iri=self, predicates=predicates, depth=depth,
-                                 direction=direction, include_supers=include_supers)
-        out = {}
-        for result in results_gen:  # FIXME should only be one?!
-            for k, v in result.predicates.items():
-                if not isinstance(v, tuple):
-                    v = v,
-
-                if as_term:
-                    v = tuple(self.__class__(v) if isinstance(v, OntId) else v for v in v)
-
-                if k in out:
-                    out[k] += v
-                else:
-                    out[k] = v
-
-        if not hasattr(self, 'predicates'):
-            self.predicates = {}
-
-        self.predicates.update(out)  # FIXME klobbering issues
-
-        if single_out:
-            if out:
-                p = OntId(predicate).curie  # need to normalize here since we don't above
-                if p in out:  # FIXME rdflib services promiscuously returns predicates
-                    return out[p]
-
-            return tuple()  # more consistent return value so can always iterate
-        else:
-            return out
-
-    @property
-    def type(self):
-        if not hasattr(self, '_type'):
-            try:
-                qr = next(self.query(self.iri))
-                self._type = qr.type
-                self._types = qr.types
-            except StopIteration as e:
-                # FIXME this happens when a term is moved
-                # from one term type to another and its
-                # original source is lost
-                log.warning(f'No results for {self.__class__.__name__}('
-                            f'{self.iri})')
-                self._type = None
-                self._types = tuple()
-
-        return self._type
-
-    @type.setter
-    def type(self, value):
-        self._type = value
-
-    @property
-    def types(self):
-        if not hasattr(self, '_types'):
-            try:
-                qr = next(self.query(self.iri))
-                self._type = qr.type
-                self._types = qr.types
-            except StopIteration as e:
-                # FIXME this happens when a term is moved
-                # from one term type to another and its
-                # original source is lost
-                log.warning(f'No results for {self.__class__.__name__}('
-                            f'{self.iri})')
-                self._type = None
-                self._types = tuple()
-
-        return self._types
-
-    @types.setter
-    def types(self, value):
-        self._types = value
-
-    def __repr__(self):  # TODO fun times here
-        return super().__repr__()
 
 
 class TermRepr(OntTerm):

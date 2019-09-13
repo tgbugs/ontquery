@@ -742,7 +742,11 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             graph = self.Graph().parse(data=ttl, format='turtle')
             self._graph_cache[url] = graph
 
-        ia_iri = isAbout(graph)
+        try:
+            ia_iri = isAbout(graph)
+        except ValueError as e:
+            breakpoint()
+            raise e
         i = OntId(ia_iri)
         if exclude_prefix and i.prefix in exclude_prefix:
             return None
@@ -847,6 +851,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         # graph is already set up...
         # assume that the graph is static for these
         super().setup(**kwargs)
+
+    def debug(self):
+        if self.graph:
+            print(self.graph.serialize(format='nifttl').decode())
 
     @property
     def curies(self):

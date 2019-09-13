@@ -133,12 +133,13 @@ class QueryResult:
             #self.__dict__[k] = v
 
     @property
-    def OntTerm(self):  # FIXME naming
+    def OntTerm(self):  # FIXME naming XXXX deprecate this
         if self.iri is None:
             raise BaseException(f'I can\'t believe you\'ve done this! {self!r}')
-        ot = self._instrumented(iri=self.iri)  # TODO works best with a cache
-        ot._query_result = self
-        return ot
+        return self._instrumented._from_query_result(self)
+
+    def asTerm(self):
+        return self.OntTerm
 
     @property
     def hasOntTerm(self):  # FIXME naming

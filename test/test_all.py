@@ -68,10 +68,10 @@ class TestAll(unittest.TestCase):
         prefix = 'UBERON', 'CHEBI', 'GO'
         query = OntTerm.query_init(*self.query, prefix=prefix)
         result = list(query(term='nucleus'))
-        assert [qr for qr in result if qr.OntTerm.prefix == 'UBERON']
-        assert [qr for qr in result if qr.OntTerm.prefix == 'CHEBI']
-        assert [qr for qr in result if qr.OntTerm.prefix == 'GO']
-        assert not [qr for qr in result if qr.OntTerm.suffix == 'SAO']
+        assert [term for term in result if term.prefix == 'UBERON']
+        assert [term for term in result if term.prefix == 'CHEBI']
+        assert [term for term in result if term.prefix == 'GO']
+        assert not [term for term in result if term.suffix == 'SAO']
 
     def test_category(self):
         class OntTerm(oq.OntTerm):
@@ -81,9 +81,9 @@ class TestAll(unittest.TestCase):
         cat = 'anatomical entity', 'subcellular entity'
         query = OntTerm.query_init(*self.query, category=cat)
         result = list(query(term='nucleus'))
-        assert [qr for qr in result if qr.OntTerm.prefix == 'UBERON']
-        assert [qr for qr in result if qr.OntTerm.prefix == 'GO']
-        assert not [qr for qr in result if qr.OntTerm.suffix == 'CHEBI']
+        assert [term for term in result if term.prefix == 'UBERON']
+        assert [term for term in result if term.prefix == 'GO']
+        assert not [term for term in result if term.suffix == 'CHEBI']
 
     def test_term(self):
         brain = OntTerm('UBERON:0000955')
@@ -91,15 +91,16 @@ class TestAll(unittest.TestCase):
         OntTerm('UBERON:0000955', label='brain')
         OntTerm('NCBITaxon:2', label='Bacteria')
         #OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')  # gone in latest
+
+    def test_term_label_mismatch(self):
         try:
             l = 'not actually the brain'
             t = OntTerm('UBERON:0000955', label=l)
-            from IPython import embed
-            embed()
             assert False, 'should not get here'
         except ValueError:
             assert True, 'expect to fail'
 
+    def test_term_label_mismatch_not_validated(self):
         try:
             OntTerm('UBERON:0000955', label='not actually the brain', validated=False)
             assert False, 'should not get here'
@@ -107,6 +108,7 @@ class TestAll(unittest.TestCase):
             assert True, 'expect to fail'
 
     def test_term_query(self):
+        """ this functionality has been removed these should all return TypeErrors """
         _query = oq.OntTerm.query
         oq.OntTerm.query = self.query
         try:
@@ -120,17 +122,19 @@ class TestAll(unittest.TestCase):
         try:
             OntTerm(label='brain', prefix='UBERON')
             assert False, 'should not get here!'
-        except oq.exceptions.NoExplicitIdError:
+        except TypeError:
             assert True, 'fails as expected'
 
         try:
             OntTerm(label='dorsal plus ventral thalamus')
             assert False, 'should not get here!'
-        except oq.exceptions.NoExplicitIdError:
+        except TypeError:
             assert True, 'fails as expected'
 
+    def test_dont_return_OntTerm_from_query(self):
+        """ no idea why this test is here, but apparently we had a very funny bug at some point in time """
         #t = next(OntTerm.query(term='midbrain reticular nucleus')).OntTerm
-        t = next(OntTerm.query(term='serotonin', prefix='CHEBI')).OntTerm
+        t = next(OntTerm.query(term='serotonin', prefix='CHEBI'))
         assert t != OntTerm
 
     def test_id(self):
@@ -139,11 +143,11 @@ class TestAll(unittest.TestCase):
         oq.OntId(prefix='UBERON', suffix='0000955')
 
     def test_predicates(self):
-        self.query.raw = True
-        pqrl = self.query(iri='UBERON:0000955', predicates=('hasPart:',))
+        #self.query.raw = True
+        pqrl = self.query(iri='UBERON:0000955', predicates=('hasPart:',), raw=True)
         pqr = pqrl[0]
-        self.query.raw = False
-        pt = pqr.OntTerm
+        #self.query.raw = False
+        pt = pqr.asTerm()
         preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
@@ -176,23 +180,25 @@ class TestAll(unittest.TestCase):
         assert isinstance(preds4, tuple)
         assert isinstance(preds5, dict)
 
-    def test_curies(self):
+    def test_a_curies(self):
         oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
         oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
         a = oq.OntCuries['new-prefix']
+        oq.OntId('new-prefix:working')
+
+    def test_b_curie_lookup_fail(self):
         try:
             b = oq.OntCuries['not-a-prefix']
             assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
 
+    def test_c_curie_overwrite_fail(self):
         try:
             oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/fail/'
             assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
-
-        oq.OntId('new-prefix:working')
 
     def test_ontid_curie_uriref(self):
         c = oq.OntId(rdflib.URIRef(oq.OntId('RO:0000087')))
@@ -216,17 +222,17 @@ class TestAll(unittest.TestCase):
         bads = []
         for prefix in 'UBERON', 'FMA':
             gen = oq.OntTerm.query(term='brain', prefix=prefix)
-            bads += [qr for qr in gen if qr.OntTerm.prefix != prefix]
+            bads += [term for term in gen if term.prefix != prefix]
 
         assert not bads, bads
 
     def test_prefixs(self):
         prefixes = ('UBERON', 'BIRNLEX', 'FMA')
         gen = oq.OntTerm.query(term='brain', prefix=prefixes)
-        bads = [qr for qr in gen if qr.OntTerm.prefix not in prefixes]
+        bads = [term for term in gen if term.prefix not in prefixes]
         assert not bads, bads
 
     def test_exclude_prefix(self):
         gen = oq.OntTerm.query(term='brain', exclude_prefix=('FMA',))
-        bads = [qr for qr in gen if qr.OntTerm.prefix == 'FMA']
+        bads = [term for term in gen if term.prefix == 'FMA']
         assert not bads, bads
