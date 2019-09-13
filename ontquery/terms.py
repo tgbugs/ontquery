@@ -507,7 +507,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
         if 'predicates' in kwargs:
             extra_kwargs['predicates'] = kwargs['predicates']
         # can't gurantee that all endpoints work on the expanded iri
-        log.info(repr(self.asId()))
+        #log.info(repr(self.asId()))
         results_gen = self.query(iri=self.iri, curie=self.curie, raw=True, **extra_kwargs)
         i = None
         for i, result in enumerate(results_gen):
