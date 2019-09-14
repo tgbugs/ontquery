@@ -637,10 +637,31 @@ class OntTerm(InstrumentedIdentifier, OntId):
                 if keyword == 'source':  # FIXME the things i do in the name of documentability >_<
                     keyword = '_source'
 
+                if keyword == 'predicates':
+                    value = self._normalize_predicates(value)
+
                 setattr(self, keyword, value)  # TODO value lists...
 
         self.validated = True
         self._query_result = result
+
+    def _normalize_predicates(self, predicates):
+        """ sigh ... too many identifiers in a hierarchy :/ """
+
+        def fix(e):
+            if type(e) == type(self):
+                return e
+            if isinstance(e, InstrumentedIdentifier):
+                log.warning(f'OH NO {e}')
+                return self._instrumented_class()(e)
+            elif isinstance(e, Identifier):
+                log.warning(f'OH NO {e}')
+                return self._uninstrumented_class()(e)
+            else:
+                return e
+
+        return {k:tuple(fix(e) for e in v) if isinstance(v, tuple) else fix(v)
+                for k, v in predicates.items()}
 
     @classmethod
     def _from_query_result(cls, result):
