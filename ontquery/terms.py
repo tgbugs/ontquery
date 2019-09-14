@@ -4,7 +4,7 @@ import copy
 from itertools import chain
 from urllib.parse import quote
 from . import exceptions as exc, trie
-from .utils import cullNone, subclasses, log
+from .utils import cullNone, subclasses, log, SubClassCompare
 from .query import OntQuery
 
 # FIXME ipython notebook?
@@ -155,6 +155,26 @@ class LocalId(Id):
 class Identifier(Id):
     """ any global identifier, manages the local/global transition """
 
+    def __hash__(self):
+        return hash((self.__class__, super().__hash__()))
+
+    def __eq__(self, other):
+        def complex_type_compare(a, b):
+            # if both are instrumed, or both are not instrumed
+            # then proceed to compare
+            aii = isinstance(a, InstrumentedIdentifier)
+            bii = isinstance(b, InstrumentedIdentifier)
+            return aii and bii or (not aii and not bii)  # (not (xor aii bii))
+
+        if type(self) == type(other) or complex_type_compare(self, other):
+            return str(self) == str(other)
+
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     @classmethod
     def query_init(cls, *services, query_class=None, **kwargs):
         if query_class is None:
@@ -185,9 +205,12 @@ class Identifier(Id):
             # will pick OntTerm when instrumenting rather than OrcRecord
 
             candidate = None
-            for sc in subclasses(cls):
+            for sc in subclasses(cls):#sorted(subclasses(cls), key=SubClassCompare):
                 if (issubclass(sc, InstrumentedIdentifier) and
-                    not sc.skip_for_instrumentation):
+                    not sc.skip_for_instrumentation
+                    # note that this will trigger the creation of additional interveneing
+                    # classes, I don't really see a way around this
+                    and sc._uninstrumented_class() is cls):
                     candidate = sc
                 elif issubclass(sc, Identifier):
                     break
@@ -202,11 +225,42 @@ class Identifier(Id):
 
     @classmethod
     def _uninstrumented_class(cls):
+        # FIXME walking back down the hierarchy there can be another instrumented
+        # class that appears first, if this happens (because we didn't explicilty)
+        # subclass the uninstrumented class, then we need to construct a new one
+        # there may be side effects here, but I think they are probably worth the risk
+        # for everything to work as desired, we hvae
         if issubclass(cls, InstrumentedIdentifier): 
-            for candidate in cls.mro():
+            has_intervening_instrumented = False
+            for candidate in sorted(cls.mro(), key=SubClassCompare, reverse=True):
                 if (issubclass(candidate, Identifier) and not
                     issubclass(candidate, InstrumentedIdentifier)):
+                    if has_intervening_instrumented and candidate not in cls.__bases__:
+                        log.warn(f'{cls} has intervening instrumented classes '
+                                 f'between it and its uninstrumented form {candidate}')
+                        @classmethod
+                        def instcf(cls, _instc=cls):
+                            return _instc
+
+                        candidate = type(candidate.__name__ + '_for_' + cls.__name__,
+                                         (candidate,),
+                                         dict(_instrumented_class=instcf))
+
+                        @classmethod
+                        def uinstcf(cls, _uinstc=candidate):
+                            return _uinstc
+
+                        cls.__bases__ += (candidate,)
+                        # XXX WARNING this is a static change
+                        cls._uninstrumented_class = uinstcf
+
                     return candidate
+                elif (issubclass(candidate, InstrumentedIdentifier) and
+                      candidate is not InstrumentedIdentifier and
+                      # InstrumentedIdentifier never actually intervenes
+                      # and if included will cause a TypeError above when we add candidate to bases
+                      candidate is not cls):
+                    has_intervening_instrumented = True
 
             raise TypeError(f'{cls} has no parent that is Uninstrumented')
 
@@ -607,7 +661,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
         if 'TEMP:preferredId' in self.predicates:
             # NOTE having predicates by default is not supported by all remotes
-            term = self.predicates['TEMP:preferredId'][0].asTerm()
+            term = self.predicates['TEMP:preferredId'][0].asTerm()  # FIXME produces wrong instrumented
         elif self.deprecated:
             rb = self('replacedBy:', asTerm=True)
             if rb:
@@ -670,7 +724,6 @@ class OntTerm(InstrumentedIdentifier, OntId):
                 if not isinstance(v, tuple):
                     v = v,
 
-                # FIXME somehow alternate OntTerm implementations are getting pulled in ...
                 if asTerm:
                     v = tuple(self.__class__(v) if not isinstance(v, self.__class__) and isinstance(v, OntId)
                               else v for v in v)
