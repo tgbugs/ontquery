@@ -68,10 +68,9 @@ def test_add_raw_entity():
     }
 
     added_entity_data = ilx_cli.add_raw_entity(entity.copy())
-    print(added_entity_data)
+
     # returned value is not identical to get_entity
     added_entity_data = ilx_cli.get_entity(added_entity_data['ilx'])
-    print(added_entity_data)
 
     assert added_entity_data['label'] == entity['label']
     assert added_entity_data['type'] == entity['type']
@@ -161,7 +160,7 @@ def test_add_raw_entity():
     bad_entity['existing_ids'][0]['iris'] = 'extra_key'
     with pytest.raises(
         ValueError,
-        match=r"Extra keys not recognized in existing_ids for label: " + bad_entity['label']
+        match=f"Extra keys not recognized in existing_ids for label: {bad_entity['label']}"
     ):
         ilx_cli.add_raw_entity(bad_entity)
     bad_entity['existing_ids'][0].pop('iris')
