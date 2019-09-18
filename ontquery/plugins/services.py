@@ -631,7 +631,13 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if self._is_dev_endpoint:
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
         else:
-            res = self._scicrunch_api_query(kwargs, iri, curie, label, term, predicates)
+            res = self._scicrunch_api_query(
+                kwargs=kwargs,
+                iri=iri,
+                curie=curie,
+                label=label,
+                term=term,
+                predicates=predicates)
 
         if res is not None:
             return res
@@ -639,16 +645,14 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             return
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates):
-
         if iri:
-            resps: dict = self.ilx_cli.get_entity(iri, iri_curie = True)
+            resps: dict = self.ilx_cli.get_entity(iri, iri_curie=True)
         elif curie:
-            resps: dict = self.ilx_cli.get_entity(curie, iri_curie = True)
+            resps: dict = self.ilx_cli.get_entity(curie, iri_curie=True)
         elif label:
-            # filters elastic for matches with at least 85% confidence using its label keys
-            resps: list = self.ilx_cli.query_elastic_with_confidence(label, confidence=85, size=10)
+            resps: list = self.ilx_cli.query_elastic(label=label)
         elif term:
-            resps: list = self.ilx_cli.query_elastic_with_confidence(term, confidence=85, size=10)
+            resps: list = self.ilx_cli.query_elastic(term=term)
         else:
             return
 
