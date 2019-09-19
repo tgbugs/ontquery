@@ -236,7 +236,7 @@ class Identifier(Id):
                 if (issubclass(candidate, Identifier) and not
                     issubclass(candidate, InstrumentedIdentifier)):
                     if has_intervening_instrumented and candidate not in cls.__bases__:
-                        log.warn(f'{cls} has intervening instrumented classes '
+                        log.warning(f'{cls} has intervening instrumented classes '
                                  f'between it and its uninstrumented form {candidate}')
                         @classmethod
                         def instcf(cls, _instc=cls):
@@ -569,7 +569,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
                 if result.iri == old_result.iri:
                     i = 0  # if we get the same record from multiple places it is ok
                     if result.curie != old_result.curie:
-                        log.warn('curies do not match between services!'
+                        log.warning('curies do not match between services!'
                                  f'{result.curie} != {old_result.curie}')
                 else:
                     if i == 1:
@@ -591,7 +591,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
         if i is None:
             raise StopIteration
         else:
-            log.warn(f'No results have labels! {old_result.asTerm()!r} {result.asTerm()!r}')
+            log.warning(f'No results have labels! {old_result.asTerm()!r} {result.asTerm()!r}')
             return result
 
     def _bind_query_result(self, result, **kwargs):
@@ -647,15 +647,15 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
     def _normalize_predicates(self, predicates):
         """ sigh ... too many identifiers in a hierarchy :/ """
+        # yay we can remove this by getting rid of uninstrumented
+        # identifiers for normal use entirely
 
         def fix(e):
             if type(e) == type(self):
                 return e
             if isinstance(e, InstrumentedIdentifier):
-                log.warning(f'OH NO {e}')
                 return self._instrumented_class()(e)
             elif isinstance(e, Identifier):
-                log.warning(f'OH NO {e}')
                 return self._uninstrumented_class()(e)
             else:
                 return e
