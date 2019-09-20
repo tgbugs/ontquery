@@ -148,8 +148,9 @@ class TestAll(unittest.TestCase):
         pqr = pqrl[0]
         #self.query.raw = False
         pt = pqr.asTerm()
-        preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
-        preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        preds = OntTerm('UBERON:0000955')('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        #breakpoint()
+        preds1 = pt('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
         t = OntTerm('UBERON:0000955')
         preds3 = t(rdflib.RDFS.subClassOf)

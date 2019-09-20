@@ -64,7 +64,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             scigraph.restService.api_key = self.api_key
 
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
-                                       basePath=self.apiEndpoint)
+                                       basePath=self.apiEndpoint, safe_cache=True)
         self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
                                   basePath=self.apiEndpoint)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
@@ -126,7 +126,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
         else:
-            if inverse:  # it is probably a bad idea to try to be clever here
+            if inverse:  # it is probably a bad idea to try to be clever here AND INDEED IT HAS BEEN
                 predicate = self.inverses[predicate]
 
             _p = (predicate.curie
@@ -140,15 +140,20 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             s, o = o, s
 
         def properPredicate(e):
-            p = self.OntId(e['pred']) if ':' in e['pred'] else e['pred']
-            if inverse:
-                p = self.inverses[p]
+            if ':' in e['pred']:
+                p = self.OntId(e['pred'])
+                if inverse:  # FIXME p == predicate ? no it is worse ...
+                    p = self.inverses[p]
+
+                p = p.curie
+            else:
+                p = e['pred']
 
             return p
 
         if depth > 1:
             #subjects = set(subject.curie)
-            seen = {(predicate.curie if isinstance(predicate, self.OntId) else predicate,
+            seen = {((predicate.curie if isinstance(predicate, self.OntId) else predicate),
                      subject.curie)}
             for i, e in enumerate(self.sgg.ordered(subject.curie, edges, inverse=inverse)):
                 if [v for k, v in e.items() if k != 'meta' and v.startswith('_:')]:
@@ -220,17 +225,27 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                               limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
         predicates = tuple(self.OntId(p)
-                           if not isinstance(p, self.OntId) and ':' in p
+                           if ((not isinstance(p, self.OntId) and ':' in p) or
+                               # having multiple OntId types was a mistake
+                               isinstance(p, OntId) or type(p) != str)
                            else p for p in predicates)
+
         if identifiers:
             identifier = self.OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
+            # WARNING
+            # if results are cached then the mutation we do below
+            # mutates the cache and makes things into OntIds when
+            # other parts of the code expects strings
+            # this is fixed in scigraph client
             if result is None:
                 return
 
+            out_predicates = []
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 short = None
                 for predicate in predicates:
+                    ptest = predicate.curie if isinstance(predicate, self.OntId) else predicate
                     if (hasattr(predicate, 'prefix') and
                         predicate.prefix in ('owl', 'rdfs')):
                         unshorten = predicate
@@ -238,6 +253,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                     else:
                         unshorten = None
 
+                    log.debug(predicate)
                     values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth,
                                                            direction=direction, entail=entail,
                                                            include_supers=include_supers)))
@@ -248,12 +264,13 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                         for pred, pvalues in bunched.items():
                             # I think this is the right place to unshorten
                             # I don't think we have any inverses that require unshortning
-                            if pred == predicate:
+                            if pred == ptest:
                                 if unshorten is not None:
                                     short = predicate
                                     predicate = unshorten
                                     pred = predicate
 
+                            out_predicates.append(pred)
                             result[pred] = tuple(pvalues)
 
                     if predicate in self.inverses:
@@ -281,6 +298,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                     result[pred] += fv
                                 else:
                                     result[pred] = tuple(ipvalues)
+                                    out_predicates.append(pred)
 
             res = self.sgg.getNode(identifier)
             types = tuple()
@@ -313,12 +331,22 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         # TODO transform result to expected
         count = 0
+        def derp(ps):
+            for p in ps:
+                if hasattr(p, 'curie'):
+                    if p.curie:
+                        yield p.curie
+                    else:
+                        yield str(p)
+                else:
+                    yield p
+            
         for result in results:
             if not include_deprecated and result['deprecated'] and not identifiers:
                 continue
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
-            predicate_results = {predicate.curie if ':' in predicate else predicate:result[predicate]  # FIXME hack
-                                 for predicate in predicates  # TODO depth=1 means go ahead and retrieve?
+            predicate_results = {predicate:result[predicate]  # FIXME hack
+                                 for predicate in derp(out_predicates)  # TODO depth=1 means go ahead and retrieve?
                                  if predicate in result}  # FIXME hasheqv on OntId
             # print(red.format('PR:'), predicate_results, result)
             yield self.QueryResult(
