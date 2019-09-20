@@ -193,7 +193,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         prefix = one_or_many(prefix)
         category = one_or_many(category)
 
-        if prefix and [p for p in prefix if p not in self.curies]:
+        bads = [p for p in prefix if p not in self.curies]
+        if prefix and bads:
             raise ValueError(f'None of {bads} in {self.__class__.__name__}.prefixes')
 
         if category and [c for c in category if c not in self.categories]:

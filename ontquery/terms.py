@@ -591,7 +591,15 @@ class OntTerm(InstrumentedIdentifier, OntId):
         if i is None:
             raise StopIteration
         else:
-            log.warning(f'No results have labels! {old_result.asTerm()!r} {result.asTerm()!r}')
+            skip = ('owl:Thing', 'owl:Class', 'ilxtr:materialEntity',
+                    'ilxtr:cell', 'ilxtr:gene')
+
+            if result.curie not in skip:
+                # FIXME why are we repeatedly constructing
+                # owl:Thing and friends?
+                log.warning('No results have labels! '
+                            f'{old_result.asTerm()!r} '
+                            f'{result.asTerm()!r}')
             return result
 
     def _bind_query_result(self, result, **kwargs):

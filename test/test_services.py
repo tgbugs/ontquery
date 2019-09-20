@@ -128,6 +128,13 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
         t = self.OntTerm('UBERON:0000955')
         t('hasPart:', depth=2)
 
+    def test_query_bad_prefix(self):
+        try:
+            term = next(self.OntTerm.query(label='brain', prefix='notaprefix'))
+            raise AssertionError(f'should fail {t!r}')
+        except ValueError as e:
+            pass
+
 
 class TestRdflib(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('rdflib')(test_graph)
