@@ -1,7 +1,7 @@
 import os
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
-from ontquery.utils import cullNone, one_or_many, log, bunch
+from ontquery.utils import cullNone, one_or_many, log, bunch, red
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 
@@ -194,6 +194,27 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
               include_deprecated=False, include_supers=False,
               predicates=tuple(), depth=1,
               direction='OUTGOING', entail=True, limit=10):
+        # BEWARE THE MADNESS THAT LURKS WITHIN
+        def herp(p):
+            if hasattr(p, 'curie'):
+                return self.OntId(p)
+            elif ':' in p:
+                return self.OntId(p)
+            elif type(p) == str:
+                return p
+            else:
+                raise TypeError(f'wat {type(p)} {p}')
+
+        def derp(ps):
+            for p in ps:
+                if hasattr(p, 'curie'):
+                    if p.curie:
+                        yield p.curie
+                    else:
+                        yield str(p)
+                else:
+                    yield p
+
         # use explicit keyword arguments to dispatch on type
         prefix = one_or_many(prefix)
         category = one_or_many(category)
@@ -224,12 +245,9 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                               category=category,
                               limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
-        predicates = tuple(self.OntId(p)
-                           if ((not isinstance(p, self.OntId) and ':' in p) or
-                               # having multiple OntId types was a mistake
-                               isinstance(p, OntId) or type(p) != str)
-                           else p for p in predicates)
+        predicates = tuple(herp(p) for p in predicates)
 
+        out_predicates = []
         if identifiers:
             identifier = self.OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
@@ -241,19 +259,19 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             if result is None:
                 return
 
-            out_predicates = []
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
                 short = None
                 for predicate in predicates:
-                    ptest = predicate.curie if isinstance(predicate, self.OntId) else predicate
                     if (hasattr(predicate, 'prefix') and
                         predicate.prefix in ('owl', 'rdfs')):
-                        unshorten = predicate
+                        unshorten = next(derp([predicate]))
                         predicate = predicate.suffix
                     else:
                         unshorten = None
 
-                    log.debug(predicate)
+                    ptest = predicate.curie if isinstance(predicate, self.OntId) else predicate
+
+                    #log.debug(repr(predicate))
                     values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth,
                                                            direction=direction, entail=entail,
                                                            include_supers=include_supers)))
@@ -331,16 +349,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
         # TODO transform result to expected
         count = 0
-        def derp(ps):
-            for p in ps:
-                if hasattr(p, 'curie'):
-                    if p.curie:
-                        yield p.curie
-                    else:
-                        yield str(p)
-                else:
-                    yield p
-            
         for result in results:
             if not include_deprecated and result['deprecated'] and not identifiers:
                 continue
@@ -348,7 +356,8 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             predicate_results = {predicate:result[predicate]  # FIXME hack
                                  for predicate in derp(out_predicates)  # TODO depth=1 means go ahead and retrieve?
                                  if predicate in result}  # FIXME hasheqv on OntId
-            # print(red.format('PR:'), predicate_results, result)
+
+            #print(red.format('PR:'), pprint.pformat(predicate_results), pprint.pformat(result))
             yield self.QueryResult(
                 query_args={**search_expressions,
                             **qualifiers,

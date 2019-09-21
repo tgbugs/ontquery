@@ -1,5 +1,6 @@
 import os
 import unittest
+import pytest
 import rdflib
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
@@ -20,8 +21,7 @@ oq.utils.log.setLevel('DEBUG')
 class OntTerm(oq.OntTerm):
     """ Test subclassing """
 
-
-class TestAll(unittest.TestCase):
+class SetupHelper:
     def setUp(self):
         #self.query = oq.OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as oq?
         #bs = oq.BasicService()  # TODO
@@ -44,6 +44,69 @@ class TestAll(unittest.TestCase):
         oq.OntTerm.query_init(*services)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
+
+class TestPredicates(SetupHelper, unittest.TestCase):
+    def test_predicates_inverse(self):
+        t = OntTerm('UBERON:0000955')
+        o = t('hasPart:')
+        assert o, 'should have had a result ...'
+
+    def test_predicates_inverse_cli(self):
+        t = self.query(iri='UBERON:0000955', predicates=('hasPart:',))[0]
+        assert 'hasPart:' in t.predicates, 'should have had results'
+        assert t.predicates['hasPart:'], 'should have had values if key'
+
+    def test_predicates_sco_cli(self):
+        t = self.query(iri='UBERON:0000955', predicates=('subClassOf',))[0]
+        assert 'subClassOf' in t.predicates, 'should have had results'
+        assert t.predicates['subClassOf'], 'should have had values if key'
+
+    def test_predicates_rdfssco_cli(self):
+        t = self.query(iri='UBERON:0000955', predicates=('rdfs:subClassOf',))[0]
+        assert 'rdfs:subClassOf' in t.predicates, 'should have had results'
+        assert t.predicates['rdfs:subClassOf'], 'should have had values if key'
+
+    def test_predicates(self):
+        #self.query.raw = True
+        pqrl = self.query(iri='UBERON:0000955', predicates=('hasPart:',), raw=True)
+        pqr = pqrl[0]
+        #self.query.raw = False
+        pt = pqr.asTerm()
+        preds = OntTerm('UBERON:0000955')('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        #breakpoint()
+        preds1 = pt('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
+        t = OntTerm('UBERON:0000955')
+        preds3 = t(rdflib.RDFS.subClassOf)
+        preds4 = t('rdfs:subClassOf')
+        t2 = OntTerm('UBERON:0000955', predicates=(rdflib.RDFS.subClassOf,))
+        preds5 = t2.predicates
+
+        print(preds)
+        print(t.source)
+        print(preds2)
+        print(preds3)
+        print(preds4)
+        print(preds5)
+        test_preds = [pqr.predicates,
+                      preds,
+                      preds1,
+                      preds2,
+                      preds3,
+                      preds4]
+        bads = [(i - 1, p) for i, p in enumerate(test_preds) if not p]
+        assert not bads, bads
+
+        assert isinstance(pqr.predicates, dict)
+        assert isinstance(preds, dict)
+        assert isinstance(preds1, dict)
+        assert isinstance(preds2, tuple)
+        assert isinstance(preds3, tuple)
+        assert isinstance(preds4, tuple)
+        assert isinstance(preds5, dict)
+
+
+class TestAll(SetupHelper, unittest.TestCase):
     def test_query(self):
         self.query('brain')
         self.query(term='brain')
@@ -141,45 +204,6 @@ class TestAll(unittest.TestCase):
         oq.OntId('UBERON:0000955')
         oq.OntId('http://purl.obolibrary.org/obo/UBERON_0000955')
         oq.OntId(prefix='UBERON', suffix='0000955')
-
-    def test_predicates(self):
-        #self.query.raw = True
-        pqrl = self.query(iri='UBERON:0000955', predicates=('hasPart:',), raw=True)
-        pqr = pqrl[0]
-        #self.query.raw = False
-        pt = pqr.asTerm()
-        preds = OntTerm('UBERON:0000955')('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
-        #breakpoint()
-        preds1 = pt('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
-        preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
-        t = OntTerm('UBERON:0000955')
-        preds3 = t(rdflib.RDFS.subClassOf)
-        preds4 = t('rdfs:subClassOf')
-        t2 = OntTerm('UBERON:0000955', predicates=(rdflib.RDFS.subClassOf,))
-        preds5 = t2.predicates
-
-        print(preds)
-        print(t.source)
-        print(preds2)
-        print(preds3)
-        print(preds4)
-        print(preds5)
-        test_preds = [pqr.predicates,
-                      preds,
-                      preds1,
-                      preds2,
-                      preds3,
-                      preds4]
-        bads = [(i - 1, p) for i, p in enumerate(test_preds) if not p]
-        assert not bads, bads
-
-        assert isinstance(pqr.predicates, dict)
-        assert isinstance(preds, dict)
-        assert isinstance(preds1, dict)
-        assert isinstance(preds2, tuple)
-        assert isinstance(preds3, tuple)
-        assert isinstance(preds4, tuple)
-        assert isinstance(preds5, dict)
 
     def test_a_curies(self):
         oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
