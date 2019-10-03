@@ -904,7 +904,15 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def predicates(self):
         yield from sorted(set(self.graph.predicates()))
 
-    def by_ident(self, iri, curie, kwargs):
+    def by_ident(self, iri, curie, kwargs, predicates=tuple(), depth=1):
+        def append_preds(out, c, o):
+            if c not in out['predicates']:
+                out['predicates'][c] = o  # curie to be consistent with OntTerm behavior
+            elif isinstance(out['predicates'][c], str):
+                out['predicates'][c] = out['predicates'][c], o
+            else:
+                out['predicates'][c] += o,
+
         out = {'predicates':{}}
         identifier = self.OntId(curie=curie, iri=iri)
         gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
@@ -941,6 +949,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
                 owlClass = True  # FIXME ...
 
+            elif p == rdflib.RDFS.subClassOf:
+                owlClass = True
+
             if p == owl.deprecated and o:
                 out['deprecated'] = True
 
@@ -952,15 +963,26 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     # FIXME these OntIds also do not derive from rdflib... sigh
 
                 c = self.OntId(p).curie
-                if c not in out['predicates']:
-                    out['predicates'][c] = o  # curie to be consistent with OntTerm behavior
-                elif isinstance(out['predicates'][c], str):
-                    out['predicates'][c] = out['predicates'][c], o
-                else:
-                    out['predicates'][c] += o,
+                append_preds(out, c, o)
+
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
-                out[pn] = o  # FIXME kobbering?
+                c = pn
+                out[c] = o  # FIXME kobbering?
+
+            if p in predicates and depth:
+                # FIXME traverse restrictions on transitive properties
+                # to match scigraph behavior
+                try:
+                    spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1))
+                    log.debug(f'{spout}')
+                    _objs = spout.predicates[c]
+                    objs = _objs if isinstance(_objs, tuple) else (_objs,)
+                    for _o in objs:
+                        append_preds(out, c, _o)
+
+                except StopIteration:
+                    pass
 
         if o is not None and owlClass is not None:
             # if you yield here you have to yield from below
@@ -973,8 +995,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         except KeyError:
             return None
 
-    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
-              search=None, prefix=tuple(), exclude_prefix=tuple(), all_classes=False, **kwargs):
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
+              search=None, prefix=tuple(), exclude_prefix=tuple(), all_classes=False,
+              depth=1, **kwargs):
         if (prefix is not None and
             prefix is not _empty_tuple and
             all(a is None for a in (iri, curie, label, term))):
@@ -998,6 +1021,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         kwargs['iri'] = iri
         kwargs['label'] = label
         kwargs['term'] = term
+        kwargs['depth'] = depth
+        kwargs['predicates'] = predicates
 
         #kwargs['term'] = term
         #kwargs['search'] = search
@@ -1005,9 +1030,13 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         if all_classes:
             for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
                 if isinstance(iri, rdflib.URIRef):  # no BNodes
-                    yield from self.by_ident(iri, None, kwargs)  # actually query is done here
+                    yield from self.by_ident(iri, None, kwargs,  # actually query is done here
+                                             predicates=predicates,
+                                             depth=depth - 1)
         elif iri is not None or curie is not None:
-            yield from self.by_ident(iri, curie, kwargs)
+            yield from self.by_ident(iri, curie, kwargs,
+                                     predicates=predicates,
+                                     depth=depth - 1)
         elif search is not None:  # prevent search + prefix from behaving like prefix alone
             return
         else:

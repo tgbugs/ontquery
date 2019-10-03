@@ -722,7 +722,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
         OntTerm = cls
         if expression is None and prefix is not None:
             # FIXME bad convention
-            return sorted(qr.OntTerm
+            return sorted(qr
                           for qr in OntTerm.query(search=expression,
                                                   prefix=prefix, limit=limit))
 
