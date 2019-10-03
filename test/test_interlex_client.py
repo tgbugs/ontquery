@@ -6,6 +6,8 @@ from ontquery.plugins.services import InterLexRemote
 import ontquery as oq
 import string
 
+TEST_PREFIX = 'tmp'  # sigh
+
 def test_api_key():
     ilxremote = InterLexRemote(apiEndpoint='https://test.scicrunch.org/api/1/')
     ilxremote.setup(instrumented=oq.OntTerm)
@@ -31,10 +33,10 @@ def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 @pytest.mark.parametrize("test_input, expected", [
-    ("ILX:123", 'ilx_123'),
-    ("ilx_123", 'ilx_123'),
-    ("TMP:123", 'tmp_123'),
-    ("tmp_123", 'tmp_123'),
+    ('ILX:123', 'ilx_123'),
+    ('ilx_123', 'ilx_123'),
+    ('TMP:123', f'{TEST_PREFIX}_123'),
+    (f'{TEST_PREFIX}_123', f'{TEST_PREFIX}_123'),
 ])
 def test_fix_ilx(test_input, expected):
     assert ilx_cli.fix_ilx(test_input) == expected
@@ -49,7 +51,7 @@ def test_add_raw_entity():
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
         'superclass': {
-            'ilx_id': 'tmp_0108124', # ILX ID for Organ
+            'ilx_id': f'{TEST_PREFIX}_0108124', # ILX ID for Organ
         },
         'synonyms': [
             {
@@ -125,7 +127,7 @@ def test_add_raw_entity():
     ):
         ilx_cli.add_raw_entity(bad_entity)
     bad_entity = entity.copy()
-    bad_entity['superclass']['ilx_id'] = 'tmp_0108124'
+    bad_entity['superclass']['ilx_id'] = f'{TEST_PREFIX}_0108124'
 
     # Invalid synonyms -> literal not found
     bad_entity['synonyms'][0]['literals'] = bad_entity['synonyms'][0].pop('literal')
@@ -175,7 +177,7 @@ def test_add_annotation():
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
         'superclass': {
-            'ilx_id': 'tmp_0108124', # ILX ID for Organ
+            'ilx_id': f'{TEST_PREFIX}_0108124', # ILX ID for Organ
         },
         'synonyms': [
             {
@@ -195,7 +197,7 @@ def test_add_annotation():
     added_entity_data = ilx_cli.add_raw_entity(entity.copy())
 
     annotation = {
-        'term_ilx_id': 'tmp_0101431', # brain ILX ID
+        'term_ilx_id': f'{TEST_PREFIX}_0101431', # brain ILX ID
         'annotation_type_ilx_id': added_entity_data['ilx'], # hasDbXref ILX ID
         'annotation_value': 'test_annotation_value',
     }
@@ -240,10 +242,10 @@ def test_add_entity():
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
         #'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-        'superclass': 'http://uri.interlex.org/base/tmp_0108124', # ILX ID for Organ
+        'superclass': f'http://uri.interlex.org/base/{TEST_PREFIX}_0108124', # ILX ID for Organ
         'synonyms': ['Encephalon', 'Cerebro'],
         # 'predicates': {
-        #     'http://uri.interlex.org/base/tmp_0381624': 'sample_value' # hasDbXref beta ID
+        #     f'http://uri.interlex.org/base/{TEST_PREFIX}_0381624': 'sample_value' # hasDbXref beta ID
         # }
     }
     added_entity_data = ilx_cli.add_entity(**entity.copy())
@@ -297,13 +299,13 @@ def test_update_entity():
 
     label = 'Brain'
     type = 'fde'
-    superclass = 'tmp_0108124'
+    superclass = f'{TEST_PREFIX}_0108124'
     definition = rando_str()
     comment = rando_str()
     synonym = rando_str()
 
     update_entity_data = {
-        'ilx_id': 'tmp_0101431',
+        'ilx_id': f'{TEST_PREFIX}_0101431',
         'label': label,
         'definition': definition,
         'type': type,
@@ -328,14 +330,14 @@ def test_update_entity():
 def test_annotation():
     annotation_value = 'test_' + id_generator()
     resp = ilx_cli.add_annotation(**{
-        'term_ilx_id': 'tmp_0101431', # brain ILX ID
-        'annotation_type_ilx_id': 'tmp_0112771', # spont firing ILX ID
+        'term_ilx_id': f'{TEST_PREFIX}_0101431', # brain ILX ID
+        'annotation_type_ilx_id': f'{TEST_PREFIX}_0112771', # spont firing ILX ID
         'annotation_value': annotation_value,
     })
     assert resp['value'] == annotation_value
     resp = ilx_cli.delete_annotation(**{
-        'term_ilx_id': 'tmp_0101431', # brain ILX ID
-        'annotation_type_ilx_id': 'tmp_0112771', # spont firing ILX ID
+        'term_ilx_id': f'{TEST_PREFIX}_0101431', # brain ILX ID
+        'annotation_type_ilx_id': f'{TEST_PREFIX}_0112771', # spont firing ILX ID
         'annotation_value': annotation_value,
     })
     # If there is a response than it means it worked. If you try this again it will 404 if my net
@@ -352,8 +354,8 @@ def test_relationship():
     })
 
     entity1_ilx = entity_resp['ilx']
-    relationship_ilx = 'tmp_0112785' # is part of ILX ID
-    entity2_ilx = 'tmp_0100001' #1,2-Dibromo chemical ILX ID
+    relationship_ilx = f'{TEST_PREFIX}_0112785' # is part of ILX ID
+    entity2_ilx = f'{TEST_PREFIX}_0100001' #1,2-Dibromo chemical ILX ID
 
     relationship_resp = ilx_cli.add_relationship(**{
         'entity1_ilx': entity1_ilx,
@@ -387,11 +389,11 @@ def test_entity_remote():
         'definition': 'Part of the central nervous system',
         'comment': 'Cannot live without it',
         # 'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-        'subThingOf': 'http://uri.interlex.org/base/tmp_0108124', # ILX ID for Organ
+        'subThingOf': f'http://uri.interlex.org/base/{TEST_PREFIX}_0108124', # ILX ID for Organ
         'synonyms': ['Encephalon', 'Cerebro'],
         'predicates': {
-            'http://uri.interlex.org/base/tmp_0112771': 'sample_value', # spont firing beta ID | annotation
-            'http://uri.interlex.org/base/tmp_0112785': 'http://uri.interlex.org/base/tmp_0100001', # relationship
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value', # spont firing beta ID | annotation
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112785': f'http://uri.interlex.org/base/{TEST_PREFIX}_0100001', # relationship
         }
     }
     ilxremote_resp = ilxremote.add_entity(**entity)
@@ -408,9 +410,9 @@ def test_entity_remote():
     assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
 
     assert added_annotation['value'] == 'sample_value'
-    assert added_annotation['annotation_term_ilx'] == 'tmp_0112771'
-    assert added_relationship['relationship_term_ilx'] == 'tmp_0112785'
-    assert added_relationship['term2_ilx'] == 'tmp_0100001'
+    assert added_annotation['annotation_term_ilx'] == f'{TEST_PREFIX}_0112771'
+    assert added_relationship['relationship_term_ilx'] == f'{TEST_PREFIX}_0112785'
+    assert added_relationship['term2_ilx'] == f'{TEST_PREFIX}_0100001'
 
     entity = {
         'ilx_id': ilxremote_resp['curie'],
@@ -418,19 +420,19 @@ def test_entity_remote():
         # 'type': 'term', # broken at the moment NEEDS PDE HARDCODED
         'definition': 'Updated definition!',
         'comment': 'Cannot live without it UPDATE',
-        'subThingOf': 'http://uri.interlex.org/base/tmp_0108124', # ILX ID for Organ
+        'subThingOf': f'http://uri.interlex.org/base/{TEST_PREFIX}_0108124', # ILX ID for Organ
         'synonyms': ['Encephalon', 'Cerebro_update'],
         'predicates_to_add': {
             # DUPCLICATE CHECK
-            'http://uri.interlex.org/base/tmp_0112771': 'sample_value', # spont firing beta ID | annotation
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value', # spont firing beta ID | annotation
             # NEW VALUES
-            'http://uri.interlex.org/base/tmp_0112771': 'sample_value2', # spont firing beta ID | annotation
-            'http://uri.interlex.org/base/tmp_0112785': 'http://uri.interlex.org/base/tmp_0100000', # relationship
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value2', # spont firing beta ID | annotation
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112785': f'http://uri.interlex.org/base/{TEST_PREFIX}_0100000', # relationship
         },
         'predicates_to_delete': {
             # DELETE ORIGINAL
-            'http://uri.interlex.org/base/tmp_0112771': 'sample_value', # spont firing beta ID | annotation
-            'http://uri.interlex.org/base/tmp_0112785': 'http://uri.interlex.org/base/tmp_0100001', # relationship
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value', # spont firing beta ID | annotation
+            f'http://uri.interlex.org/base/{TEST_PREFIX}_0112785': f'http://uri.interlex.org/base/{TEST_PREFIX}_0100001', # relationship
         }
     }
     ilxremote_resp = ilxremote.update_entity(**entity)
@@ -448,8 +450,8 @@ def test_entity_remote():
 
     assert len(added_annotations) == 1
     assert len(added_relationships) == 1
-    assert added_annotations[0]['annotation_term_ilx'] == 'tmp_0112771'
+    assert added_annotations[0]['annotation_term_ilx'] == f'{TEST_PREFIX}_0112771'
     assert added_annotations[0]['value'] == 'sample_value2'
     # would check term1_ilx, but whoever made it forgot to make it a key...
-    assert added_relationships[0]['relationship_term_ilx'] == 'tmp_0112785'
-    assert added_relationships[0]['term2_ilx'] == 'tmp_0100000'
+    assert added_relationships[0]['relationship_term_ilx'] == f'{TEST_PREFIX}_0112785'
+    assert added_relationships[0]['term2_ilx'] == f'{TEST_PREFIX}_0100000'
