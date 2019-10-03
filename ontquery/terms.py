@@ -568,9 +568,13 @@ class OntTerm(InstrumentedIdentifier, OntId):
             if i > 0:
                 if result.iri == old_result.iri:
                     i = 0  # if we get the same record from multiple places it is ok
-                    if result.curie != old_result.curie:
+                    if result.curie is None:
+                        log.warning(f'No curie for {result.iri} from {result.source}')
+                    elif old_result.curie is None:
+                        pass  # already warned
+                    elif result.curie != old_result.curie:
                         log.warning('curies do not match between services!'
-                                 f'{result.curie} != {old_result.curie}')
+                                    f'{result.curie} != {old_result.curie}')
                 else:
                     if i == 1:
                         log.info(repr(old_result.asTerm()))

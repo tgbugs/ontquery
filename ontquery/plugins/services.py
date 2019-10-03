@@ -364,7 +364,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                             **identifiers,
                             'predicates':predicates},
                 iri=result['iri'],
-                curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
+                curie=result['curie'] if 'curie' in result else None,
                 label=ni(result['labels']),
                 labels=result['labels'],
                 definition=ni(result['definitions']),
@@ -710,7 +710,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def _is_dev_endpoint(self):
         return bool(self.port)
 
-    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
               prefix=tuple(), exclude_prefix=tuple(), **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
