@@ -976,10 +976,11 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 try:
                     spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1))
                     log.debug(f'{spout}')
-                    _objs = spout.predicates[c]
-                    objs = _objs if isinstance(_objs, tuple) else (_objs,)
-                    for _o in objs:
-                        append_preds(out, c, _o)
+                    if c in spout.predicates:
+                        _objs = spout.predicates[c]
+                        objs = _objs if isinstance(_objs, tuple) else (_objs,)
+                        for _o in objs:
+                            append_preds(out, c, _o)
 
                 except StopIteration:
                     pass
