@@ -21,6 +21,15 @@ def makeSimpleLogger(name, level=logging.INFO):
 log = makeSimpleLogger('ontquery')
 
 
+__logged = set()
+def _already_logged(thing):
+    case = thing in __logged
+    if not case:
+        __logged.add(thing)
+
+    return case
+
+
 def subclasses(start, done=None):
     if done is None:
         done = set()

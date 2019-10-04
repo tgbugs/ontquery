@@ -4,7 +4,7 @@ import copy
 from itertools import chain
 from urllib.parse import quote
 from . import exceptions as exc, trie
-from .utils import cullNone, subclasses, log, SubClassCompare
+from .utils import cullNone, subclasses, log, SubClassCompare, _already_logged
 from .query import OntQuery
 
 # FIXME ipython notebook?
@@ -601,9 +601,11 @@ class OntTerm(InstrumentedIdentifier, OntId):
             if result.curie not in skip:
                 # FIXME why are we repeatedly constructing
                 # owl:Thing and friends?
-                log.warning('No results have labels! '
-                            f'{old_result.asTerm()!r} '
-                            f'{result.asTerm()!r}')
+                if not _already_logged(result.curie):
+                    log.warning('No results have labels! '
+                                f'{old_result.asTerm()!r} '
+                                f'{result.asTerm()!r}')
+
             return result
 
     def _bind_query_result(self, result, **kwargs):
@@ -625,7 +627,9 @@ class OntTerm(InstrumentedIdentifier, OntId):
                     if hasattr(result.source, '_remote_curies'):
                         ov = self._uninstrumented_class()(orig_value)
                         if ov.prefix not in result.source._remote_curies:
-                            log.info(f'curie prefix {ov.prefix} not in remote curies')
+                            if not _already_logged((ov.prefix, result.source)):
+                                log.info(f'curie prefix {ov.prefix} not in remote curies for {result.source}')
+
                             return
 
                     raise ValueError(f'value {keyword}={orig_value!r} '
