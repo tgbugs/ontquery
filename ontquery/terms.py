@@ -722,7 +722,10 @@ class OntTerm(InstrumentedIdentifier, OntId):
             I'm sure there are other issues like this due to the strange
             interaction between OntTerm and QueryResult. """
 
-        return self._source
+        if hasattr(self, '_source'):
+            # TODO consider logging a warning if no _source?
+            # and not validated?
+            return self._source
 
     @classmethod
     def search(cls, expression, prefix=None, filters=tuple(), limit=40):
