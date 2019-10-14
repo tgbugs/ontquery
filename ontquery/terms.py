@@ -287,6 +287,7 @@ class InstrumentedIdentifier(Identifier):
 
 class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     _namespaces = OntCuries  # overwrite when subclassing to switch curies...
+    _valid_repr_args = ('curie', 'iri', 'prefix', 'suffix')
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
                       ('iri',))
@@ -421,6 +422,14 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         return inst_class(self)
 
     @classmethod
+    def set_repr_args(cls, *args):
+        bads = [arg for arg in args if arg not in cls._valid_repr_args]
+        if bads:
+            raise ValueError(f'{bads} are not valid repr args for {cls}')
+        else:
+            cls.repr_args = args
+
+    @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             setattr(cls, f'_{cls.__name__}__repr_level', 0)
@@ -518,6 +527,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
 class OntTerm(InstrumentedIdentifier, OntId):
     # TODO need a nice way to pass in the ontology query interface to the class at run time to enable dynamic repr if all information did not come back at the same time
+    _valid_repr_args = OntId._valid_repr_args + ('label', 'synonyms', 'definition')
     repr_arg_order = (('curie', 'label', 'synonyms', 'definition'),
                       ('curie', 'label', 'synonyms'),
                       ('curie', 'label'),
