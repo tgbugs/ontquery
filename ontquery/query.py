@@ -43,6 +43,10 @@ class OntQuery:
         # FIXME dupes
         self._services = services + self._services
 
+    def radd(self, *services):
+        """ add low priority services """
+        # FIXME dupes
+        self._services = self._services + services
 
     def setup(self):
         for service in self.services:
