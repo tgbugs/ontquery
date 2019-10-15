@@ -59,6 +59,10 @@ class OntCuries(metaclass=dictclass):
         return cls._dict
 
     @classmethod
+    def reset(cls):
+        delattr(cls, '_dict')
+
+    @classmethod
     def new(cls):
         # FIXME yet another pattern that I don't like :/
         clsdict = dict(_dict={},
