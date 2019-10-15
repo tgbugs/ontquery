@@ -699,6 +699,19 @@ class OntTerm(InstrumentedIdentifier, OntId):
         self._bind_query_result(result)
         return self
 
+    def fetch(self, *service_names):  # TODO
+        """ immediately fetch the current term """
+
+    def fetch_with(self, query=None):  # TODO
+        """ add to a future bulk fetch """
+        # depending on the nature of the services for the fetcher
+        # and which ones are selected we can optimize to either
+        # send a bunch of queries at the same time if the remote
+        # side of the service doesn't support what we want, OR
+        # we can send a bulk query all at once, dealing with the
+        # rankings is a bit of a pain though
+        query.add_to_bulk_fetch(self)
+
     def debug(self):
         """ return debug information """
         if self._graph:
