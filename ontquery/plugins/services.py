@@ -5,6 +5,8 @@ from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone, one_or_many, log
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
+from typing import List, Dict
+
 
 try:
     from pyontutils import scigraph
@@ -345,6 +347,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
 
+        if not apiEndpoint:
+            apiEndpoint = self.defaultEndpoint
+
         if 'test' in apiEndpoint:
             self.api_key = os.environ.get('INTERLEX_API_KEY_TEST', os.environ.get('SCICRUNCH_API_KEY_TEST', None))
         else:
@@ -497,8 +502,16 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
                       definition: str=None, synonyms=tuple(), comment: str=None,
-                      predicates_to_add: dict=None, predicates_to_delete: dict=None):
+                      predicates_to_add: dict=None, add_existing_ids: List[dict]=None,
+                      delete_existing_ids: List[dict]=None, predicates_to_delete: dict=None):
+        """Update existing entity.
 
+        :param List[dict] add_existing_ids: iris and curies to be added to entity.
+        :param List[dict] delete_existing_ids: iris and curies to be deleted from entity.
+
+        >>>update_entity(add_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+        >>>update_entity(delete_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+        """
         resp = self.ilx_cli.update_entity(
             ilx_id = ilx_id,
             label = label,
@@ -507,6 +520,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             definition = definition,
             comment = comment,
             synonyms = synonyms,
+            add_existing_ids = add_existing_ids,
+            delete_existing_ids = delete_existing_ids,
             # predicates = tresp,
         )
 
@@ -616,7 +631,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return bool(self.port)
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
-              prefix=tuple(), exclude_prefix=tuple(), **_):
+              prefix=tuple(), exclude_prefix=tuple(), limit=None, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
             oiri = OntId(iri=iri)
@@ -637,22 +652,23 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 curie=curie,
                 label=label,
                 term=term,
-                predicates=predicates)
+                predicates=predicates,
+                limit=limit)
 
         if res is not None:
             return res
         else:
             return
 
-    def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates):
+    def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates, limit):
         if iri:
             resps: dict = self.ilx_cli.get_entity(iri, iri_curie=True)
         elif curie:
             resps: dict = self.ilx_cli.get_entity(curie, iri_curie=True)
         elif label:
-            resps: list = self.ilx_cli.query_elastic(label=label)
+            resps: list = self.ilx_cli.query_elastic(label=label, size=limit)
         elif term:
-            resps: list = self.ilx_cli.query_elastic(term=term)
+            resps: list = self.ilx_cli.query_elastic_with_confidence(term=term, size=limit)
         else:
             return
 
