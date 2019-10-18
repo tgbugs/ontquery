@@ -1,6 +1,6 @@
 import json
 import os
-from typing import Union, List
+from typing import Union, List, Tuple, Dict
 from elasticsearch import Elasticsearch
 from fuzzywuzzy import fuzz
 import requests
@@ -34,7 +34,10 @@ class InterLexClient:
         """The entity listed does not exist!"""
 
     class AlreadyExistsError(Error):
-        """The entity listed already exists!"""
+        """The entity or entity's meta listed already exists!"""
+
+    class DoesntExistError(Error):
+        """The entity or entity's meta you want to update doesn't exist!"""
 
     class BadResponseError(Error):
         """Response did not return a 200s status."""
@@ -65,6 +68,7 @@ class InterLexClient:
 
         :param str base_url: . Defaults to default_base_url.
         """
+        print(base_url, 'here')
         self.base_url = base_url
         self.api_key = os.environ.get(
             'INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
@@ -125,7 +129,7 @@ class InterLexClient:
         :rtype: dict
         """
         if params:
-            params = {k:v for k, v in params.items() if k != 'api_key'}
+            params = {k:v for k, v in params.items() if k != 'key'}
         try:
             output = response.json()
         except json.JSONDecodeError:  # Server is having a bad day and crashed.
@@ -157,12 +161,17 @@ class InterLexClient:
         """Get Requests tailored for SciCrunch database response.
 
         :param str url: Any scicrunch API get endpoint url.
-        :param dict params: API endpoint needs/options. Defaults to {}.
+        :param dict params: API endpoint needs/options. Defaults to None.
         :return: Entity dict or list of Entity dicts.
         :rtype: Union[list, dict]
         """
+        if not params: params = {}
         # TODO: need to deal with _kwargs. bad practice
         auth = auth if auth else self._kwargs.get('auth')
+        params = {
+            **params,
+            'api_key': self.api_key,
+        }
         response = requests.get(
             url,
             headers={'Content-type': 'application/json'},
@@ -182,7 +191,7 @@ class InterLexClient:
         :rtype: Union[list, dict]
         """
         data.update({
-            'key': self.api_key,
+            'api_key': self.api_key,
         })
         response = requests.post(
             url,
@@ -340,7 +349,8 @@ class InterLexClient:
             url = self.base_url + 'term/elastic/search'
             params = {
                 'term': term,
-                'key': self.api_key,
+                'size': '10',
+                'from': '0',
                 **kwargs,
             }
             hits = self.get(
@@ -359,10 +369,7 @@ class InterLexClient:
 
     def crude_search_scicrunch_via_label(self, label: str) -> dict:
         """Server returns anything that is simlar in any catagory."""
-        url = self.base_url + 'term/search/{term}?key={api_key}'.format(
-            term=label,
-            api_key=self.api_key,
-        )
+        url = self.base_url + 'term/search/{term}'.format(term=label)
         return self.get(url)
 
     def query_elastic_with_confidence(self,
@@ -452,8 +459,14 @@ class InterLexClient:
         url = self.base_url + f"ilx/search/identifier/{ilx_id}"
         resp = self.get(
             url,
-            params={'key': self.api_key}
         )
+        # BUG: created terms in test env over api will be ilx output
+        # instead of tmp_ fragment
+        if ilx_id.startswith('tmp_') and resp['id'] == None:
+            url = self.base_url + f"ilx/search/identifier/{ilx_id.replace('tmp_', 'ilx_')}"
+            resp = self.get(
+                url,
+            )
         # work around for ontquery.utils.QueryResult input
         if iri_curie:
             resp['iri'] = 'http://uri.interlex.org/base/' + resp['ilx']
@@ -689,6 +702,75 @@ class InterLexClient:
 
         return output
 
+    def fix_existing_ids_preferred(self,
+                                   existing_ids: List[dict],
+                                   ranking: list = None) -> List[dict]:
+        """Give value 1 to top preferred existing id; 0 otherwise.
+
+        Will using the ranking list to score each existing id curie prefix
+        and will sort top preferred to the top. Top will get preferred = 1,
+        the rest will get 0.
+
+        :param List[dict] existing_ids: entities existing ids.
+        :param list ranking: custom ranking for existing ids. Default: None
+        :return: entity existing ids preferred field fixed based on ranking.
+        """
+        ranked_existing_ids: List[Tuple(int, dict)] = []
+        sorted_ranked_existing_ids: List[Tuple(int, dict)] = []
+        preferred_fixed_existing_ids: List[dict] = []
+
+        if not ranking:
+            ranking = [
+                    'CHEBI',
+                    'NCBITaxon',
+                    'COGPO',
+                    'CAO',
+                    'DICOM',
+                    'UBERON',
+                    'FMA',
+                    'NLX',
+                    'NLXANAT',
+                    'NLXCELL',
+                    'NLXFUNC',
+                    'NLXINV',
+                    'NLXORG',
+                    'NLXRES',
+                    'NLXSUB'
+                    'BIRNLEX',
+                    'SAO',
+                    'NDA.CDE',
+                    'PR',
+                    'IAO',
+                    'NIFEXT',
+                    'OEN',
+                    'ILX',
+            ]
+        # will always be larger than last index :)
+        default_rank = len(ranking)
+        # prefix to rank mapping
+        # dict allows us to reasign ranking if we can't get it.
+        ranking = {prefix.upper():ranking.index(prefix) for prefix in ranking}
+
+        # using ranking on curie prefix to get rank
+        for ex_id in existing_ids:
+            prefix = ex_id['curie'].split(':')[0]
+            rank = ranking[prefix] if ranking.get(prefix) else default_rank
+            ranked_existing_ids.append((rank, ex_id))
+
+        # sort existing_id curie prefixes ASC using ranking as a reference
+        sorted_ranked_existing_ids = sorted(ranked_existing_ids, key=lambda x: x[0])
+
+        # update preferred to proper ranking and append to new list
+        for i, rank_ex_id in enumerate(sorted_ranked_existing_ids):
+            rank, ex_id = rank_ex_id
+            if i == 0:
+                ex_id['preferred'] = 1
+            else:
+                ex_id['preferred'] = 0
+            preferred_fixed_existing_ids.append(ex_id)
+
+        return preferred_fixed_existing_ids
+
     def update_entity(
             self,
             ilx_id: str,
@@ -697,7 +779,9 @@ class InterLexClient:
             definition: str = None,
             comment: str = None,
             superclass: str = None,
-            synonyms: list = None) -> dict:
+            synonyms: list = None,
+            add_existing_ids: List[dict] = None,
+            delete_existing_ids: List[dict] = None,) -> dict:
         """ Updates pre-existing entity as long as the api_key is from the account that created it
 
             Args:
@@ -744,6 +828,9 @@ class InterLexClient:
         if superclass:
             existing_entity['superclass'] = {'ilx_id': superclass}
             existing_entity = self.process_superclass(existing_entity)
+        # superclass bug, needs superclass_tid only
+        elif existing_entity['superclasses']:
+            existing_entity['superclasses'] = [{'superclass_tid': existing_entity['superclasses'][0]['id']}]
 
         # If a match use old data, else append new synonym
         if synonyms:
@@ -758,6 +845,51 @@ class InterLexClient:
                     else:
                         new_existing_synonyms.append(existing_synonym)
                 existing_entity['synonyms'] = new_existing_synonyms
+
+        if add_existing_ids:
+            for r in add_existing_ids:
+                if not r.get('curie'):
+                    raise self.MissingKeyError('curie')
+                if not r.get('iri'):
+                    raise self.MissingKeyError('iri')
+                if not r.get('preferred'):
+                    raise self.MissingKeyError('preferred')
+                if set(r.keys()) - {'curie', 'iri', 'preferred'}:
+                    raise self.IncorrectKeyError(f"{set(r.keys()) - {'curie', 'iri', 'preferred'}}")
+            clean = lambda s: s.strip().lower()
+            curies_to_add = {clean(r['curie']) for r in add_existing_ids}
+            iris_to_add = {clean(r['iri']) for r in add_existing_ids}
+            curies_existing = {clean(r['curie']) for r in existing_entity['existing_ids']}
+            iris_existing = {clean(r['iri']) for r in existing_entity['existing_ids']}
+            if curies_to_add & curies_existing:
+                raise self.AlreadyExistsError(f'{curies_existing - curies_to_add}')
+            if iris_to_add & iris_existing:
+                raise self.AlreadyExistsError(f'{iris_existing - iris_to_add}')
+            existing_entity['existing_ids'].extend(add_existing_ids)
+
+        if delete_existing_ids:
+            for r in delete_existing_ids:
+                if not r.get('curie'):
+                    raise self.MissingKeyError('curie')
+                if not r.get('iri'):
+                    raise self.MissingKeyError('iri')
+                if set(r.keys()) - {'curie', 'iri'}:
+                    raise self.IncorrectKeyError(f"{set(r.keys()) - {'curie', 'iri'}}")
+            clean = lambda s: s.strip().lower()
+            curies_to_delete = {clean(r['curie']) for r in delete_existing_ids}
+            iris_to_delete = {clean(r['iri']) for r in delete_existing_ids}
+            curies_existing = {clean(r['curie']) for r in existing_entity['existing_ids']}
+            iris_existing = {clean(r['iri']) for r in existing_entity['existing_ids']}
+            if not (curies_to_delete & curies_existing):
+                raise self.DoesntExistError(f'{curies_to_delete - curies_existing}')
+            if not (iris_to_delete & iris_existing):
+                raise self.DoesntExistError(f'{iris_to_delete - iris_existing}')
+            delete_ex_indx = {r['iri']:r['curie'] for r in delete_existing_ids}
+            existing_entity['existing_ids'] = self.fix_existing_ids_preferred([
+                existing_id
+                for existing_id in existing_entity['existing_ids']
+                if delete_ex_indx.get(existing_id['iri']) != existing_id['curie']
+            ])
 
         # Just in case I need this...
         # if synonyms_to_delete:
@@ -801,6 +933,8 @@ class InterLexClient:
                                       for syn in raw_entity_outout['synonyms']]
             elif key == 'ilx_id':
                 pass
+            elif key == 'add_existing_ids' or key == 'delete_existing_ids':
+                pass
             else:
                 entity_output[key] = str(raw_entity_outout[key])
 
@@ -813,10 +947,7 @@ class InterLexClient:
 
     def get_annotation_via_tid(self, tid: str) -> dict:
         """ Gets annotation via anchored entity id """
-        url = self.base_url + 'term/get-annotations/{tid}?key={api_key}'.format(
-            tid=tid,
-            api_key=self.api_key,
-        )
+        url = self.base_url + f'term/get-annotations/{tid}'
         return self.get(url)
 
     def add_annotation(
@@ -940,10 +1071,7 @@ class InterLexClient:
         return output
 
     def get_relationship_via_tid(self, tid: str) -> dict:
-        url = self.base_url + 'term/get-relationships/{tid}?key={api_key}'.format(
-            tid=tid,
-            api_key=self.api_key,
-        )
+        url = self.base_url + f'term/get-relationships/{tid}'
         return self.get(url)
 
     def add_relationship(
