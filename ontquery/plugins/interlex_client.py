@@ -69,6 +69,11 @@ class InterLexClient:
         self.base_url = base_url
         self.api_key = os.environ.get(
             'INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
+
+        if self.api_key is None:
+            # we don't error here because API keys are not required for viewing
+            log.warning('You have not set an API key for the SciCrunch API!')
+
         self._kwargs = {}
         if 'test' in base_url:
             auth = os.environ.get('SCICRUNCH_TEST_U'), os.environ.get(
@@ -81,9 +86,6 @@ class InterLexClient:
                     'export SCICRUNCH_TEST_U=put_user_here\n'
                     'export SCICRUNCH_TEST_P=put_password_here'
                 )
-            self.api_key = os.environ.get(
-                'INTERLEX_API_KEY_TEST', os.environ.get(
-                    'SCICRUNCH_API_KEY_TEST', None))
             if not self.api_key:
                 raise self.IncorrectAPIKeyError(
                     'TEST api_key not found. Please go to '

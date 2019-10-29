@@ -447,18 +447,6 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
 
-        if not apiEndpoint:
-            apiEndpoint = self.defaultEndpoint
-
-        if 'test' in apiEndpoint:
-            self.api_key = os.environ.get('INTERLEX_API_KEY_TEST', os.environ.get('SCICRUNCH_API_KEY_TEST', None))
-        else:
-            self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
-
-        if self.api_key is None and apiEndpoint == self.defaultEndpoint:
-            # we don't error here because API keys are not required for viewing
-            log.warning('You have not set an API key for the SciCrunch API!')
-
         self.apiEndpoint = apiEndpoint
 
         try:
@@ -487,13 +475,14 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def setup(self, **kwargs):
         OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
 
-        if self.api_key is not None and self.apiEndpoint is not None:
+        if self.apiEndpoint is not None:
             self.ilx_cli = InterLexClient(base_url=self.apiEndpoint)
-        elif not self.readonly:
-            # expect attribute errors for ilx_cli
 
-            log.warning('You have not set an API key for the SciCrunch API! '
-                        'InterLexRemote will error if you try to use it.')
+            if not self.readonly and self.ilx_cli.api_key is None:
+                # expect attribute errors for ilx_cli
+
+                log.warning('You have not set an API key for the SciCrunch API! '
+                            'InterLexRemote will error if you try to use it.')
 
         super().setup(**kwargs)
 
@@ -730,7 +719,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def _is_dev_endpoint(self):
         return bool(self.port)
 
-    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
               prefix=tuple(), exclude_prefix=tuple(), limit=10, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
@@ -745,6 +734,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         if self._is_dev_endpoint:
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+            if res is not None:
+                yield res
         else:
             res = self._scicrunch_api_query(
                 kwargs=kwargs,
@@ -755,10 +746,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 predicates=predicates,
                 limit=limit)
 
-        if res is not None:
-            return res
-        else:
-            return
+            yield from res
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates, limit):
         if iri:
