@@ -11,12 +11,13 @@ import string
 API_BASE = 'https://test3.scicrunch.org/api/1/'
 TEST_PREFIX = 'tmp' # sigh
 TEST_TERM_ID = f'{TEST_PREFIX}_0738406'
+TEST_TERM2_ID = f'{TEST_PREFIX}_0738409'
 TEST_SUPERCLASS_ID = f'{TEST_PREFIX}_0738397'
 TEST_ANNOTATION_ID = f'{TEST_PREFIX}_0738407'
 TEST_RELATIONSHIP_ID = f'{TEST_PREFIX}_0738408'
 
 
-def test_api_key(self):
+def test_api_key():
     ilxremote = InterLexRemote(apiEndpoint=API_BASE)
     ilxremote.setup(instrumented=oq.OntTerm)
     ilx_cli = ilxremote.ilx_cli
@@ -349,7 +350,7 @@ class Test(unittest.TestCase):
 
     def test_update_entity(self):
 
-        def rando_str(self):
+        def rando_str():
             return 'test_' + id_generator(size=12)
 
         entity = {
@@ -475,47 +476,46 @@ class Test(unittest.TestCase):
         assert added_relationship['relationship_term_ilx'] == TEST_RELATIONSHIP_ID
         assert added_relationship['term2_ilx'] == TEST_TERM_ID
 
-        # entity = {
-        #     'ilx_id': ilxremote_resp['curie'],
-        #     'label': random_label + '_update',
-        #     # 'type': 'term', # broken at the moment NEEDS PDE HARDCODED
-        #     'definition': 'Updated definition!',
-        #     'comment': 'Cannot live without it UPDATE',
-        #     'subThingOf': 'http://uri.interlex.org/base/'+TEST_TERM_ID, # ILX ID for Organ
-        #     'synonyms': ['Encephalon', 'Cerebro_update'],
-        #     'predicates_to_add': {
-        #         # DUPCLICATE CHECK
-        #         'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
-        #         # NEW VALUES
-        #         'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value2', # spont firing beta ID | annotation
-        #         'http://uri.interlex.org/base/'+TEST_RELATIONSHIP_ID: 'http://uri.interlex.org/base/'+'' # relationship
-        #     },
-        #     'predicates_to_delete': {
-        #         # DELETE ORIGINAL
-        #         'http://uri.interlex.org/base/tmp_0112771': 'sample_value', # spont firing beta ID | annotation
-        #         'http://uri.interlex.org/base/tmp_0112785': 'http://uri.interlex.org/base/tmp_0100001', # relationship
-        #     }
-        # }
-        # ilxremote_resp = ilxremote.update_entity(**entity)
-        # added_entity_data = ilx_cli.get_entity(ilxremote_resp['curie'])
-        # added_annotations = ilx_cli.get_annotation_via_tid(added_entity_data['id'])
-        # added_relationships = ilx_cli.get_relationship_via_tid(added_entity_data['id'])
-        #
-        # assert ilxremote_resp['label'] == entity['label']
-        # # assert ilxremote_resp['type'] == entity['type']
-        # assert ilxremote_resp['definition'] == entity['definition']
-        # # assert ilxremote_resp['comment'] == entity['comment']
-        # # assert ilxremote_resp['superclass'] == entity['superclass']
-        # assert ilxremote_resp['synonyms'][0] == entity['synonyms'][0]
-        # assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
-        #
-        # assert len(added_annotations) == 1
-        # assert len(added_relationships) == 1
-        # assert added_annotations[0]['annotation_term_ilx'] == TEST_ANNOTATION_ID
-        # assert added_annotations[0]['value'] == 'sample_value2'
-        # # would check term1_ilx, but whoever made it forgot to make it a key...
-        # assert added_relationships[0]['relationship_term_ilx'] == TEST_RELATIONSHIP_ID
-        # assert added_relationships[0]['term2_ilx'] == TEST_TERM_ID
+        entity = {
+            'ilx_id': ilxremote_resp['curie'],
+            'label': random_label + '_update',
+            # 'type': 'term', # broken at the moment NEEDS PDE HARDCODED
+            'definition': 'Updated definition!',
+            'comment': 'Cannot live without it UPDATE',
+            'subThingOf': 'http://uri.interlex.org/base/'+TEST_TERM_ID, # ILX ID for Organ
+            'synonyms': ['Encephalon', 'Cerebro_update'],
+            'predicates_to_add': {
+                # DUPCLICATE CHECK
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value2', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_RELATIONSHIP_ID: 'http://uri.interlex.org/base/'+TEST_TERM2_ID # relationship
+            },
+            'predicates_to_delete': {
+                # DELETE ORIGINAL
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_RELATIONSHIP_ID: 'http://uri.interlex.org/base/'+TEST_TERM2_ID, # relationship
+            }
+        }
+        ilxremote_resp = ilxremote.update_entity(**entity)
+        added_entity_data = ilx_cli.get_entity(ilxremote_resp['curie'])
+        added_annotations = ilx_cli.get_annotation_via_tid(added_entity_data['id'])
+        added_relationships = ilx_cli.get_relationship_via_tid(added_entity_data['id'])
+
+        assert ilxremote_resp['label'] == entity['label']
+        # assert ilxremote_resp['type'] == entity['type']
+        assert ilxremote_resp['definition'] == entity['definition']
+        # assert ilxremote_resp['comment'] == entity['comment']
+        # assert ilxremote_resp['superclass'] == entity['superclass']
+        assert ilxremote_resp['synonyms'][0] == entity['synonyms'][0]
+        assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
+
+        assert len(added_annotations) == 1
+        assert len(added_relationships) == 1
+        assert added_annotations[0]['annotation_term_ilx'] == TEST_ANNOTATION_ID
+        assert added_annotations[0]['value'] == 'sample_value2'
+        # would check term1_ilx, but whoever made it forgot to make it a key...
+        assert added_relationships[0]['relationship_term_ilx'] == TEST_RELATIONSHIP_ID
+        assert added_relationships[0]['term2_ilx'] == TEST_TERM_ID
 
 
 def main(self):
