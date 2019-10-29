@@ -4,7 +4,7 @@ import copy
 from itertools import chain
 from urllib.parse import quote
 from . import exceptions as exc, trie
-from .utils import cullNone, subclasses, log
+from .utils import cullNone, subclasses, log, SubClassCompare, _already_logged
 from .query import OntQuery
 
 # FIXME ipython notebook?
@@ -59,6 +59,10 @@ class OntCuries(metaclass=dictclass):
         return cls._dict
 
     @classmethod
+    def reset(cls):
+        delattr(cls, '_dict')
+
+    @classmethod
     def new(cls):
         # FIXME yet another pattern that I don't like :/
         clsdict = dict(_dict={},
@@ -95,6 +99,8 @@ class OntCuries(metaclass=dictclass):
         # TODO cache the output mapping?
         try:
             namespace, suffix = trie.split_uri(iri)
+            if namespace.endswith('://'):
+                raise ValueError(f'Bad namespace {namespace}')
         except ValueError as e:
             try:
                 namespace = str(iri)
@@ -153,6 +159,26 @@ class LocalId(Id):
 class Identifier(Id):
     """ any global identifier, manages the local/global transition """
 
+    def __hash__(self):
+        return hash((self.__class__, super().__hash__()))
+
+    def __eq__(self, other):
+        def complex_type_compare(a, b):
+            # if both are instrumed, or both are not instrumed
+            # then proceed to compare
+            aii = isinstance(a, InstrumentedIdentifier)
+            bii = isinstance(b, InstrumentedIdentifier)
+            return aii and bii or (not aii and not bii)  # (not (xor aii bii))
+
+        if type(self) == type(other) or complex_type_compare(self, other):
+            return str(self) == str(other)
+
+        else:
+            return False
+
+    def __ne__(self, other):
+        return not self.__eq__(other)
+
     @classmethod
     def query_init(cls, *services, query_class=None, **kwargs):
         if query_class is None:
@@ -183,9 +209,12 @@ class Identifier(Id):
             # will pick OntTerm when instrumenting rather than OrcRecord
 
             candidate = None
-            for sc in subclasses(cls):
+            for sc in subclasses(cls):#sorted(subclasses(cls), key=SubClassCompare):
                 if (issubclass(sc, InstrumentedIdentifier) and
-                    not sc.skip_for_instrumentation):
+                    not sc.skip_for_instrumentation
+                    # note that this will trigger the creation of additional interveneing
+                    # classes, I don't really see a way around this
+                    and sc._uninstrumented_class() is cls):
                     candidate = sc
                 elif issubclass(sc, Identifier):
                     break
@@ -200,11 +229,42 @@ class Identifier(Id):
 
     @classmethod
     def _uninstrumented_class(cls):
+        # FIXME walking back down the hierarchy there can be another instrumented
+        # class that appears first, if this happens (because we didn't explicilty)
+        # subclass the uninstrumented class, then we need to construct a new one
+        # there may be side effects here, but I think they are probably worth the risk
+        # for everything to work as desired, we hvae
         if issubclass(cls, InstrumentedIdentifier): 
-            for candidate in cls.mro():
+            has_intervening_instrumented = False
+            for candidate in sorted(cls.mro(), key=SubClassCompare, reverse=True):
                 if (issubclass(candidate, Identifier) and not
                     issubclass(candidate, InstrumentedIdentifier)):
+                    if has_intervening_instrumented and candidate not in cls.__bases__:
+                        log.warning(f'{cls} has intervening instrumented classes '
+                                 f'between it and its uninstrumented form {candidate}')
+                        @classmethod
+                        def instcf(cls, _instc=cls):
+                            return _instc
+
+                        candidate = type(candidate.__name__ + '_for_' + cls.__name__,
+                                         (candidate,),
+                                         dict(_instrumented_class=instcf))
+
+                        @classmethod
+                        def uinstcf(cls, _uinstc=candidate):
+                            return _uinstc
+
+                        cls.__bases__ += (candidate,)
+                        # XXX WARNING this is a static change
+                        cls._uninstrumented_class = uinstcf
+
                     return candidate
+                elif (issubclass(candidate, InstrumentedIdentifier) and
+                      candidate is not InstrumentedIdentifier and
+                      # InstrumentedIdentifier never actually intervenes
+                      # and if included will cause a TypeError above when we add candidate to bases
+                      candidate is not cls):
+                    has_intervening_instrumented = True
 
             raise TypeError(f'{cls} has no parent that is Uninstrumented')
 
@@ -231,6 +291,7 @@ class InstrumentedIdentifier(Identifier):
 
 class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     _namespaces = OntCuries  # overwrite when subclassing to switch curies...
+    _valid_repr_args = ('curie', 'iri', 'prefix', 'suffix')
     repr_arg_order = (('curie',),
                       ('prefix', 'suffix'),
                       ('iri',))
@@ -244,6 +305,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
         if type(curie_or_iri) == cls:
             return curie_or_iri
+        elif isinstance(curie_or_iri, cls):
+            return cls(str(curie_or_iri))
 
         if not hasattr(cls, f'_{cls.__name__}__repr_level'):
             cls.__repr_level = 0
@@ -284,9 +347,13 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         unique_iris = set(i for i in iris if i is not None)
 
         if len(unique_iris) > 1:
+            breakpoint()
             raise ValueError(f'All ways of constructing iris not match! {sorted(unique_iris)}')
         else:
-            iri = next(iter(unique_iris))
+            try:
+                iri = next(iter(unique_iris))
+            except StopIteration as e:
+                raise TypeError('No identifier was provided!') from e
 
         if iri is not None:
             # normalization step in case there is a longer prefix match
@@ -299,7 +366,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
             #if prefix and prefix_i != prefix:
                 #print('Curie changed!', prefix + ':' + suffix, '->', curie_i)
             prefix, suffix = prefix_i, suffix_i
-            if suffix is not None and not suffix.startswith('//') and curie_i == iri:
+            if ((suffix is not None and not suffix.startswith('//') and curie_i == iri)
+                or (suffix is None and '://' not in iri and curie_i == iri)):
                 raise ValueError(f'You have provided a curie {curie_i} as an iri!')
 
         if prefix is not None and (' ' in prefix or ' ' in suffix):
@@ -353,10 +421,17 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
     def quoted(self):
         return quote(self.iri, safe=tuple())
 
-    @property
     def asTerm(self):
         inst_class = self._instrumented_class()
         return inst_class(self)
+
+    @classmethod
+    def set_repr_args(cls, *args):
+        bads = [arg for arg in args if arg not in cls._valid_repr_args]
+        if bads:
+            raise ValueError(f'{bads} are not valid repr args for {cls}')
+        else:
+            cls.repr_args = args
 
     @classmethod
     def repr_level(cls, verbose=True):  # FIXMe naming
@@ -378,7 +453,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
     @classmethod
     def reset_repr_args(cls):
-        if cls._oneshot_old_repr_args is not None:
+        if hasattr(cls, '_oneshot_old_repr_args') and cls._oneshot_old_repr_args is not None:
             cls.repr_args = cls._oneshot_old_repr_args
             cls._oneshot_old_repr_args = None
 
@@ -456,6 +531,7 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
 
 class OntTerm(InstrumentedIdentifier, OntId):
     # TODO need a nice way to pass in the ontology query interface to the class at run time to enable dynamic repr if all information did not come back at the same time
+    _valid_repr_args = OntId._valid_repr_args + ('label', 'synonyms', 'definition')
     repr_arg_order = (('curie', 'label', 'synonyms', 'definition'),
                       ('curie', 'label', 'synonyms'),
                       ('curie', 'label'),
@@ -468,6 +544,328 @@ class OntTerm(InstrumentedIdentifier, OntId):
     _cache = {}
 
     #__firsts = 'curie', 'iri'
+
+    def __new__(cls, curie_or_iri=None, prefix=None, suffix=None, curie=None,
+                iri=None, **kwargs):
+        self = super().__new__(cls,
+                               curie_or_iri=curie_or_iri,
+                               prefix=prefix,
+                               suffix=suffix,
+                               curie=curie,
+                               iri=iri,
+                               **kwargs)
+        kwargs['iri'] = self.iri
+        kwargs['curie'] = self.curie
+        self._bind_result(**kwargs)
+        return self
+
+    def __init__(self, *args, **kwargs):
+        pass
+
+    def _bind_result(self, **kwargs):
+        try:
+            result = self._get_query_result(**kwargs)
+            self._bind_query_result(result, **kwargs)
+        except StopIteration:
+            self.validated = False
+            self.label = None  # the label attr should always be present even on failure
+
+    def _get_query_result(self, **kwargs):
+        extra_kwargs = {}
+        if 'predicates' in kwargs:
+            extra_kwargs['predicates'] = kwargs['predicates']
+        # can't gurantee that all endpoints work on the expanded iri
+        #log.info(repr(self.asId()))
+        results_gen = self.query(iri=self.iri, curie=self.curie, raw=True, **extra_kwargs)
+        i = None
+        for i, result in enumerate(results_gen):
+            if i > 0:
+                if result.iri == old_result.iri:
+                    i = 0  # if we get the same record from multiple places it is ok
+                    if result.curie is None:
+                        log.warning(f'No curie for {result.iri} from {result.source}')
+                    elif old_result.curie is None:
+                        pass  # already warned
+                    elif result.curie != old_result.curie:
+                        log.warning('curies do not match between services!'
+                                    f'{result.curie} != {old_result.curie}')
+                else:
+                    if i == 1:
+                        log.info(repr(old_result.asTerm()))
+                        #log.info(repr(TermRepr(**old_result)) + '\n')
+
+                    log.info(repr(result.asTerm()))
+                    #log.info(repr(TermRepr(**result)) + '\n')
+                    continue
+
+                # TODO merge from multiple goes here?
+
+            if i == 0:
+                old_result = result
+
+            if result.label:  # FIXME first label
+                return result
+
+        if i is None:
+            raise StopIteration
+        else:
+            skip = ('owl:Thing', 'owl:Class', 'ilxtr:materialEntity',
+                    'ilxtr:cell', 'ilxtr:gene')
+
+            if result.curie not in skip:
+                # FIXME why are we repeatedly constructing
+                # owl:Thing and friends?
+                if not _already_logged(result.curie):
+                    log.warning('No results have labels! '
+                                f'{old_result.asTerm()!r} '
+                                f'{result.asTerm()!r}')
+
+            return result
+
+    def _bind_query_result(self, result, **kwargs):
+        def validate(keyword, value):
+            # TODO open vs closed world
+            orig_value = kwargs.get(keyword, None)
+            empty_iterable = hasattr(orig_value, '__iter__') and not orig_value
+            if ((orig_value is not None and not empty_iterable)
+                and value is not None and orig_value != value):
+                if str(orig_value) == value:
+                    pass  # rdflib.URIRef(a) != Literl(a) != a so we have to convert
+                elif (keyword == 'label' and
+                      (orig_value in result['labels'] or
+                       orig_value.lower() == value.lower())):
+                    pass
+                elif keyword == 'predicates':
+                    pass  # query will not match result
+                elif keyword == 'curie':
+                    if hasattr(result.source, '_remote_curies'):
+                        ov = self._uninstrumented_class()(orig_value)
+                        if ov.prefix not in result.source._remote_curies:
+                            if not _already_logged((ov.prefix, result.source)):
+                                log.info(f'curie prefix {ov.prefix} not in remote curies for {result.source}')
+
+                            return
+
+                    raise ValueError(f'value {keyword}={orig_value!r} '
+                                     f'does not match {keyword}={result[keyword]!r}')
+
+                else:
+                    self.__class__.repr_args = 'curie', keyword
+                    if 'validated' in kwargs and kwargs['validated'] == False:
+                        raise ValueError(f'Unvalidated value {keyword}={orig_value!r} '
+                                         f'does not match {keyword}={result[keyword]!r}')
+                    else:
+                        raise ValueError(f'value {keyword}={orig_value!r} '
+                                         f'does not match {keyword}={result[keyword]!r}')
+
+            elif orig_value is None and value is None:
+                pass
+
+        for keyword, value in result.items():
+            validate(keyword, value)
+            if keyword not in self._firsts:  # already managed by OntId
+                if keyword == 'source':  # FIXME the things i do in the name of documentability >_<
+                    keyword = '_source'
+
+                if keyword == 'predicates':
+                    value = self._normalize_predicates(value)
+
+                setattr(self, keyword, value)  # TODO value lists...
+
+        self.validated = True
+        self._query_result = result
+
+    def _normalize_predicates(self, predicates):
+        """ sigh ... too many identifiers in a hierarchy :/ """
+        # yay we can remove this by getting rid of uninstrumented
+        # identifiers for normal use entirely
+
+        def fix(e):
+            if type(e) == type(self):
+                return e
+            if isinstance(e, InstrumentedIdentifier):
+                return self._instrumented_class()(e)
+            elif isinstance(e, Identifier):
+                return self._uninstrumented_class()(e)
+            else:
+                return e
+
+        return {k:tuple(fix(e) for e in v) if isinstance(v, tuple) else fix(v)
+                for k, v in predicates.items()}
+
+    @classmethod
+    def _from_query_result(cls, result):
+        self = super().__new__(cls, **result)
+        self._bind_query_result(result)
+        return self
+
+    def fetch(self, *service_names):  # TODO
+        """ immediately fetch the current term """
+
+    def fetch_with(self, query=None):  # TODO
+        """ add to a future bulk fetch """
+        # depending on the nature of the services for the fetcher
+        # and which ones are selected we can optimize to either
+        # send a bunch of queries at the same time if the remote
+        # side of the service doesn't support what we want, OR
+        # we can send a bulk query all at once, dealing with the
+        # rankings is a bit of a pain though
+        query.add_to_bulk_fetch(self)
+
+    def debug(self):
+        """ return debug information """
+        if self._graph:
+            print(self._graph.serialize(format='nifttl').decode())
+
+    def asPreferred(self):
+        """ Return the term attached to its preferred id """
+        if not self.validated:
+            # FIXME sort of a nullability issue
+            return self
+
+        if 'TEMP:preferredId' in self.predicates:
+            # NOTE having predicates by default is not supported by all remotes
+            term = self.predicates['TEMP:preferredId'][0].asTerm()  # FIXME produces wrong instrumented
+        elif self.deprecated:
+            rb = self('replacedBy:', asTerm=True)
+            if rb:
+                term = rb[0]
+        else:
+            term = self
+
+        if term != self:
+            term._original_term = self  # FIXME naming for prov ...
+
+        return term
+
+    def asId(self):
+        uninst_class = self._uninstrumented_class()
+        return uninst_class(self)
+
+    @property
+    def source(self):
+        """ The service that the term came from.
+            It is not obvious that source is being set from QueryResult.
+            I'm sure there are other issues like this due to the strange
+            interaction between OntTerm and QueryResult. """
+
+        if hasattr(self, '_source'):
+            # TODO consider logging a warning if no _source?
+            # and not validated?
+            return self._source
+
+    @classmethod
+    def search(cls, expression, prefix=None, filters=tuple(), limit=40):
+        """ Something that actually sort of works """
+        OntTerm = cls
+        if expression is None and prefix is not None:
+            # FIXME bad convention
+            return sorted(qr
+                          for qr in OntTerm.query(search=expression,
+                                                  prefix=prefix, limit=limit))
+
+        return sorted(set(next(OntTerm.query(term=s)).OntTerm
+                          for qr in OntTerm.query(search=expression,
+                                                  prefix=prefix, limit=limit)
+                          for s in chain(OntTerm(qr.iri).synonyms, (qr.label,))
+                          if all(f in s for f in filters)),
+                          key=lambda t:t.label)
+
+    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING',
+                 asTerm=False, asPreferred=False, include_supers=False):
+        """ Retrieve additional metadata for the current term. If None is provided
+            as the first argument the query runs against all predicates defined for
+            each service. """
+        asTerm = asTerm or asPreferred
+        single_out = not predicates and predicate is not None
+        if predicate is None:
+            predicates = self.query.predicates
+        else:
+            predicates = (predicate,) + predicates  # ensure at least one
+
+        results_gen = self.query(iri=self, predicates=predicates, depth=depth,
+                                 direction=direction, include_supers=include_supers)
+        out = {}
+        for result in results_gen:  # FIXME should only be one?!
+            for k, v in result.predicates.items():
+                if not isinstance(v, tuple):
+                    v = v,
+
+                if asTerm:
+                    v = tuple(self.__class__(v) if not isinstance(v, self.__class__) and isinstance(v, OntId)
+                              else v for v in v)
+                    if asPreferred:
+                        v = tuple(t.asPreferred() if isinstance(t, self.__class__) else t for t in v)
+
+                if k in out:
+                    out[k] += v
+                else:
+                    out[k] = v
+
+        if not hasattr(self, 'predicates'):
+            self.predicates = {}
+
+        self.predicates.update(out)  # FIXME klobbering issues
+
+        if single_out:
+            if out:
+                p = OntId(predicate).curie  # need to normalize here since we don't above
+                if p in out:  # FIXME rdflib services promiscuously returns predicates
+                    return out[p]
+
+            return tuple()  # more consistent return value so can always iterate
+        else:
+            return out
+
+    @property
+    def type(self):
+        if not hasattr(self, '_type'):
+            try:
+                qr = next(self.query(self.iri))
+                self._type = qr.type
+                self._types = qr.types
+            except StopIteration as e:
+                # FIXME this happens when a term is moved
+                # from one term type to another and its
+                # original source is lost
+                log.warning(f'No results for {self.__class__.__name__}('
+                            f'{self.iri})')
+                self._type = None
+                self._types = tuple()
+
+        return self._type
+
+    @type.setter
+    def type(self, value):
+        self._type = value
+
+    @property
+    def types(self):
+        if not hasattr(self, '_types'):
+            try:
+                qr = next(self.query(self.iri))
+                self._type = qr.type
+                self._types = qr.types
+            except StopIteration as e:
+                # FIXME this happens when a term is moved
+                # from one term type to another and its
+                # original source is lost
+                log.warning(f'No results for {self.__class__.__name__}('
+                            f'{self.iri})')
+                self._type = None
+                self._types = tuple()
+
+        return self._types
+
+    @types.setter
+    def types(self, value):
+        self._types = value
+
+    def __repr__(self):  # TODO fun times here
+        return super().__repr__()
+
+class _OntTerm(OntTerm):
+    """ Old OntTerm implementation """
 
     def __new__(cls, curie_or_iri=None,  # cuire_or_iri first to allow creation without keyword
                 label=None,
@@ -597,6 +995,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
 
                     setattr(self, keyword, value)  # TODO value lists...
             self.validated = True
+            self._query_result = result
 
         if i is None:
             self._source = None
@@ -640,128 +1039,6 @@ class OntTerm(InstrumentedIdentifier, OntId):
             self.set_next_repr('curie', 'label')
             raise exc.NoExplicitIdError('Your term does not have a valid identifier.\n'
                                         f'Please replace it with {self!r}')
-
-    def debug(self):
-        """ return debug information """
-        if self._graph:
-            print(self._graph.serialize(format='nifttl').decode())
-
-    def asId(self):
-        uninst_class = self._uninstrumented_class()
-        return uninst_class(self)
-
-    @property
-    def source(self):
-        """ The service that the term came from.
-            It is not obvious that source is being set from QueryResult.
-            I'm sure there are other issues like this due to the strange
-            interaction between OntTerm and QueryResult. """
-
-        return self._source
-
-    @classmethod
-    def search(cls, expression, prefix=None, filters=tuple(), limit=40):
-        """ Something that actually sort of works """
-        OntTerm = cls
-        if expression is None and prefix is not None:
-            # FIXME bad convention
-            return sorted(qr.OntTerm
-                          for qr in OntTerm.query(search=expression,
-                                                  prefix=prefix, limit=limit))
-
-        return sorted(set(next(OntTerm.query(term=s)).OntTerm
-                          for qr in OntTerm.query(search=expression,
-                                                  prefix=prefix, limit=limit)
-                          for s in chain(OntTerm(qr.iri).synonyms, (qr.label,))
-                          if all(f in s for f in filters)),
-                          key=lambda t:t.label)
-
-    def __call__(self, predicate, *predicates, depth=1, direction='OUTGOING', as_term=False):
-        """ Retrieve additional metadata for the current term. If None is provided
-            as the first argument the query runs against all predicates defined for
-            each service. """
-        single_out = not predicates and predicate is not None
-        if predicate is None:
-            predicates = self.query.predicates
-        else:
-            predicates = (predicate,) + predicates  # ensure at least one
-
-        results_gen = self.query(iri=self, predicates=predicates, depth=depth, direction=direction)
-        out = {}
-        for result in results_gen:  # FIXME should only be one?!
-            for k, v in result.predicates.items():
-                if not isinstance(v, tuple):
-                    v = v,
-
-                if as_term:
-                    v = tuple(self.__class__(v) if isinstance(v, OntId) else v for v in v)
-
-                if k in out:
-                    out[k] += v
-                else:
-                    out[k] = v
-
-        if not hasattr(self, 'predicates'):
-            self.predicates = {}
-
-        self.predicates.update(out)  # FIXME klobbering issues
-
-        if single_out:
-            if out:
-                p = OntId(predicate).curie  # need to normalize here since we don't above
-                if p in out:  # FIXME rdflib services promiscuously returns predicates
-                    return out[p]
-
-            return tuple()  # more consistent return value so can always iterate
-        else:
-            return out
-
-    @property
-    def type(self):
-        if not hasattr(self, '_type'):
-            try:
-                qr = next(self.query(self.iri))
-                self._type = qr.type
-                self._types = qr.types
-            except StopIteration as e:
-                # FIXME this happens when a term is moved
-                # from one term type to another and its
-                # original source is lost
-                log.warning(f'No results for {self.__class__.__name__}('
-                            f'{self.iri})')
-                self._type = None
-                self._types = tuple()
-
-        return self._type
-
-    @type.setter
-    def type(self, value):
-        self._type = value
-
-    @property
-    def types(self):
-        if not hasattr(self, '_types'):
-            try:
-                qr = next(self.query(self.iri))
-                self._type = qr.type
-                self._types = qr.types
-            except StopIteration as e:
-                # FIXME this happens when a term is moved
-                # from one term type to another and its
-                # original source is lost
-                log.warning(f'No results for {self.__class__.__name__}('
-                            f'{self.iri})')
-                self._type = None
-                self._types = tuple()
-
-        return self._types
-
-    @types.setter
-    def types(self, value):
-        self._types = value
-
-    def __repr__(self):  # TODO fun times here
-        return super().__repr__()
 
 
 class TermRepr(OntTerm):

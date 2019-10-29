@@ -2,7 +2,7 @@ import os
 import ontquery
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
-from ontquery.utils import cullNone, one_or_many, log
+from ontquery.utils import cullNone, one_or_many, log, bunch, red
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 from typing import List, Dict
@@ -67,11 +67,13 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             scigraph.restService.api_key = self.api_key
 
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
-                                       basePath=self.apiEndpoint)
+                                       basePath=self.apiEndpoint, safe_cache=True)
         self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
                                   basePath=self.apiEndpoint)
         self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
                                    basePath=self.apiEndpoint)
+        self.sgd = scigraph.Dynamic(cache=self.cache, verbose=self.verbose,
+                                    basePath=self.apiEndpoint)
         self.curies = type('LocalCuries', (OntCuries,), {})
         self._remote_curies = type('RemoteCuries', (OntCuries.new(),), {})
         curies = self.sgc.getCuries()
@@ -88,9 +90,38 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                              'text/plain'))
         super().setup(**kwargs)
 
-    def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING', entail=True, inverse=False):
+    def _graphQuery(self, subject, predicate, depth=1, direction='OUTGOING',
+                    entail=True, inverse=False, include_supers=False, done=None):
         # TODO need predicate mapping... also subClassOf inverse?? hasSubClass??
         # TODO how to handle depth? this is not an obvious or friendly way to do this
+        if entail and inverse:
+            raise NotImplementedError('Currently cannot handle inverse and entail at the same time.')
+
+        if include_supers:
+            if done is None:
+                done = set()
+
+            done.add(subject)
+            for _, sup in self._graphQuery(subject, 'subClassOf', depth=40):
+                if sup not in done:
+                    done.add(sup)
+                    for p, o in self._graphQuery(sup, predicate, depth=depth,
+                                                 direction=direction, entail=entail,
+                                                 inverse=inverse, done=done):
+                        if o not in done:
+                            done.add(o)
+                            yield p, o
+
+            for p, o in self._graphQuery(subject, predicate, depth=depth,
+                                         direction=direction, entail=entail,
+                                         inverse=inverse, done=done):
+                if o not in done:
+                    yield p, o
+                    done.add(o)
+                    yield from self._graphQuery(o, predicate, depth=depth,
+                                                direction=direction, entail=entail,
+                                                inverse=inverse, include_supers=include_supers, done=done)
+            return
 
         d_nodes_edges = self.sgg.getNeighbors(subject, relationshipType=predicate,
                                               depth=depth, direction=direction, entail=entail)  # TODO
@@ -98,7 +129,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if d_nodes_edges:
             edges = d_nodes_edges['edges']
         else:
-            if inverse:  # it is probably a bad idea to try to be clever here
+            if inverse:  # it is probably a bad idea to try to be clever here AND INDEED IT HAS BEEN
                 predicate = self.inverses[predicate]
 
             _p = (predicate.curie
@@ -111,9 +142,22 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         if inverse:
             s, o = o, s
 
+        def properPredicate(e):
+            if ':' in e['pred']:
+                p = self.OntId(e['pred'])
+                if inverse:  # FIXME p == predicate ? no it is worse ...
+                    p = self.inverses[p]
+
+                p = p.curie
+            else:
+                p = e['pred']
+
+            return p
+
         if depth > 1:
             #subjects = set(subject.curie)
-            seen = {subject.curie}
+            seen = {((predicate.curie if isinstance(predicate, self.OntId) else predicate),
+                     subject.curie)}
             for i, e in enumerate(self.sgg.ordered(subject.curie, edges, inverse=inverse)):
                 if [v for k, v in e.items() if k != 'meta' and v.startswith('_:')]:
                     # FIXME warn on these ? bnode getting pulled in ...
@@ -124,32 +168,62 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                 #if e[s] in subjects:
                     #subjects.add(object.curie)
                 object = e[o]
-                if object not in seen:
+                p = e['pred']  # required if entail == True
+                if (p, object) not in seen:
                     # to make OntTerm(object) work we need to be able to use the 'meta' section...
                     # and would have to fetch the object directly anyway since OntTerm requires
                     # direct atestation ... which suggests that we probably need/want a bulk constructor
-                    seen.add(object)
-                    yield self.OntId(object) # FIXME TODO this is _very_ inefficient for multiple lookups...
+                    seen.add((p, object))
+                    yield (properPredicate(e),
+                           self.OntId(object)) # FIXME TODO this is _very_ inefficient for multiple lookups...
 
         else:
             _has_part_list = ['http://purl.obolibrary.org/obo/BFO_0000051']
+            _disjoint_with_list = ['disjointWith']
             scurie = self._remote_curies.qname(subject)
-            objects = (self.OntId(e[o]) for e in edges if e[s] == scurie
-                       and not [v for k, v in e.items()
-                                if k != 'meta' and v.startswith('_:')]
-                       and ('owlType' not in e['meta'] or e['meta']['owlType'] != _has_part_list))
-            yield from objects
+            pred_objects = ((properPredicate(e),
+                             self.OntId(e[o])) for e in edges if e[s] == scurie
+                            #and not print(predicate, scurie, e['pred'], e[o])
+                            and not [v for k, v in e.items()
+                                     if k != 'meta' and v.startswith('_:')]
+                            and ('owlType' not in e['meta'] or
+                                 (e['meta']['owlType'] != _has_part_list and
+                                  e['meta']['owlType'] != _disjoint_with_list)))
+            yield from pred_objects
 
     def query(self, iri=None, curie=None,
               label=None, term=None, search=None, abbrev=None,  # FIXME abbrev -> any?
               prefix=tuple(), category=tuple(), exclude_prefix=tuple(),
-              include_deprecated=False, predicates=tuple(), depth=1,
+              include_deprecated=False, include_supers=False,
+              predicates=tuple(), depth=1,
               direction='OUTGOING', entail=True, limit=10):
+        # BEWARE THE MADNESS THAT LURKS WITHIN
+        def herp(p):
+            if hasattr(p, 'curie'):
+                return self.OntId(p)
+            elif ':' in p:
+                return self.OntId(p)
+            elif type(p) == str:
+                return p
+            else:
+                raise TypeError(f'wat {type(p)} {p}')
+
+        def derp(ps):
+            for p in ps:
+                if hasattr(p, 'curie'):
+                    if p.curie:
+                        yield p.curie
+                    else:
+                        yield str(p)
+                else:
+                    yield p
+
         # use explicit keyword arguments to dispatch on type
         prefix = one_or_many(prefix)
         category = one_or_many(category)
 
-        if prefix and [p for p in prefix if p not in self.curies]:
+        bads = [p for p in prefix if p not in self.curies]
+        if prefix and bads:
             raise ValueError(f'None of {bads} in {self.__class__.__name__}.prefixes')
 
         if category and [c for c in category if c not in self.categories]:
@@ -174,36 +248,51 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                               category=category,
                               limit=limit)
         identifiers = cullNone(iri=iri, curie=curie)
-        predicates = tuple(self.OntId(p)
-                           if not isinstance(p, self.OntId) and ':' in p
-                           else p for p in predicates)
+        predicates = tuple(herp(p) for p in predicates)
+
+        out_predicates = []
         if identifiers:
             identifier = self.OntId(next(iter(identifiers.values())))  # WARNING: only takes the first if there is more than one...
             result = self.sgv.findById(identifier)  # this does not accept qualifiers
+            # WARNING
+            # if results are cached then the mutation we do below
+            # mutates the cache and makes things into OntIds when
+            # other parts of the code expects strings
+            # this is fixed in scigraph client
             if result is None:
                 return
 
             if predicates:  # TODO incoming/outgoing, 'ALL' by depth to avoid fanout
+                short = None
                 for predicate in predicates:
                     if (hasattr(predicate, 'prefix') and
                         predicate.prefix in ('owl', 'rdfs')):
-                        unshorten = predicate
+                        unshorten = next(derp([predicate]))
                         predicate = predicate.suffix
                     else:
                         unshorten = None
 
-                    values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth,
-                                                           direction=direction, entail=entail)))
-                    if values:
-                        # I think this is the right place to unshorten
-                        # I don't think we have any inverses that require unshortning
-                        if unshorten is not None:
-                            short = predicate
-                            predicate = unshorten
+                    ptest = predicate.curie if isinstance(predicate, self.OntId) else predicate
 
+                    #log.debug(repr(predicate))
+                    values = tuple(sorted(self._graphQuery(identifier, predicate, depth=depth,
+                                                           direction=direction, entail=entail,
+                                                           include_supers=include_supers)))
+                    if values:
                         # FIXME when using query.predicates need to 'expand'
                         # the bare string predicates like subClassOf and isDefinedBy ...
-                        result[predicate] = values
+                        bunched = bunch(values)
+                        for pred, pvalues in bunched.items():
+                            # I think this is the right place to unshorten
+                            # I don't think we have any inverses that require unshortning
+                            if pred == ptest:
+                                if unshorten is not None:
+                                    short = predicate
+                                    predicate = unshorten
+                                    pred = predicate
+
+                            out_predicates.append(pred)
+                            result[pred] = tuple(pvalues)
 
                     if predicate in self.inverses:
                         p = self.inverses[predicate]
@@ -212,15 +301,25 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
                                          ('INCOMING' if
                                           direction == 'OUTGOING'
                                           else direction))
+
+                        # FIXME I'm betting reverse entailed is completely broken
                         inv_values = tuple(sorted(self._graphQuery(identifier, p,
                                                                    depth=depth, direction=inv_direction,
-                                                                   entail=entail, inverse=True)))
-                        if values or predicate in result:
-                            rp = result[predicate]
-                            fv = tuple(v for v in inv_values if v not in rp)
-                            result[predicate] += fv
-                        elif inv_values:
-                            result[predicate] = inv_values
+                                                                   entail=False, inverse=True,
+                                                                   include_supers=include_supers)))  # FIXME entail=entail
+                        if inv_values:
+                            bunched = bunch(inv_values)
+                            for pred, ipvalues in bunched.items():
+                                if short is not None and pred == short:
+                                    pred = predicate
+
+                                if pred in result:
+                                    rp = result[pred]
+                                    fv = tuple(v for v in ipvalues if v not in rp)
+                                    result[pred] += fv
+                                else:
+                                    result[pred] = tuple(ipvalues)
+                                    out_predicates.append(pred)
 
             res = self.sgg.getNode(identifier)
             types = tuple()
@@ -257,17 +356,18 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             if not include_deprecated and result['deprecated'] and not identifiers:
                 continue
             ni = lambda i: next(iter(sorted(i))) if i else None  # FIXME multiple labels issue
-            predicate_results = {predicate.curie if ':' in predicate else predicate:result[predicate]  # FIXME hack
-                                 for predicate in predicates  # TODO depth=1 means go ahead and retrieve?
+            predicate_results = {predicate:result[predicate]  # FIXME hack
+                                 for predicate in derp(out_predicates)  # TODO depth=1 means go ahead and retrieve?
                                  if predicate in result}  # FIXME hasheqv on OntId
-            # print(red.format('PR:'), predicate_results, result)
+
+            #print(red.format('PR:'), pprint.pformat(predicate_results), pprint.pformat(result))
             yield self.QueryResult(
                 query_args={**search_expressions,
                             **qualifiers,
                             **identifiers,
                             'predicates':predicates},
                 iri=result['iri'],
-                curie=result['curie'] if 'curie' in result else result['iri'],  # FIXME...
+                curie=result['curie'] if 'curie' in result else None,
                 label=ni(result['labels']),
                 labels=result['labels'],
                 definition=ni(result['definitions']),
@@ -630,8 +730,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def _is_dev_endpoint(self):
         return bool(self.port)
 
-    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
-              prefix=tuple(), exclude_prefix=tuple(), limit=None, **_):
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
+              prefix=tuple(), exclude_prefix=tuple(), **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
             oiri = OntId(iri=iri)
@@ -742,7 +842,11 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             graph = self.Graph().parse(data=ttl, format='turtle')
             self._graph_cache[url] = graph
 
-        ia_iri = isAbout(graph)
+        try:
+            ia_iri = isAbout(graph)
+        except ValueError as e:
+            breakpoint()
+            raise e
         i = OntId(ia_iri)
         if exclude_prefix and i.prefix in exclude_prefix:
             return None
@@ -763,11 +867,14 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 qrd['curie'] = i.curie
                 qrd['iri'] = i.iri
                 toskip += 'curie', 'iri'
+            else:
+                qrd['predicates']['TEMP:preferredId'] = i,  # FIXME this should probably be in the record itself ...
+
             if curie:
                 qrd['curie'] = curie
                 toskip += 'curie',
             if iri:
-                qrd['iri'] = iri
+                qrd['iri'] = iri.iri if isinstance(iri, OntId) else iri
                 toskip += 'iri',
 
             for qr in qrs:
@@ -845,6 +952,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         # assume that the graph is static for these
         super().setup(**kwargs)
 
+    def debug(self):
+        if self.graph:
+            print(self.graph.serialize(format='nifttl').decode())
+
     @property
     def curies(self):
         return self._curies
@@ -853,7 +964,15 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def predicates(self):
         yield from sorted(set(self.graph.predicates()))
 
-    def by_ident(self, iri, curie, kwargs):
+    def by_ident(self, iri, curie, kwargs, predicates=tuple(), depth=1):
+        def append_preds(out, c, o):
+            if c not in out['predicates']:
+                out['predicates'][c] = o  # curie to be consistent with OntTerm behavior
+            elif isinstance(out['predicates'][c], str):
+                out['predicates'][c] = out['predicates'][c], o
+            else:
+                out['predicates'][c] += o,
+
         out = {'predicates':{}}
         identifier = self.OntId(curie=curie, iri=iri)
         gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
@@ -890,17 +1009,41 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
                 owlClass = True  # FIXME ...
 
+            elif p == rdflib.RDFS.subClassOf:
+                owlClass = True
+
+            if p == owl.deprecated and o:
+                out['deprecated'] = True
+
             if pn is None:
                 # TODO translation and support for query result structure
                 # FIXME lists instead of klobbering results with mulitple predicates
                 if isinstance(o, rdflib.URIRef):
                     o = self.OntId(o)  # FIXME we try to use OntTerm directly everything breaks
                     # FIXME these OntIds also do not derive from rdflib... sigh
-                # FIXME doesn't this klobber when there is more than one object per predicate !??!? !??!!
-                out['predicates'][self.OntId(p).curie] = o  # curie to be consistent with OntTerm behavior
+
+                c = self.OntId(p).curie
+                append_preds(out, c, o)
+
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
-                out[pn] = o
+                c = pn
+                out[c] = o  # FIXME kobbering?
+
+            if p in predicates and depth:
+                # FIXME traverse restrictions on transitive properties
+                # to match scigraph behavior
+                try:
+                    spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1))
+                    log.debug(f'{spout}')
+                    if c in spout.predicates:
+                        _objs = spout.predicates[c]
+                        objs = _objs if isinstance(_objs, tuple) else (_objs,)
+                        for _o in objs:
+                            append_preds(out, c, _o)
+
+                except StopIteration:
+                    pass
 
         if o is not None and owlClass is not None:
             # if you yield here you have to yield from below
@@ -913,8 +1056,9 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         except KeyError:
             return None
 
-    def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
-              search=None, prefix=tuple(), exclude_prefix=tuple(), all_classes=False, **kwargs):
+    def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
+              search=None, prefix=tuple(), exclude_prefix=tuple(), all_classes=False,
+              depth=1, **kwargs):
         if (prefix is not None and
             prefix is not _empty_tuple and
             all(a is None for a in (iri, curie, label, term))):
@@ -938,6 +1082,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         kwargs['iri'] = iri
         kwargs['label'] = label
         kwargs['term'] = term
+        kwargs['depth'] = depth
+        kwargs['predicates'] = predicates
 
         #kwargs['term'] = term
         #kwargs['search'] = search
@@ -945,9 +1091,15 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         if all_classes:
             for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
                 if isinstance(iri, rdflib.URIRef):  # no BNodes
-                    yield from self.by_ident(iri, None, kwargs)  # actually query is done here
+                    yield from self.by_ident(iri, None, kwargs,  # actually query is done here
+                                             predicates=predicates,
+                                             depth=depth - 1)
         elif iri is not None or curie is not None:
-            yield from self.by_ident(iri, curie, kwargs)
+            yield from self.by_ident(iri, curie, kwargs,
+                                     predicates=predicates,
+                                     depth=depth - 1)
+        elif search is not None:  # prevent search + prefix from behaving like prefix alone
+            return
         else:
             for keyword, object in kwargs.items():
                 if object is None:

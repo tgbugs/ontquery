@@ -21,11 +21,71 @@ def makeSimpleLogger(name, level=logging.INFO):
 log = makeSimpleLogger('ontquery')
 
 
-def subclasses(start):
+__logged = set()
+def _already_logged(thing):
+    case = thing in __logged
+    if not case:
+        __logged.add(thing)
+
+    return case
+
+
+def subclasses(start, done=None):
+    if done is None:
+        done = set()
     for sc in start.__subclasses__():
-        if sc is not None:
+        if sc is not None and sc not in done:
+            done.add(sc)
             yield sc
-            yield from subclasses(sc)
+            yield from subclasses(sc, done)
+
+
+class SubClassCompare:
+    def __init__(self, cls):
+        self.cls = cls
+
+    def __lt__(self, other, *, forgt=False):
+        if self.cls is None:  # i.e. None is the least derived class
+            return False
+        elif other.cls is None:
+            return True
+        elif issubclass(other.cls, self.cls):
+            # if you are a subclass of the other, you are greater
+            # fewer parent classes rank lower
+            return True
+        elif issubclass(self.cls, other.cls):
+            return False
+        else:
+            # NOTE useful in some cases
+            # but not useful in the case where you just want
+            # the parent class to be above the child but not
+            # above other classes
+            ls, lo = len(self.cls.mro()), len(other.cls.mro())
+            return ls < lo
+
+    def __gt__(self, other):
+        lt = self.__lt__(other, forgt=True)
+        return not lt
+        #return False if lt is None else not lt
+
+    def __eq__(self, other):
+        return self.cls is other.cls or not self < other and not self > other
+
+    def __repr__(self):
+        return f'SubClassCompare({self.cls!r})'
+
+
+def bunch(pairs):
+    """ pairs -> dict """
+    out = {}
+    for k, v in pairs:
+        if k not in out:
+            out[k] = []
+
+        out[k].append(v)
+
+    return out
+
 
 def cullNone(**kwargs):
     return {k:v for k, v in kwargs.items() if v is not None}
@@ -120,12 +180,13 @@ class QueryResult:
             #self.__dict__[k] = v
 
     @property
-    def OntTerm(self):  # FIXME naming
+    def OntTerm(self):  # FIXME naming XXXX deprecate this
         if self.iri is None:
             raise BaseException(f'I can\'t believe you\'ve done this! {self!r}')
-        ot = self._instrumented(iri=self.iri)  # TODO works best with a cache
-        ot._query_result = self
-        return ot
+        return self._instrumented._from_query_result(self)
+
+    def asTerm(self):
+        return self.OntTerm
 
     @property
     def hasOntTerm(self):  # FIXME naming

@@ -43,6 +43,10 @@ class OntQuery:
         # FIXME dupes
         self._services = services + self._services
 
+    def radd(self, *services):
+        """ add low priority services """
+        # FIXME dupes
+        self._services = self._services + services
 
     def setup(self):
         for service in self.services:
@@ -106,6 +110,9 @@ class OntQuery:
                  direction='OUTGOING',
                  limit=10,
                  include_deprecated=False,
+                 include_supers=False,
+                 include_all_services=False,
+                 raw=False,
     ):
         prefix = one_or_many(prefix) + self._prefix
         category = one_or_many(category) + self._category
@@ -124,6 +131,7 @@ class OntQuery:
                                curie=curie,
                                iri=iri)
         control = dict(include_deprecated=include_deprecated,
+                       include_supers=include_supers,
                        limit=limit)
         if queries and identifiers:
             log.warning(f'\x1b[91mWARNING: An identifier ({list(identifiers)}) was supplied. Ignoring other query parameters {list(queries)}.\x1b[0m')
@@ -145,8 +153,8 @@ class OntQuery:
             for i, result in enumerate(service.query(**kwargs)):
                 #print(red.format('AAAAAAAAAA'), result)
                 if result:
-                    yield result
-                    if search is None and term is None and result.label:
+                    yield result if raw else result.asTerm()
+                    if search is None and term is None and result.label and not include_all_services:
                         return  # FIXME order services based on which you want first for now, will work on merging later
 
 
@@ -172,15 +180,11 @@ class OntQueryCli(OntQuery):
 
     @mimicArgs(OntQuery.__call__)
     def __call__(self, *args, **kwargs):
-        def func(result):
-            if result.hasOntTerm and not self.raw:
-                t = result.OntTerm
-                t.set_next_repr('curie', 'label')
-                return t
-            else:
-                return result
-
-        return [func(qr) for qr in super().__call__(*args, **kwargs)]
+        gen = super().__call__(*args, **kwargs)
+        if 'raw' in kwargs and kwargs['raw']:
+            return list(gen)
+        else:
+            return [term for term in gen if True or term.set_next_repr('curie', 'label')]
 
     def _old_call_rest(self):
         """ oof """
