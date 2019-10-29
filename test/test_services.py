@@ -47,10 +47,11 @@ class ServiceBase:
         assert t.curie, repr(t)
 
     def test_label(self):
+        """ functionality was removed, should TypeError now """
         try:
             t = self.OntTerm(label='diffuse')
             raise AssertionError(f'should fail {t!r}')
-        except oq.exceptions.OntQueryError as e:
+        except TypeError:
             pass
 
     def test_cache(self):
@@ -83,10 +84,8 @@ class _TestIlx(ServiceBase):
 
     def test_query_ot(self):
         """ This was an issue with incorrectly setting curie and iri in InterLexRemote.query """
-        qr = next(self.OntTerm.query(label='deep'))
-        #assert False, qr
-        qr.OntTerm
-        #wat = self.OntTerm(label='deep')  # would also trigger the issue (and then fail)
+        term = next(self.OntTerm.query(label='deep'))
+        assert term, 'oops?'
 
     def test_z_bad_curie(self):
         qr = next(self.OntTerm.query.services[0].query(curie='BIRNLEX:796'))
@@ -128,6 +127,13 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
     def test_depth(self):
         t = self.OntTerm('UBERON:0000955')
         t('hasPart:', depth=2)
+
+    def test_query_bad_prefix(self):
+        try:
+            term = next(self.OntTerm.query(label='brain', prefix='notaprefix'))
+            raise AssertionError(f'should fail {t!r}')
+        except ValueError as e:
+            pass
 
 
 class TestRdflib(ServiceBase, unittest.TestCase):

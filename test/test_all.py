@@ -1,5 +1,6 @@
 import os
 import unittest
+import pytest
 import rdflib
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
@@ -20,8 +21,7 @@ oq.utils.log.setLevel('DEBUG')
 class OntTerm(oq.OntTerm):
     """ Test subclassing """
 
-
-class TestAll(unittest.TestCase):
+class SetupHelper:
     def setUp(self):
         #self.query = oq.OntQuery(localonts, remoteonts1, remoteonts2)  # provide by default maybe as oq?
         #bs = oq.BasicService()  # TODO
@@ -44,107 +44,37 @@ class TestAll(unittest.TestCase):
         oq.OntTerm.query_init(*services)
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
-    def test_query(self):
-        self.query('brain')
-        self.query(term='brain')
-        #self.query(prefix='UBERON', suffix='0000955')  # only for OntId
-        self.query(search='thalamus')  # will probably fail with many results to choose from
-        self.query(prefix='MBA', abbrev='TH')
 
-        uberon = oq.OntQueryCli(*self.query, prefix='UBERON', instrumented=OntTerm)
-        brain_result = uberon('brain')  # -> OntTerm('UBERON:0000955', label='brain')
+class TestPredicates(SetupHelper, unittest.TestCase):
+    def test_predicates_inverse(self):
+        t = OntTerm('UBERON:0000955')
+        o = t('hasPart:')
+        assert o, 'should have had a result ...'
 
-        species = oq.OntQuery(*self.query, category='species', instrumented=OntTerm)
-        mouse_result = species('mouse')  # -> OntTerm('NCBITaxon:10090', label='mouse')
+    def test_predicates_inverse_cli(self):
+        t = self.query(iri='UBERON:0000955', predicates=('hasPart:',))[0]
+        assert 'hasPart:' in t.predicates, 'should have had results'
+        assert t.predicates['hasPart:'], 'should have had values if key'
 
-        list(self.query.predicates)
+    def test_predicates_sco_cli(self):
+        t = self.query(iri='UBERON:0000955', predicates=('subClassOf',))[0]
+        assert 'subClassOf' in t.predicates, 'should have had results'
+        assert t.predicates['subClassOf'], 'should have had values if key'
 
-    def test_prefix(self):
-        #sgv.findByTerm('nucleus', prefix=['UBERON', 'CHEBI'])
-        # search by term returns all from the first prefix first
-        # which is useless
-        class OntTerm(oq.OntTerm):
-            pass
-        prefix = 'UBERON', 'CHEBI', 'GO'
-        query = OntTerm.query_init(*self.query, prefix=prefix)
-        result = list(query(term='nucleus'))
-        assert [qr for qr in result if qr.OntTerm.prefix == 'UBERON']
-        assert [qr for qr in result if qr.OntTerm.prefix == 'CHEBI']
-        assert [qr for qr in result if qr.OntTerm.prefix == 'GO']
-        assert not [qr for qr in result if qr.OntTerm.suffix == 'SAO']
-
-    def test_category(self):
-        class OntTerm(oq.OntTerm):
-            pass
-
-        #sgv.findByTerm('nucleus', category=['subcellular entity', 'anatomical entity'])
-        cat = 'anatomical entity', 'subcellular entity'
-        query = OntTerm.query_init(*self.query, category=cat)
-        result = list(query(term='nucleus'))
-        assert [qr for qr in result if qr.OntTerm.prefix == 'UBERON']
-        assert [qr for qr in result if qr.OntTerm.prefix == 'GO']
-        assert not [qr for qr in result if qr.OntTerm.suffix == 'CHEBI']
-
-    def test_term(self):
-        brain = OntTerm('UBERON:0000955')
-        brain = OntTerm(curie='UBERON:0000955')
-        OntTerm('UBERON:0000955', label='brain')
-        OntTerm('NCBITaxon:2', label='Bacteria')
-        #OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')  # gone in latest
-        try:
-            l = 'not actually the brain'
-            t = OntTerm('UBERON:0000955', label=l)
-            from IPython import embed
-            embed()
-            assert False, 'should not get here'
-        except ValueError:
-            assert True, 'expect to fail'
-
-        try:
-            OntTerm('UBERON:0000955', label='not actually the brain', validated=False)
-            assert False, 'should not get here'
-        except ValueError:
-            assert True, 'expect to fail'
-
-    def test_term_query(self):
-        _query = oq.OntTerm.query
-        oq.OntTerm.query = self.query
-        try:
-            OntTerm(label='brain')
-            assert False, 'should not get here!'
-        except TypeError:
-            assert True, 'fails as expected'
-
-        oq.OntTerm.query = _query
-
-        try:
-            OntTerm(label='brain', prefix='UBERON')
-            assert False, 'should not get here!'
-        except oq.exceptions.NoExplicitIdError:
-            assert True, 'fails as expected'
-
-        try:
-            OntTerm(label='dorsal plus ventral thalamus')
-            assert False, 'should not get here!'
-        except oq.exceptions.NoExplicitIdError:
-            assert True, 'fails as expected'
-
-        #t = next(OntTerm.query(term='midbrain reticular nucleus')).OntTerm
-        t = next(OntTerm.query(term='serotonin', prefix='CHEBI')).OntTerm
-        assert t != OntTerm
-
-    def test_id(self):
-        oq.OntId('UBERON:0000955')
-        oq.OntId('http://purl.obolibrary.org/obo/UBERON_0000955')
-        oq.OntId(prefix='UBERON', suffix='0000955')
+    def test_predicates_rdfssco_cli(self):
+        t = self.query(iri='UBERON:0000955', predicates=('rdfs:subClassOf',))[0]
+        assert 'rdfs:subClassOf' in t.predicates, 'should have had results'
+        assert t.predicates['rdfs:subClassOf'], 'should have had values if key'
 
     def test_predicates(self):
-        self.query.raw = True
-        pqr = self.query(iri='UBERON:0000955', predicates=('hasPart:',))
-        self.query.raw = False
-        pt = pqr.OntTerm
-        preds = OntTerm('UBERON:0000955')('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
-        preds1 = pt('hasPart:', 'partOf:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        #self.query.raw = True
+        pqrl = self.query(iri='UBERON:0000955', predicates=('hasPart:',), raw=True)
+        pqr = pqrl[0]
+        #self.query.raw = False
+        pt = pqr.asTerm()
+        preds = OntTerm('UBERON:0000955')('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
+        #breakpoint()
+        preds1 = pt('partOf:', 'hasPart:', 'rdfs:subClassOf', 'owl:equivalentClass')
         preds2 = OntTerm('UBERON:0000955')(rdflib.RDFS.subClassOf)
         t = OntTerm('UBERON:0000955')
         preds3 = t(rdflib.RDFS.subClassOf)
@@ -175,23 +105,125 @@ class TestAll(unittest.TestCase):
         assert isinstance(preds4, tuple)
         assert isinstance(preds5, dict)
 
-    def test_curies(self):
+
+class TestAll(SetupHelper, unittest.TestCase):
+    def test_query(self):
+        self.query('brain')
+        self.query(term='brain')
+        #self.query(prefix='UBERON', suffix='0000955')  # only for OntId
+        self.query(search='thalamus')  # will probably fail with many results to choose from
+        self.query(prefix='MBA', abbrev='TH')
+
+        uberon = oq.OntQueryCli(*self.query, prefix='UBERON', instrumented=OntTerm)
+        brain_result = uberon('brain')  # -> OntTerm('UBERON:0000955', label='brain')
+
+        species = oq.OntQuery(*self.query, category='species', instrumented=OntTerm)
+        mouse_result = species('mouse')  # -> OntTerm('NCBITaxon:10090', label='mouse')
+
+        list(self.query.predicates)
+
+    def test_prefix(self):
+        #sgv.findByTerm('nucleus', prefix=['UBERON', 'CHEBI'])
+        # search by term returns all from the first prefix first
+        # which is useless
+        class OntTerm(oq.OntTerm):
+            pass
+        prefix = 'UBERON', 'CHEBI', 'GO'
+        query = OntTerm.query_init(*self.query, prefix=prefix)
+        result = list(query(term='nucleus'))
+        assert [term for term in result if term.prefix == 'UBERON']
+        assert [term for term in result if term.prefix == 'CHEBI']
+        assert [term for term in result if term.prefix == 'GO']
+        assert not [term for term in result if term.suffix == 'SAO']
+
+    def test_category(self):
+        class OntTerm(oq.OntTerm):
+            pass
+
+        #sgv.findByTerm('nucleus', category=['subcellular entity', 'anatomical entity'])
+        cat = 'anatomical entity', 'subcellular entity'
+        query = OntTerm.query_init(*self.query, category=cat)
+        result = list(query(term='nucleus'))
+        assert [term for term in result if term.prefix == 'UBERON']
+        assert [term for term in result if term.prefix == 'GO']
+        assert not [term for term in result if term.suffix == 'CHEBI']
+
+    def test_term(self):
+        brain = OntTerm('UBERON:0000955')
+        brain = OntTerm(curie='UBERON:0000955')
+        OntTerm('UBERON:0000955', label='brain')
+        OntTerm('NCBITaxon:2', label='Bacteria')
+        #OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')  # gone in latest
+
+    def test_term_label_mismatch(self):
+        try:
+            l = 'not actually the brain'
+            t = OntTerm('UBERON:0000955', label=l)
+            assert False, 'should not get here'
+        except ValueError:
+            assert True, 'expect to fail'
+
+    def test_term_label_mismatch_not_validated(self):
+        try:
+            OntTerm('UBERON:0000955', label='not actually the brain', validated=False)
+            assert False, 'should not get here'
+        except ValueError:
+            assert True, 'expect to fail'
+
+    def test_term_query(self):
+        """ this functionality has been removed these should all return TypeErrors """
+        _query = oq.OntTerm.query
+        oq.OntTerm.query = self.query
+        try:
+            OntTerm(label='brain')
+            assert False, 'should not get here!'
+        except TypeError:
+            assert True, 'fails as expected'
+
+        oq.OntTerm.query = _query
+
+        try:
+            OntTerm(label='brain', prefix='UBERON')
+            assert False, 'should not get here!'
+        except TypeError:
+            assert True, 'fails as expected'
+
+        try:
+            OntTerm(label='dorsal plus ventral thalamus')
+            assert False, 'should not get here!'
+        except TypeError:
+            assert True, 'fails as expected'
+
+    def test_dont_return_OntTerm_from_query(self):
+        """ no idea why this test is here, but apparently we had a very funny bug at some point in time """
+        #t = next(OntTerm.query(term='midbrain reticular nucleus')).OntTerm
+        t = next(OntTerm.query(term='serotonin', prefix='CHEBI'))
+        assert t != OntTerm
+
+    def test_id(self):
+        oq.OntId('UBERON:0000955')
+        oq.OntId('http://purl.obolibrary.org/obo/UBERON_0000955')
+        oq.OntId(prefix='UBERON', suffix='0000955')
+
+    def test_a_curies(self):
         oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
         oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/'
         a = oq.OntCuries['new-prefix']
+        oq.OntId('new-prefix:working')
+
+    def test_b_curie_lookup_fail(self):
         try:
             b = oq.OntCuries['not-a-prefix']
             assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
 
+    def test_c_curie_overwrite_fail(self):
         try:
             oq.OntCuries['new-prefix'] = 'https://my-prefixed-thing.org/fail/'
             assert False, 'should not get here'
         except KeyError:
             assert True, 'should fail'
-
-        oq.OntId('new-prefix:working')
 
     def test_ontid_curie_uriref(self):
         c = oq.OntId(rdflib.URIRef(oq.OntId('RO:0000087')))
@@ -215,17 +247,17 @@ class TestAll(unittest.TestCase):
         bads = []
         for prefix in 'UBERON', 'FMA':
             gen = oq.OntTerm.query(term='brain', prefix=prefix)
-            bads += [qr for qr in gen if qr.OntTerm.prefix != prefix]
+            bads += [term for term in gen if term.prefix != prefix]
 
         assert not bads, bads
 
     def test_prefixs(self):
         prefixes = ('UBERON', 'BIRNLEX', 'FMA')
         gen = oq.OntTerm.query(term='brain', prefix=prefixes)
-        bads = [qr for qr in gen if qr.OntTerm.prefix not in prefixes]
+        bads = [term for term in gen if term.prefix not in prefixes]
         assert not bads, bads
 
     def test_exclude_prefix(self):
         gen = oq.OntTerm.query(term='brain', exclude_prefix=('FMA',))
-        bads = [qr for qr in gen if qr.OntTerm.prefix == 'FMA']
+        bads = [term for term in gen if term.prefix == 'FMA']
         assert not bads, bads

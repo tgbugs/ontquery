@@ -1,8 +1,8 @@
 import os
 import pytest
-import unittest
 import random
 import requests as r
+import unittest
 import json
 from ontquery.plugins.interlex_client import InterLexClient
 from ontquery.plugins.services import InterLexRemote
@@ -77,7 +77,6 @@ class Test(unittest.TestCase):
                 ]
             }
         }
-        # ilx_cli.query_elastic(body=body)
         params = {
             'term': label,
             'key': ilx_cli.api_key,
@@ -92,17 +91,10 @@ class Test(unittest.TestCase):
         hits = ilx_cli.query_elastic(term='brain')
         assert hits[0]['label'].lower() == 'brain'
 
-        # resp= r.get(
-        #     ilx_cli.base_url + 'term/elastic/search',
-        #     params=params)
-        # hits = resp.json()['data']['hits']['hits']
-        # assert hits[0]['_source']['label'].lower() == 'brain'
-
 
     def test_get_entity(self):
         ilx_id = TEST_SUPERCLASS_ID
         entity = ilx_cli.get_entity(ilx_id)
-        print(entity)
         assert entity['ilx'] == TEST_SUPERCLASS_ID
 
 
@@ -528,6 +520,8 @@ class Test(unittest.TestCase):
 
 def main(self):
     Test()
+    # test_update_entity()
+
 
 if __name__ == '__main__':
     main()

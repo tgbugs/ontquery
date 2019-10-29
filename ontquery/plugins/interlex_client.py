@@ -66,7 +66,6 @@ class InterLexClient:
 
         :param str base_url: . Defaults to default_base_url.
         """
-        print(base_url, 'here')
         self.base_url = base_url
         self.api_key = os.environ.get(
             'INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
