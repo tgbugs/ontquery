@@ -1,11 +1,9 @@
 import json
 import os
 from typing import Union, List, Tuple, Dict
-from elasticsearch import Elasticsearch
-from fuzzywuzzy import fuzz
 import requests
 from ontquery.utils import log
-es = Elasticsearch()
+
 
 class InterLexClient:
 
@@ -299,19 +297,20 @@ class InterLexClient:
         # Therefore if you are interested in "real" hits use label
         # or custom body field.
         """
+        options = [term, label, body]
+        if not any(options):
+            raise AttributeError('Need to pick an attribute.')
+        if len([o for o in options if o]) > 1:
+            raise AttributeError('Need to pick only one attribute.')
+
+        url = self.base_url + 'term/elastic/search'
+        params = {
+            'size': '10',
+            'from': '0',
+            **kwargs,
+        }
+
         if label or body:
-            try:
-                url = os.environ.get('SCICRUNCH_ELASTIC_URL') + '/interlex'
-            except:
-                raise ValueError(
-                    'SCICRUNCH_ELASTIC_URL need to be in ~/.bashrc.')
-            user = os.environ.get('SCICRUNCH_ELASTIC_USER')
-            password = os.environ.get('SCICRUNCH_ELASTIC_PASSWORD')
-            if not user or not password:
-                raise ValueError(
-                    'SCICRUNCH_ELASTIC_USER & SCICRUNCH_ELASTIC_PASSWORD'
-                    'need to be in ~/.bashrc.')
-            es = Elasticsearch(url, http_auth=(user, password))
             # Favor label over body
             if label:
                 # elastic perfers input to be clean
@@ -338,25 +337,20 @@ class InterLexClient:
                                 }
                             ]
                         }
-                    },
-                    "size": 3,
-                    "from": 0
+                    }
                 }
-            else:
-                pass
-            hits = es.search(index="term", body=body)['hits']['hits']
+            params['query'] = json.dumps(body['query'])
+        elif term:
+            params['term'] = term
         else:
-            url = self.base_url + 'term/elastic/search'
-            params = {
-                'term': term,
-                'size': '10',
-                'from': '0',
-                **kwargs,
-            }
-            hits = self.get(
-                url,
-                params=params,
-            )['hits']['hits']
+            raise Error('Catches failed for query elastic')
+
+        hits = self.get(
+            url,
+            params=params,
+        )['hits']['hits'] # elastic nests the hits twice
+
+        # no hits will return an empty list
         if hits:
             hits = [hit['_source'] for hit in hits]
             for hit in hits:
@@ -371,52 +365,6 @@ class InterLexClient:
         """Server returns anything that is simlar in any catagory."""
         url = self.base_url + 'term/search/{term}'.format(term=label)
         return self.get(url)
-
-    def query_elastic_with_confidence(self,
-                                      term: str,
-                                      confidence: int = 85,
-                                      **kwargs) -> List[dict]:
-        """Search SciCrunch for Loosely matched Terms.
-
-        We don't trust elastic up front because it scores on the total entity.
-        All we care about is the match quality on on a single value. Fuzzy will
-        check each value on dict and with return a score from the best matched
-        value in said dict. Elastic also gives the top results even if they are
-        bad. We need a quality control for curators, hence this function.
-
-        :param str term: Any value that defines SciCrunch Entity searched.
-        :param int confidence: Match similarity btw 0-100. Defaults to 85.
-        :param type **kwargs: Params for Elastcsearch Query.
-        :return: List of all possibly matched Entities.
-        :rtype: List[dict]
-
-        >>>query_elastic_with_confidence(term='brain', confidence=95)
-        """
-        query = {
-            'term': term,
-            'from': '0',  # elastic doesnt always start at 0 unless given
-            'size': '10',  # limit
-            'fields': ['label'],
-            **kwargs,
-        }
-        elastic_hits = self.query_elastic(**query)
-
-        # TODO: This would be cool to do if i figured out how to override processor to except dict choices properly
-        # compares each choice
-        # elastic_hits = process.extract(
-        #     query = term,
-        #     choices = elastic_hits,
-        #     # compares each element individually & orderring doesnt matter
-        #     # EXAMPLE: 'Life Is Good' == 'good is life'
-        #     scorer=fuzz.token_sort_ratio,
-        #     limit=None # default is 5
-        # )
-
-        # Compares each element individually where ordering doesnt matter
-        # & only returns matches with >= confidence score
-        matches = [hit for hit in elastic_hits if fuzz.token_sort_ratio(
-            hit['label'], term) >= confidence]
-        return matches
 
     def check_scicrunch_for_label(self, label: str) -> dict:
         """Check label with your user ID already exists.

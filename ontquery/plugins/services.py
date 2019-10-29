@@ -631,7 +631,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return bool(self.port)
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=None,
-              prefix=tuple(), exclude_prefix=tuple(), limit=None, **_):
+              prefix=tuple(), exclude_prefix=tuple(), limit=10, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
             oiri = OntId(iri=iri)
@@ -668,7 +668,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         elif label:
             resps: list = self.ilx_cli.query_elastic(label=label, size=limit)
         elif term:
-            resps: list = self.ilx_cli.query_elastic_with_confidence(term=term, size=limit)
+            resps: list = self.ilx_cli.query_elastic(term=term, size=limit)
         else:
             return
 
