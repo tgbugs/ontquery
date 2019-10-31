@@ -1,30 +1,37 @@
 import os
-import unittest
-import random
-import string
 import pytest
+import random
+import requests as r
+import unittest
+import json
 from ontquery.plugins.interlex_client import InterLexClient
 from ontquery.plugins.services import InterLexRemote
 import ontquery as oq
+import string
+API_BASE = 'https://test3.scicrunch.org/api/1/'
+TEST_PREFIX = 'tmp' # sigh
+TEST_TERM_ID = f'{TEST_PREFIX}_0738406'
+TEST_TERM2_ID = f'{TEST_PREFIX}_0738409'
+TEST_SUPERCLASS_ID = f'{TEST_PREFIX}_0738397'
+TEST_ANNOTATION_ID = f'{TEST_PREFIX}_0738407'
+TEST_RELATIONSHIP_ID = f'{TEST_PREFIX}_0738408'
 
-TEST_PREFIX = 'tmp'  # sigh
 
 def test_api_key():
-    ilxremote = InterLexRemote(apiEndpoint='https://test.scicrunch.org/api/1/')
+    ilxremote = InterLexRemote(apiEndpoint=API_BASE)
     ilxremote.setup(instrumented=oq.OntTerm)
     ilx_cli = ilxremote.ilx_cli
-    assert ilx_cli.api_key == ilxremote.api_key
     os.environ['INTERLEX_API_KEY'] = 'fake_key_12345'  # shadows the scicrunch key in tests
     with pytest.raises(ilx_cli.IncorrectAPIKeyError,
                        match = "api_key given is incorrect."):
-        ilxremote = InterLexRemote(apiEndpoint='https://test.scicrunch.org/api/1/')
+        ilxremote = InterLexRemote(apiEndpoint=API_BASE)
         ilxremote.setup(instrumented=oq.OntTerm)
 
     os.environ.pop('INTERLEX_API_KEY')  # unshadow
     assert not os.environ.get('INTERLEX_API_KEY')
 
 
-ilxremote = InterLexRemote(apiEndpoint='https://test.scicrunch.org/api/1/')
+ilxremote = InterLexRemote(apiEndpoint=API_BASE)
 ilxremote.setup(instrumented=oq.OntTerm)
 ilx_cli = ilxremote.ilx_cli
 
@@ -34,16 +41,63 @@ def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 @pytest.mark.parametrize("test_input, expected", [
-    ('ILX:123', 'ilx_123'),
-    ('ilx_123', 'ilx_123'),
-    ('TMP:123', f'{TEST_PREFIX}_123'),
-    (f'{TEST_PREFIX}_123', f'{TEST_PREFIX}_123'),
+    ("ILX:123", 'ilx_123'),
+    ("ilx_123", 'ilx_123'),
+    ("TMP:123", f'{TEST_PREFIX}_123'),
+    ("tmp_123", f'{TEST_PREFIX}_123'),
+    ('http://uri.interlex.org/base/tmp_123', f'{TEST_PREFIX}_123'),
+    ('http://fake_url.org/tmp_123', f'{TEST_PREFIX}_123'),
 ])
 def test_fix_ilx(test_input, expected):
     assert ilx_cli.fix_ilx(test_input) == expected
 
 
 class Test(unittest.TestCase):
+    def test_query_elastic(self):
+        label = 'brain'
+        query = {
+            'bool': {
+                'should': [
+                    {
+                        'fuzzy': {
+                            'label': {
+                                'value': label,
+                                'fuzziness': 1
+                                }
+                            }
+                        },
+                    {
+                        'match': {
+                            'label': {
+                                'query': label,
+                                'boost': 100
+                            }
+                        }
+                    }
+                ]
+            }
+        }
+        params = {
+            'term': label,
+            'key': ilx_cli.api_key,
+            'query': json.dumps(query),
+            "size": 1,
+            "from": 0
+        }
+        hits = ilx_cli.query_elastic(**params)
+        assert hits[0]['label'].lower() == 'brain'
+        hits = ilx_cli.query_elastic(label='brain')
+        assert hits[0]['label'].lower() == 'brain'
+        hits = ilx_cli.query_elastic(term='brain')
+        assert hits[0]['label'].lower() == 'brain'
+
+
+    def test_get_entity(self):
+        ilx_id = TEST_SUPERCLASS_ID
+        entity = ilx_cli.get_entity(ilx_id)
+        assert entity['ilx'] == TEST_SUPERCLASS_ID
+
+
     def test_add_raw_entity(self):
         random_label = 'test_' + id_generator(size=12)
 
@@ -53,7 +107,7 @@ class Test(unittest.TestCase):
             'definition': 'Part of the central nervous system',
             'comment': 'Cannot live without it',
             'superclass': {
-                'ilx_id': f'{TEST_PREFIX}_0108124', # ILX ID for Organ
+                'ilx_id': TEST_SUPERCLASS_ID,
             },
             'synonyms': [
                 {
@@ -72,10 +126,9 @@ class Test(unittest.TestCase):
         }
 
         added_entity_data = ilx_cli.add_raw_entity(entity.copy())
-        print(added_entity_data)
+
         # returned value is not identical to get_entity
         added_entity_data = ilx_cli.get_entity(added_entity_data['ilx'])
-        print(added_entity_data)
 
         assert added_entity_data['label'] == entity['label']
         assert added_entity_data['type'] == entity['type']
@@ -129,7 +182,7 @@ class Test(unittest.TestCase):
         ):
             ilx_cli.add_raw_entity(bad_entity)
         bad_entity = entity.copy()
-        bad_entity['superclass']['ilx_id'] = f'{TEST_PREFIX}_0108124'
+        bad_entity['superclass']['ilx_id'] = TEST_SUPERCLASS_ID
 
         # Invalid synonyms -> literal not found
         bad_entity['synonyms'][0]['literals'] = bad_entity['synonyms'][0].pop('literal')
@@ -165,7 +218,7 @@ class Test(unittest.TestCase):
         bad_entity['existing_ids'][0]['iris'] = 'extra_key'
         with pytest.raises(
             ValueError,
-            match=r"Extra keys not recognized in existing_ids for label: " + bad_entity['label']
+            match=f"Extra keys not recognized in existing_ids for label: {bad_entity['label']}"
         ):
             ilx_cli.add_raw_entity(bad_entity)
         bad_entity['existing_ids'][0].pop('iris')
@@ -179,7 +232,7 @@ class Test(unittest.TestCase):
             'definition': 'Part of the central nervous system',
             'comment': 'Cannot live without it',
             'superclass': {
-                'ilx_id': f'{TEST_PREFIX}_0108124', # ILX ID for Organ
+                'ilx_id': TEST_SUPERCLASS_ID, # ILX ID for Organ
             },
             'synonyms': [
                 {
@@ -199,7 +252,7 @@ class Test(unittest.TestCase):
         added_entity_data = ilx_cli.add_raw_entity(entity.copy())
 
         annotation = {
-            'term_ilx_id': f'{TEST_PREFIX}_0101431', # brain ILX ID
+            'term_ilx_id': TEST_TERM_ID, # brain ILX ID
             'annotation_type_ilx_id': added_entity_data['ilx'], # hasDbXref ILX ID
             'annotation_value': 'test_annotation_value',
         }
@@ -244,10 +297,10 @@ class Test(unittest.TestCase):
             'definition': 'Part of the central nervous system',
             'comment': 'Cannot live without it',
             #'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-            'superclass': f'http://uri.interlex.org/base/{TEST_PREFIX}_0108124', # ILX ID for Organ
+            'superclass': 'http://uri.interlex.org/base/'+TEST_SUPERCLASS_ID, # ILX ID for Organ
             'synonyms': ['Encephalon', 'Cerebro'],
             # 'predicates': {
-            #     f'http://uri.interlex.org/base/{TEST_PREFIX}_0381624': 'sample_value' # hasDbXref beta ID
+            #     'http://uri.interlex.org/base/+TEST_ANNOTATION_ID': 'sample_value' # hasDbXref beta ID
             # }
         }
         added_entity_data = ilx_cli.add_entity(**entity.copy())
@@ -299,16 +352,22 @@ class Test(unittest.TestCase):
         def rando_str():
             return 'test_' + id_generator(size=12)
 
-        label = 'Brain'
+        entity = {
+            'label': rando_str(),
+            'type': 'term', # broken at the moment NEEDS PDE HARDCODED
+        }
+        added_entity_data = ilx_cli.add_entity(**entity.copy())
+
+        label = 'troy_test_term'
         type = 'fde'
-        superclass = f'{TEST_PREFIX}_0108124'
+        superclass = added_entity_data['ilx']
         definition = rando_str()
         comment = rando_str()
         synonym = rando_str()
 
         update_entity_data = {
-            'ilx_id': f'{TEST_PREFIX}_0101431',
-            'label': label,
+            'ilx_id': TEST_TERM_ID,
+            # 'label': label,
             'definition': definition,
             'type': type,
             'comment': comment,
@@ -322,7 +381,7 @@ class Test(unittest.TestCase):
         assert updated_entity_data['definition'] == definition
         assert updated_entity_data['type'] == type
         assert updated_entity_data['comment'] == comment
-        assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass
+        assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
         # test if random synonym was added
         assert synonym in update_entity_data['synonyms']
         # test if dupclicates weren't created
@@ -332,14 +391,14 @@ class Test(unittest.TestCase):
     def test_annotation(self):
         annotation_value = 'test_' + id_generator()
         resp = ilx_cli.add_annotation(**{
-            'term_ilx_id': f'{TEST_PREFIX}_0101431', # brain ILX ID
-            'annotation_type_ilx_id': f'{TEST_PREFIX}_0112771', # spont firing ILX ID
+            'term_ilx_id': TEST_TERM_ID, # brain ILX ID
+            'annotation_type_ilx_id': TEST_ANNOTATION_ID, # spont firing ILX ID
             'annotation_value': annotation_value,
         })
         assert resp['value'] == annotation_value
         resp = ilx_cli.delete_annotation(**{
-            'term_ilx_id': f'{TEST_PREFIX}_0101431', # brain ILX ID
-            'annotation_type_ilx_id': f'{TEST_PREFIX}_0112771', # spont firing ILX ID
+            'term_ilx_id': TEST_TERM_ID, # brain ILX ID
+            'annotation_type_ilx_id': TEST_ANNOTATION_ID, # spont firing ILX ID
             'annotation_value': annotation_value,
         })
         # If there is a response than it means it worked. If you try this again it will 404 if my net
@@ -349,15 +408,15 @@ class Test(unittest.TestCase):
 
 
     def test_relationship(self):
-        random_label = 'my_test100' + id_generator()
+        random_label = 'my_test' + id_generator()
         entity_resp = ilx_cli.add_entity(**{
             'label': random_label,
             'type': 'term',
         })
 
         entity1_ilx = entity_resp['ilx']
-        relationship_ilx = f'{TEST_PREFIX}_0112785' # is part of ILX ID
-        entity2_ilx = f'{TEST_PREFIX}_0100001' #1,2-Dibromo chemical ILX ID
+        relationship_ilx = TEST_RELATIONSHIP_ID # is part of ILX ID
+        entity2_ilx = TEST_TERM_ID #1,2-Dibromo chemical ILX ID
 
         relationship_resp = ilx_cli.add_relationship(**{
             'entity1_ilx': entity1_ilx,
@@ -391,11 +450,11 @@ class Test(unittest.TestCase):
             'definition': 'Part of the central nervous system',
             'comment': 'Cannot live without it',
             # 'subThingOf': 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-            'subThingOf': f'http://uri.interlex.org/base/{TEST_PREFIX}_0108124', # ILX ID for Organ
+            'subThingOf': 'http://uri.interlex.org/base/'+TEST_TERM_ID, # ILX ID for Organ
             'synonyms': ['Encephalon', 'Cerebro'],
             'predicates': {
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value', # spont firing beta ID | annotation
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112785': f'http://uri.interlex.org/base/{TEST_PREFIX}_0100001', # relationship
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_RELATIONSHIP_ID: 'http://uri.interlex.org/base/'+TEST_TERM_ID, # relationship
             }
         }
         ilxremote_resp = ilxremote.add_entity(**entity)
@@ -412,9 +471,9 @@ class Test(unittest.TestCase):
         assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
 
         assert added_annotation['value'] == 'sample_value'
-        assert added_annotation['annotation_term_ilx'] == f'{TEST_PREFIX}_0112771'
-        assert added_relationship['relationship_term_ilx'] == f'{TEST_PREFIX}_0112785'
-        assert added_relationship['term2_ilx'] == f'{TEST_PREFIX}_0100001'
+        assert added_annotation['annotation_term_ilx'] == TEST_ANNOTATION_ID
+        assert added_relationship['relationship_term_ilx'] == TEST_RELATIONSHIP_ID
+        assert added_relationship['term2_ilx'] == TEST_TERM_ID
 
         entity = {
             'ilx_id': ilxremote_resp['curie'],
@@ -422,19 +481,18 @@ class Test(unittest.TestCase):
             # 'type': 'term', # broken at the moment NEEDS PDE HARDCODED
             'definition': 'Updated definition!',
             'comment': 'Cannot live without it UPDATE',
-            'subThingOf': f'http://uri.interlex.org/base/{TEST_PREFIX}_0108124', # ILX ID for Organ
+            'subThingOf': 'http://uri.interlex.org/base/'+TEST_TERM_ID, # ILX ID for Organ
             'synonyms': ['Encephalon', 'Cerebro_update'],
             'predicates_to_add': {
                 # DUPCLICATE CHECK
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value', # spont firing beta ID | annotation
-                # NEW VALUES
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value2', # spont firing beta ID | annotation
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112785': f'http://uri.interlex.org/base/{TEST_PREFIX}_0100000', # relationship
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value2', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_RELATIONSHIP_ID: 'http://uri.interlex.org/base/'+TEST_TERM2_ID # relationship
             },
             'predicates_to_delete': {
                 # DELETE ORIGINAL
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112771': 'sample_value', # spont firing beta ID | annotation
-                f'http://uri.interlex.org/base/{TEST_PREFIX}_0112785': f'http://uri.interlex.org/base/{TEST_PREFIX}_0100001', # relationship
+                'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
+                'http://uri.interlex.org/base/'+TEST_RELATIONSHIP_ID: 'http://uri.interlex.org/base/'+TEST_TERM2_ID, # relationship
             }
         }
         ilxremote_resp = ilxremote.update_entity(**entity)
@@ -452,8 +510,17 @@ class Test(unittest.TestCase):
 
         assert len(added_annotations) == 1
         assert len(added_relationships) == 1
-        assert added_annotations[0]['annotation_term_ilx'] == f'{TEST_PREFIX}_0112771'
+        assert added_annotations[0]['annotation_term_ilx'] == TEST_ANNOTATION_ID
         assert added_annotations[0]['value'] == 'sample_value2'
         # would check term1_ilx, but whoever made it forgot to make it a key...
-        assert added_relationships[0]['relationship_term_ilx'] == f'{TEST_PREFIX}_0112785'
-        assert added_relationships[0]['term2_ilx'] == f'{TEST_PREFIX}_0100000'
+        assert added_relationships[0]['relationship_term_ilx'] == TEST_RELATIONSHIP_ID
+        assert added_relationships[0]['term2_ilx'] == TEST_TERM_ID
+
+
+def main(self):
+    Test()
+    # test_update_entity()
+
+
+if __name__ == '__main__':
+    main()

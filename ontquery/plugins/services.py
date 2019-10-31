@@ -1,9 +1,12 @@
 import os
+import ontquery
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone, one_or_many, log, bunch, red
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
+from typing import List, Dict
+
 
 try:
     from pyontutils import scigraph
@@ -444,12 +447,6 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
 
-        self.api_key = os.environ.get('INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
-
-        if self.api_key is None and apiEndpoint == self.defaultEndpoint:
-            # we don't error here because API keys are not required for viewing
-            log.warning('You have not set an API key for the SciCrunch API!')
-
         self.apiEndpoint = apiEndpoint
 
         try:
@@ -477,13 +474,15 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def setup(self, **kwargs):
         OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
-        if self.api_key is not None and self.apiEndpoint is not None:
-            self.ilx_cli = InterLexClient(base_url=self.apiEndpoint)
-        elif not self.readonly:
-            # expect attribute errors for ilx_cli
 
-            log.warning('You have not set an API key for the SciCrunch API! '
-                        'InterLexRemote will error if you try to use it.')
+        if self.apiEndpoint is not None:
+            self.ilx_cli = InterLexClient(base_url=self.apiEndpoint)
+
+            if not self.readonly and self.ilx_cli.api_key is None:
+                # expect attribute errors for ilx_cli
+
+                log.warning('You have not set an API key for the SciCrunch API! '
+                            'InterLexRemote will error if you try to use it.')
 
         super().setup(**kwargs)
 
@@ -592,8 +591,16 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
                       definition: str=None, synonyms=tuple(), comment: str=None,
-                      predicates_to_add: dict=None, predicates_to_delete: dict=None):
+                      predicates_to_add: dict=None, add_existing_ids: List[dict]=None,
+                      delete_existing_ids: List[dict]=None, predicates_to_delete: dict=None):
+        """Update existing entity.
 
+        :param List[dict] add_existing_ids: iris and curies to be added to entity.
+        :param List[dict] delete_existing_ids: iris and curies to be deleted from entity.
+
+        >>>update_entity(add_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+        >>>update_entity(delete_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+        """
         resp = self.ilx_cli.update_entity(
             ilx_id = ilx_id,
             label = label,
@@ -602,6 +609,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             definition = definition,
             comment = comment,
             synonyms = synonyms,
+            add_existing_ids = add_existing_ids,
+            delete_existing_ids = delete_existing_ids,
             # predicates = tresp,
         )
 
@@ -711,7 +720,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return bool(self.port)
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
-              prefix=tuple(), exclude_prefix=tuple(), **_):
+              prefix=tuple(), exclude_prefix=tuple(), limit=10, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
             oiri = OntId(iri=iri)
@@ -725,16 +734,55 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         if self._is_dev_endpoint:
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+            if res is not None:
+                yield res
         else:
-            res = self._scicrunch_api_query(kwargs, iri, curie, label, term, predicates)
+            res = self._scicrunch_api_query(
+                kwargs=kwargs,
+                iri=iri,
+                curie=curie,
+                label=label,
+                term=term,
+                predicates=predicates,
+                limit=limit)
 
-        if res is not None:
-            yield res
+            yield from res
+
+    def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates, limit):
+        if iri:
+            resps: dict = self.ilx_cli.get_entity(iri, iri_curie=True)
+        elif curie:
+            resps: dict = self.ilx_cli.get_entity(curie, iri_curie=True)
+        elif label:
+            resps: list = self.ilx_cli.query_elastic(label=label, size=limit)
+        elif term:
+            resps: list = self.ilx_cli.query_elastic(term=term, size=limit)
         else:
             return
 
-    def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates):
-        pass
+        if not resps:
+            return
+        elif isinstance(resps, dict):
+            resps = [resps]
+
+        for resp in resps:
+            yield self.QueryResult(
+                query_args = kwargs,
+                iri=resp['iri'],
+                curie=resp['curie'],
+                label=resp['label'],
+                labels=tuple(),
+                #abbrev=None, # TODO
+                #acronym=None, # TODO
+                definition=resp['definition'],
+                synonyms=tuple(resp['synonyms']),
+                #deprecated=None,
+                #prefix=None,
+                #category=None,
+                predicates=predicates,
+                #_graph=None,
+                source=self,
+            )
 
     def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
