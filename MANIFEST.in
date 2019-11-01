@@ -1,10 +1,25 @@
 recursive-include test *
+recursive-exclude ontquery *
+
+include ontquery/__init__.py
+include ontquery/exceptions.py
+include ontquery/plugin.py
+include ontquery/plugins/__init__.py
+include ontquery/plugins/services.py
+include ontquery/plugins/interlex_client.py
+include ontquery/query.py
+include ontquery/services.py
+include ontquery/terms.py
+include ontquery/trie.py
+include ontquery/utils.py
+
 include ontquery/plugins/namespaces.py
 include ontquery/plugins/scigraph_client.py
+
 exclude .gitignore
 exclude .travis.yml
 exclude MANIFEST.in
-recursive-exclude export *
+
 recursive-exclude * *.pyc
 recursive-exclude * *.swp
 recursive-exclude * *.swo

@@ -23,27 +23,8 @@ RELEASE = '--release' in sys.argv
 if RELEASE:
     sys.argv.remove('--release')
 
-namespaces = 'ontquery/plugins/namespaces.py'
-scigraph_client = 'ontquery/plugins/scigraph_client.py'
-
-files = [
-    'ontquery/__init__.py',
-    'ontquery/exceptions.py',
-    'ontquery/plugin.py',
-    'ontquery/plugins/__init__.py',
-    'ontquery/plugins/interlex_client.py',
-    'ontquery/plugins/services.py',
-    'ontquery/query.py',
-    'ontquery/services.py',
-    'ontquery/terms.py',
-    'ontquery/trie.py',
-    'ontquery/utils.py',
-]
-
-if RELEASE:
-    # append to files
-    files.append(namespaces)
-    files.append(scigraph_client)
+    namespaces = 'ontquery/plugins/namespaces.py'
+    scigraph_client = 'ontquery/plugins/scigraph_client.py'
 
     # namespaces
     if not Path(namespaces).exists():
@@ -63,10 +44,6 @@ if RELEASE:
             raise OSError(f'scigraph-codegen failed with status {status_code}')
 
 try:
-    os.mkdir('export')
-    os.mkdir('export/plugins')
-    for f in files:
-        shutil.copyfile(f, f.replace('ontquery', 'export'))
     tests_require = ['pytest', 'pytest-runner', 'rdflib', 'requests']
     setup(
         name='ontquery',
@@ -85,7 +62,6 @@ try:
             'Programming Language :: Python :: 3.7',
         ],
         keywords='ontology terminology scigraph interlex term lookup ols',
-        package_dir={'ontquery':'export'},
         packages=['ontquery', 'ontquery.plugins'],
         python_requires='>=3.6',
         tests_require=tests_require,
@@ -101,7 +77,6 @@ try:
     )
 
 finally:
-    shutil.rmtree('export')
     if RELEASE:
         os.remove(namespaces)
         os.remove(scigraph_client)
