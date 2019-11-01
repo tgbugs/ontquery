@@ -3,7 +3,7 @@ import unittest
 from uuid import uuid4
 import rdflib
 import ontquery as oq
-from .common import test_graph
+from .common import test_graph, skipif_no_net
 
 # FIXME TODO per service ... + mismatch warning
 oq.OntCuries({'rdf': str(rdflib.RDF),
@@ -107,6 +107,7 @@ class _TestIlx(ServiceBase):
 
 if 'CI' not in os.environ:  # production uri resolver doesn't have all the required features yet
     beta = 'https://test.scicrunch.org/api/1/'
+    @skipif_no_net
     class TestIlx(_TestIlx, unittest.TestCase):
         remote = oq.plugin.get('InterLex')(apiEndpoint=beta,
                                            host='localhost', port='8505')
@@ -115,6 +116,7 @@ if 'CI' not in os.environ:  # production uri resolver doesn't have all the requi
             self.OntTerm.query.setup()
 
 
+@skipif_no_net
 class TestSciGraph(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('SciGraph')()
     remote.api_key = os.environ.get('SCICRUNCH_API_KEY', None)

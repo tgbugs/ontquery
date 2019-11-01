@@ -1,13 +1,15 @@
 import os
-import pytest
-import random
-import requests as r
-import unittest
 import json
+import string
+import random
+import unittest
+import pytest
+import requests as r
 from ontquery.plugins.interlex_client import InterLexClient
 from ontquery.plugins.services import InterLexRemote
 import ontquery as oq
-import string
+from .common import skipif_no_net, SKIP_NETWORK
+
 API_BASE = 'https://test3.scicrunch.org/api/1/'
 TEST_PREFIX = 'tmp' # sigh
 TEST_TERM_ID = f'{TEST_PREFIX}_0738406'
@@ -17,6 +19,7 @@ TEST_ANNOTATION_ID = f'{TEST_PREFIX}_0738407'
 TEST_RELATIONSHIP_ID = f'{TEST_PREFIX}_0738408'
 
 
+@skipif_no_net
 def test_api_key():
     ilxremote = InterLexRemote(apiEndpoint=API_BASE)
     ilxremote.setup(instrumented=oq.OntTerm)
@@ -31,15 +34,17 @@ def test_api_key():
     assert not os.environ.get('INTERLEX_API_KEY')
 
 
-ilxremote = InterLexRemote(apiEndpoint=API_BASE)
-ilxremote.setup(instrumented=oq.OntTerm)
-ilx_cli = ilxremote.ilx_cli
+if not SKIP_NETWORK:
+    ilxremote = InterLexRemote(apiEndpoint=API_BASE)
+    ilxremote.setup(instrumented=oq.OntTerm)
+    ilx_cli = ilxremote.ilx_cli
 
 
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
 
+@skipif_no_net
 @pytest.mark.parametrize("test_input, expected", [
     ("ILX:123", 'ilx_123'),
     ("ilx_123", 'ilx_123'),
@@ -52,6 +57,7 @@ def test_fix_ilx(test_input, expected):
     assert ilx_cli.fix_ilx(test_input) == expected
 
 
+@skipif_no_net
 class Test(unittest.TestCase):
     def test_query_elastic(self):
         label = 'brain'
@@ -515,12 +521,3 @@ class Test(unittest.TestCase):
         # would check term1_ilx, but whoever made it forgot to make it a key...
         assert added_relationships[0]['relationship_term_ilx'] == TEST_RELATIONSHIP_ID
         assert added_relationships[0]['term2_ilx'] == TEST_TERM_ID
-
-
-def main(self):
-    Test()
-    # test_update_entity()
-
-
-if __name__ == '__main__':
-    main()
