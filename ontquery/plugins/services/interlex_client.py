@@ -4,7 +4,7 @@ import pathlib
 from typing import Union, List, Tuple, Dict
 import requests
 from ontquery.utils import log
-from . import deco
+from . import deco, auth
 
 
 @deco.interlex_basic_u
@@ -72,37 +72,41 @@ class InterLexClient:
         :param str base_url: . Defaults to default_base_url.
         """
         self.base_url = base_url
-        self.api_key = os.environ.get(
-            'INTERLEX_API_KEY', os.environ.get('SCICRUNCH_API_KEY', None))
 
-        if self.api_key is None:
+        if self.api_key is None:  # injected by orthauth
             # we don't error here because API keys are not required for viewing
             log.warning('You have not set an API key for the SciCrunch API!')
 
         if 'test' in base_url:
-            auth = self._auth
-            if auth is None or not auth[0] or not auth[1]:
+            bauth = self._auth
+            if bauth is None or not bauth[0] or not bauth[1]:
+                #f = pathlib.Path(this__file__).parent / auth-config.py
+                f = auth._path
                 raise self.IncorrectAuthError(
                     'TEST needs a user & password to get into '
                     'https://test[0-9].scicrunch.org.\n'
                     'Either run\n'
                     'export SCICRUNCH_TEST_U=put_user_here\n'
                     'export SCICRUNCH_TEST_P=put_password_here\n'
-                    'or add paths to their secret name in\n'
-                    '~/.config/ontquery/config.yaml\n'
-                    'and add their values to your secrets file.\n'
-                    f'See {pathlib.Path(__file__).parent / auth_config.py} for details'
+                    'or add a value for      interlex-basic-auth-user\n'
+                    'and a secrets path for  interlex-basic-auth-pass\n'
+                    'to ~/.config/ontquery/config.yaml\n'
+                    'and add the paths to your secrets file.\n'
+                    f'See {f} for details'
                 )
             if not self.api_key:
+                #f = pathlib.Path(this__file__).parent / auth-config.py
+                f = auth._path
                 raise self.IncorrectAPIKeyError(
                     'TEST api_key not found. Please go to '
                     'https://test.scicrunch.org/ '
                     'and get an api_key. The either run\n'
                     'export SCICRUNCH_API_KEY=your_api_key_here\n'
-                    'or add paths to its secret name in\n'
-                    '~/.config/ontquery/config.yaml\n'
-                    'and add its values to your secrets file.'
-                    f'See {pathlib.Path(__file__).parent / auth_config.py} for details'
+                    'or add a secrets path to\n'
+                    'interlex-api-key\n'
+                    'to ~/.config/ontquery/config.yaml\n'
+                    'and add the path to your secrets file.'
+                    f'See {f} for details'
                 )
 
         user_info_url = self.base_url + 'user/info?key=' + self.api_key

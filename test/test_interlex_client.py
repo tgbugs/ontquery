@@ -5,8 +5,8 @@ import random
 import unittest
 import pytest
 import requests as r
-from ontquery.plugins.interlex_client import InterLexClient
-from ontquery.plugins.services import InterLexRemote
+from ontquery.plugins.services.interlex_client import InterLexClient
+from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
 from .common import skipif_no_net, SKIP_NETWORK
 

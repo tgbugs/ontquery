@@ -24,7 +24,7 @@ if RELEASE:
     sys.argv.remove('--release')
 
     namespaces = 'ontquery/plugins/namespaces.py'
-    scigraph_client = 'ontquery/plugins/scigraph_client.py'
+    scigraph_client = 'ontquery/plugins/services/scigraph_client.py'
 
     # namespaces
     if not Path(namespaces).exists():

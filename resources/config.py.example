@@ -1,0 +1,7 @@
+{'auth-stores':
+ {'secrets':
+  {'path': '{:user-config-path}/orthauth/secrets.yaml'}},
+ 'auth-variables':
+ {'interlex-basic-auth-user': USERNAME,  # change this
+  'interlex-basic-auth-pass': {'path': PATH_TO_PASSWORD},  # change this
+  'interlex-api-key': {'path': PATH_TO_API_KEY}}}  # change this

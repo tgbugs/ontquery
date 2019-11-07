@@ -45,10 +45,9 @@ def register(name, module_path, class_name):
     _plugins[name] = p
 
 
-register('rdflib', 'ontquery.plugins.services', 'rdflibLocal')
-register('InterLex', 'ontquery.plugins.services', 'InterLexRemote')
-register('SciGraph', 'ontquery.plugins.services', 'SciGraphRemote')
-register('SciCrunch', 'ontquery.plugins.services', 'SciCrunchRemote')
-register('GitHub', 'ontquery.plugins.services', 'GitHubRemote')
-register('iris', 'ontquery.plugins.services', 'StaticIriRemote')
-
+register('InterLex', 'ontquery.plugins.services.interlex', 'InterLexRemote')
+register('SciGraph', 'ontquery.plugins.services.scigraph', 'SciGraphRemote')
+register('SciCrunch', 'ontquery.plugins.services.scigraph', 'SciCrunchRemote')
+register('rdflib', 'ontquery.plugins.services.rdflib', 'rdflibLocal')
+register('iris', 'ontquery.plugins.services.rdflib', 'StaticIriRemote')
+register('GitHub', 'ontquery.plugins.services.rdflib', 'GitHubRemote')

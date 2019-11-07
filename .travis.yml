@@ -13,10 +13,7 @@ branches:
 
 python:
   - 3.6
-
-before_install:
-  - sudo apt-get install hunspell
-  - sudo apt-get install libhunspell-dev
+  - 3.7
 
 install:
   - pip install --upgrade pytest pytest-cov
@@ -26,7 +23,7 @@ install:
   - pipenv install --dev --system --skip-lock --deploy
 
 script:
-  - PYTHONWARNINGS=ignore pipenv run pytest --verbose --cov=ontquery
+  - PYTHONWARNINGS=ignore pipenv run pytest --verbose --color=yes --cov=ontquery
 
 after_success:
   - if [[ $HAS_COVERALLS ]] ; then coveralls ; fi
