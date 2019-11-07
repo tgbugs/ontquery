@@ -1,10 +1,15 @@
-import json
 import os
+import json
+import pathlib
 from typing import Union, List, Tuple, Dict
 import requests
 from ontquery.utils import log
+from . import deco
 
 
+@deco.interlex_basic_u
+@deco.interlex_basic_p
+@deco.interlex_api_key
 class InterLexClient:
 
     """ Connects to SciCrunch via its' api endpoints
@@ -74,30 +79,42 @@ class InterLexClient:
             # we don't error here because API keys are not required for viewing
             log.warning('You have not set an API key for the SciCrunch API!')
 
-        self._kwargs = {}
         if 'test' in base_url:
-            auth = os.environ.get('SCICRUNCH_TEST_U'), os.environ.get(
-                'SCICRUNCH_TEST_P')
-            if not auth[0] or not auth[1]:
+            auth = self._auth
+            if auth is None or not auth[0] or not auth[1]:
                 raise self.IncorrectAuthError(
                     'TEST needs a user & password to get into '
                     'https://test[0-9].scicrunch.org.\n'
-                    'Add them to ~/.bashrc as so:\n'
+                    'Either run\n'
                     'export SCICRUNCH_TEST_U=put_user_here\n'
-                    'export SCICRUNCH_TEST_P=put_password_here'
+                    'export SCICRUNCH_TEST_P=put_password_here\n'
+                    'or add paths to their secret name in\n'
+                    '~/.config/ontquery/config.yaml\n'
+                    'and add their values to your secrets file.\n'
+                    f'See {pathlib.Path(__file__).parent / auth_config.py} for details'
                 )
             if not self.api_key:
                 raise self.IncorrectAPIKeyError(
                     'TEST api_key not found. Please go to '
                     'https://test.scicrunch.org/ '
-                    'and get an api_key. Add it to ~/.basrc as so \n'
-                    'export SCICRUNCH_API_KEY_TEST=your_api_key_here'
+                    'and get an api_key. The either run\n'
+                    'export SCICRUNCH_API_KEY=your_api_key_here\n'
+                    'or add paths to its secret name in\n'
+                    '~/.config/ontquery/config.yaml\n'
+                    'and add its values to your secrets file.'
+                    f'See {pathlib.Path(__file__).parent / auth_config.py} for details'
                 )
-            self._kwargs['auth'] = auth
 
         user_info_url = self.base_url + 'user/info?key=' + self.api_key
         self.check_api_key(user_info_url)
         self.user_id = str(self.get(user_info_url)['id'])
+
+    @property
+    def _auth(self):
+        u = self._basic_auth_user
+        p = self._basic_auth_pass
+        if u and p:
+            return u, p
 
     def check_api_key(self, url: str) -> None:
         """Resquests user info to check if user exists and has validation.
@@ -107,11 +124,13 @@ class InterLexClient:
         :rtype: None
         :raises IncorrectAPIKeyError keyError: raises Error
         """
-        response = requests.get(
-            url,
-            headers={'Content-type': 'application/json'},
-            **self._kwargs
-        )
+        kwargs = {}
+        if self._auth is not None:
+            kwargs['auth'] = self._auth
+
+        response = requests.get(url,
+                                headers={'Content-type': 'application/json'},
+                                **kwargs)
         if response.status_code not in [200, 201]:  # Safety catch.
             sec = url.replace(self.api_key, '[secure]')
             raise self.IncorrectAPIKeyError(
@@ -165,8 +184,7 @@ class InterLexClient:
         :rtype: Union[list, dict]
         """
         if not params: params = {}
-        # TODO: need to deal with _kwargs. bad practice
-        auth = auth if auth else self._kwargs.get('auth')
+        auth = auth if auth else self._auth
         params = {
             **params,
             'api_key': self.api_key,
@@ -192,13 +210,17 @@ class InterLexClient:
         data.update({
             'api_key': self.api_key,
         })
+        kwargs = {}
+        if self._auth is not None:
+            kwargs['auth'] = self._auth
+
         response = requests.post(
             url,
             # Elastic takes in dict while other apis need a string...
             # Yeah I know...
             data=json.dumps(data) if 'elastic' not in url else data,
             headers={'Content-type': 'application/json'},
-            **self._kwargs
+            **kwargs
         )
         output = self.process_response(response)
         return output

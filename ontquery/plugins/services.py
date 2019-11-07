@@ -1,12 +1,12 @@
 import os
+from typing import List, Dict
 import ontquery
 import ontquery.exceptions as exc
 from ontquery import OntCuries, OntId
 from ontquery.utils import cullNone, one_or_many, log, bunch, red
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
-from typing import List, Dict
-
+from . import deco
 
 try:
     from pyontutils import scigraph
@@ -26,6 +26,7 @@ except ModuleNotFoundError as rdflib_missing:
 _empty_tuple = tuple()
 
 
+@deco.scigraph_api_key
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
     verbose = False
@@ -36,7 +37,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         except NameError:
             raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
         self.apiEndpoint = apiEndpoint
-        self.api_key = os.environ.get('SCIGRAPH_API_KEY', None)
         self.OntId = OntId
         super().__init__()
 

@@ -4,10 +4,10 @@ verify_ssl = true
 name = "pypi"
 
 [requires]
-python_version = '3.6'  # also works with pypy3
+python_version = '3.7'  # also works with pypy3
 
 [dev-packages]
-pyontutils = {git = "https://github.com/tgbugs/pyontutils.git", editable = true, ref = "master"}
+orthauth = {git = "https://github.com/tgbugs/orthauth.git", editable = true, ref = "master"}
 "e1839a8" = {path = ".", extras = ["dev"], editable = true}
 
 [packages]

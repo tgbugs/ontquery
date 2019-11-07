@@ -44,7 +44,8 @@ if RELEASE:
             raise OSError(f'scigraph-codegen failed with status {status_code}')
 
 try:
-    tests_require = ['pytest', 'pytest-runner', 'rdflib', 'requests']
+    services_require = ['rdflib', 'requests', 'orthauth'],
+    tests_require = ['pytest', 'pytest-runner'] + services_require
     setup(
         name='ontquery',
         version=__version__,
@@ -68,7 +69,7 @@ try:
         install_requires=[
         ],
         extras_require={'dev':['pyontutils',],
-                        'services':['rdflib', 'requests'],
+                        'services':services_require,
                         'test': tests_require},
         entry_points={
             'console_scripts': [
