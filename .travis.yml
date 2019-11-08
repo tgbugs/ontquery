@@ -23,7 +23,7 @@ install:
   - pipenv install --dev --system --skip-lock --deploy
 
 script:
-  - PYTHONWARNINGS=ignore pipenv run pytest --verbose --color=yes --cov=ontquery
+  - pipenv run pytest
 
 after_success:
   - if [[ $HAS_COVERALLS ]] ; then coveralls ; fi
