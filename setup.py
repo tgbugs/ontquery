@@ -38,14 +38,14 @@ if RELEASE:
     # scigraph_client
     if not Path(scigraph_client).exists():
         status_code = os.system(('scigraph-codegen '
-                                '-a https://scicrunch.org/api/1/scigraph -o ')
+                                 '-a https://scicrunch.org/api/1/scigraph -o ')
                                 + scigraph_client)
         if status_code:
             raise OSError(f'scigraph-codegen failed with status {status_code}')
 
+services_require = ['rdflib', 'requests', 'orthauth']
+tests_require = ['pytest', 'pytest-runner'] + services_require
 try:
-    services_require = ['rdflib', 'requests', 'orthauth']
-    tests_require = ['pytest', 'pytest-runner'] + services_require
     setup(
         name='ontquery',
         version=__version__,
