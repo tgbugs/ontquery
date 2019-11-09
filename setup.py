@@ -63,7 +63,7 @@ try:
             'Programming Language :: Python :: 3.7',
         ],
         keywords='ontology terminology scigraph interlex term lookup ols',
-        packages=['ontquery', 'ontquery.plugins'],
+        packages=['ontquery', 'ontquery.plugins', 'ontquery.plugins.services'],
         python_requires='>=3.6',
         tests_require=tests_require,
         install_requires=[
