@@ -15,6 +15,8 @@ except ModuleNotFoundError:
     from ontquery.plugins import scigraph_client as scigraph
 
 import ontquery as oq
+from .common import skipif_no_net
+
 oq.utils.log.setLevel('DEBUG')
 
 
@@ -45,6 +47,7 @@ class SetupHelper:
         #self.APIquery = OntQuery(SciGraphRemote(api_key=get_api_key()))
 
 
+@skipif_no_net
 class TestPredicates(SetupHelper, unittest.TestCase):
     def test_predicates_inverse(self):
         t = OntTerm('UBERON:0000955')
@@ -107,6 +110,7 @@ class TestPredicates(SetupHelper, unittest.TestCase):
 
 
 class TestAll(SetupHelper, unittest.TestCase):
+    @skipif_no_net
     def test_query(self):
         self.query('brain')
         self.query(term='brain')
@@ -122,6 +126,7 @@ class TestAll(SetupHelper, unittest.TestCase):
 
         list(self.query.predicates)
 
+    @skipif_no_net
     def test_prefix(self):
         #sgv.findByTerm('nucleus', prefix=['UBERON', 'CHEBI'])
         # search by term returns all from the first prefix first
@@ -136,6 +141,7 @@ class TestAll(SetupHelper, unittest.TestCase):
         assert [term for term in result if term.prefix == 'GO']
         assert not [term for term in result if term.suffix == 'SAO']
 
+    @skipif_no_net
     def test_category(self):
         class OntTerm(oq.OntTerm):
             pass
@@ -148,6 +154,7 @@ class TestAll(SetupHelper, unittest.TestCase):
         assert [term for term in result if term.prefix == 'GO']
         assert not [term for term in result if term.suffix == 'CHEBI']
 
+    @skipif_no_net
     def test_term(self):
         brain = OntTerm('UBERON:0000955')
         brain = OntTerm(curie='UBERON:0000955')
@@ -155,6 +162,7 @@ class TestAll(SetupHelper, unittest.TestCase):
         OntTerm('NCBITaxon:2', label='Bacteria')
         #OntTerm('NCBITaxon:2', label='Bacteria <prokaryote>')  # gone in latest
 
+    @skipif_no_net
     def test_term_label_mismatch(self):
         try:
             l = 'not actually the brain'
@@ -163,6 +171,7 @@ class TestAll(SetupHelper, unittest.TestCase):
         except ValueError:
             assert True, 'expect to fail'
 
+    @skipif_no_net
     def test_term_label_mismatch_not_validated(self):
         try:
             OntTerm('UBERON:0000955', label='not actually the brain', validated=False)
@@ -194,6 +203,7 @@ class TestAll(SetupHelper, unittest.TestCase):
         except TypeError:
             assert True, 'fails as expected'
 
+    @skipif_no_net
     def test_dont_return_OntTerm_from_query(self):
         """ no idea why this test is here, but apparently we had a very funny bug at some point in time """
         #t = next(OntTerm.query(term='midbrain reticular nucleus')).OntTerm
@@ -243,6 +253,7 @@ class TestAll(SetupHelper, unittest.TestCase):
         except ValueError:
             pass
 
+    @skipif_no_net
     def test_prefix(self):
         bads = []
         for prefix in 'UBERON', 'FMA':
@@ -251,12 +262,14 @@ class TestAll(SetupHelper, unittest.TestCase):
 
         assert not bads, bads
 
-    def test_prefixs(self):
+    @skipif_no_net
+    def test_prefixes(self):
         prefixes = ('UBERON', 'BIRNLEX', 'FMA')
         gen = oq.OntTerm.query(term='brain', prefix=prefixes)
         bads = [term for term in gen if term.prefix not in prefixes]
         assert not bads, bads
 
+    @skipif_no_net
     def test_exclude_prefix(self):
         gen = oq.OntTerm.query(term='brain', exclude_prefix=('FMA',))
         bads = [term for term in gen if term.prefix == 'FMA']
