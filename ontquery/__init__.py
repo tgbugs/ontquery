@@ -4,4 +4,4 @@ from ontquery import plugin
 
 __all__ = ['OntCuries', 'OntId', 'OntTerm', 'OntQuery', 'OntQueryCli']
 
-__version__ = '0.2.1.dev0'
+__version__ = '0.2.1'

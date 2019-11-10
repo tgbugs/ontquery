@@ -65,7 +65,7 @@ class ServiceBase:
 
 
 class _TestIlx(ServiceBase):
-    remote = oq.plugin.get('InterLex')(host='uri.interlex.org')
+    remote = oq.plugin.get('InterLex')()
 
     def test_problem(self):
         curie = 'ILX:0101431'
@@ -109,8 +109,7 @@ if 'CI' not in os.environ:  # production uri resolver doesn't have all the requi
     beta = 'https://test.scicrunch.org/api/1/'
     @skipif_no_net
     class TestIlx(_TestIlx, unittest.TestCase):
-        remote = oq.plugin.get('InterLex')(apiEndpoint=beta,
-                                           host='localhost', port='8505')
+        remote = oq.plugin.get('InterLex')(apiEndpoint=beta)
         def setUp(self):
             super().setUp()
             self.OntTerm.query.setup()
@@ -119,7 +118,6 @@ if 'CI' not in os.environ:  # production uri resolver doesn't have all the requi
 @skipif_no_net
 class TestSciGraph(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('SciGraph')()
-    remote.api_key = os.environ.get('SCICRUNCH_API_KEY', None)
 
     def test_inverse(self):
         t = self.OntTerm('UBERON:0000955')

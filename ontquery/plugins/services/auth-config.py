@@ -5,4 +5,6 @@
   'interlex-api-key': {'environment-variables': 'INTERLEX_API_KEY SCICRUNCH_API_KEY'},
   'interlex-basic-auth-user': {'environment-variables': 'SCICRUNCH_TEST_U'},
   'interlex-basic-auth-pass': {'environment-variables': 'SCICRUNCH_TEST_P'},
+  'ilx-host': 'uri.interlex.org',
+  'ilx-port': '',
  }}

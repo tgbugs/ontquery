@@ -30,6 +30,9 @@ class InterLexClient:
     class Error(Exception):
         """Script could not complete."""
 
+    class NoApiKeyError(Error):
+        """ No api key has been set """
+
     class SuperClassDoesNotExistError(Error):
         """The superclass listed does not exist!"""
 
@@ -74,8 +77,8 @@ class InterLexClient:
         self.base_url = base_url
 
         if self.api_key is None:  # injected by orthauth
-            # we don't error here because API keys are not required for viewing
-            log.warning('You have not set an API key for the SciCrunch API!')
+            # we do error here because viewing without a key handled in InterLexRemote not here
+            raise self.NoApiKeyError('You have not set an API key for the SciCrunch API!')
 
         if 'test' in base_url:
             bauth = self._auth
