@@ -23,15 +23,19 @@ RELEASE = '--release' in sys.argv
 if RELEASE:
     sys.argv.remove('--release')
 
-    namespaces = 'ontquery/plugins/namespaces.py'
+    namespaces = Path('ontquery/plugins/namespaces/nifstd.py')
     scigraph_client = 'ontquery/plugins/services/scigraph_client.py'
 
     # namespaces
-    if not Path(namespaces).exists():
+    if not namespaces.exists():
         from pyontutils.namespaces import PREFIXES
 
         lines = ['CURIE_MAP = {\n'] + [f'    {k!r}: {v!r},\n'
                                        for k, v in sorted(PREFIXES.items())] + ['}']
+
+        if not namespaces.parent.exists():
+            namespaces.parent.mkdir()
+
         with open(namespaces, 'wt') as f:
             f.writelines(lines)
 

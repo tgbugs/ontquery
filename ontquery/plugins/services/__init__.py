@@ -1,7 +1,6 @@
-import pathlib
 try:
     import orthauth as oa
-    auth = oa.configure(pathlib.Path(__file__).parent / 'auth-config.py')
+    auth = oa.configure_relative('auth-config.py')
     class deco:
         scigraph_api_key = auth.tangential_init('api_key', 'scigraph-api-key')
         interlex_api_key = auth.tangential_init('api_key', 'interlex-api-key')
