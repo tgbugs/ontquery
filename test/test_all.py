@@ -11,8 +11,8 @@ try:
     else:
         scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
 except ModuleNotFoundError:
-    from ontquery.plugins.namespaces import CURIE_MAP
-    from ontquery.plugins import scigraph_client as scigraph
+    from ontquery.plugins.namespaces.nifstd import CURIE_MAP
+    from ontquery.plugins.services import scigraph_client as scigraph
 
 import ontquery as oq
 from .common import skipif_no_net
