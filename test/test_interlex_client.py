@@ -20,6 +20,7 @@ TEST_RELATIONSHIP_ID = f'{TEST_PREFIX}_0738408'
 
 
 NO_API_KEY = False
+NOAUTH = False
 if not SKIP_NETWORK:
     try:
         ilx_cli = InterLexClient(base_url=API_BASE)
@@ -28,7 +29,10 @@ if not SKIP_NETWORK:
     except InterLexClient.NoApiKeyError as e:
         log.exception(e)
         NO_API_KEY = True
+    except InterLexClient.IncorrectAuthError as e:
+        NOAUTH = True
 
+skipif_no_auth = pytest.mark.skipif(NOAUTH, reason='no basic auth')
 skipif_no_api_key = pytest.mark.skipif(NO_API_KEY, reason='no api key')
 
 
@@ -37,6 +41,7 @@ def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
 
 
 @skipif_no_net
+@skipif_no_auth
 @skipif_no_api_key
 def test_api_key():
     ilxremote = InterLexRemote(apiEndpoint=API_BASE)
@@ -53,6 +58,7 @@ def test_api_key():
 
 
 @skipif_no_net
+@skipif_no_auth
 @skipif_no_api_key
 @pytest.mark.parametrize("test_input, expected", [
     ("ILX:123", 'ilx_123'),
@@ -67,6 +73,7 @@ def test_fix_ilx(test_input, expected):
 
 
 @skipif_no_net
+@skipif_no_auth
 @skipif_no_api_key
 class Test(unittest.TestCase):
     def test_query_elastic(self):
