@@ -61,7 +61,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         self.curies(curies)  # TODO can be used to provide curies...
         self._remote_curies(curies)
         self.prefixes = sorted(self.curies)
-        self.search_prefixes = [p for p in self.prefixes if p != 'SCR']
+        self.search_prefixes = [p for p in sorted(self._remote_curies) if p != 'SCR']
         self.categories = self.sgv.getCategories()
         self._predicates = sorted(set(self.sgg.getRelationships()))
         #self._onts = sorted(o['n']['iri'] for o in self.sgc.execute('MATCH (n:Ontology) RETURN n', 1000, 'application/json'))  # only on newer versions, update when we switch production over
