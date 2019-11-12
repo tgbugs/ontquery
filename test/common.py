@@ -11,7 +11,6 @@ log = oq.utils.log.getChild('test')
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
     from pyontutils import scigraph
-    from pyontutils.config import auth as pauth
 except ModuleNotFoundError:
     from ontquery.plugins.services import scigraph_client as scigraph
     from ontquery.plugins.namespaces.nifstd import CURIE_MAP
