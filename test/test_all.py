@@ -15,12 +15,7 @@ class SetupHelper:
         #bs = oq.BasicService()  # TODO
         #self.query = oq.OntQuery(bs, upstream=OntTerm)
         #oq.QueryResult._OntTerm = OntTerm
-        if 'SCICRUNCH_API_KEY' in os.environ:
-            SCR = oq.plugin.get('SciCrunch')()
-            SCR.api_key = os.environ['SCICRUNCH_API_KEY']
-        else:
-            SCR = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph')
-
+        SCR = oq.plugin.get('SciCrunch')()
         services = SCR,
         # this was an ok idea, but better to also have known good local prefixes
         # probably need to clean up an clarify the bad old

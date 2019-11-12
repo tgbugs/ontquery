@@ -372,7 +372,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 class SciCrunchRemote(SciGraphRemote):
     known_inverses = ('partOf:', 'hasPart:'),
     defaultEndpoint = auth.get_default('standalone-scigraph-api')
-    def __init__(self, apiEndpoint=defaultEndpoint, OntId=oq.OntId):
+    def __init__(self, apiEndpoint=auth.get('standalone-scigraph-api'), OntId=oq.OntId):
         super().__init__(apiEndpoint=apiEndpoint, OntId=OntId)
 
     def setup(self, **kwargs):
