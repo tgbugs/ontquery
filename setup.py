@@ -47,7 +47,7 @@ if RELEASE:
         if status_code:
             raise OSError(f'scigraph-codegen failed with status {status_code}')
 
-services_require = ['rdflib', 'requests', 'orthauth']
+services_require = ['rdflib', 'requests', 'orthauth>=0.0.3']
 tests_require = ['pytest', 'pytest-runner'] + services_require
 try:
     setup(

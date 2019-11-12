@@ -2,18 +2,16 @@ import os
 import pytest
 import rdflib
 import ontquery as oq
+import orthauth as oa
 
+oa.utils.log.setLevel('DEBUG')
 oq.utils.log.setLevel('DEBUG')
 log = oq.utils.log.getChild('test')
 
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
     from pyontutils import scigraph
-    orig_basepath = 'https://scicrunch.org/api/1/sparc-scigraph'  # FIXME hardcoding
-    if 'SCICRUNCH_API_KEY' in os.environ:
-        scigraph.scigraph_client.BASEPATH = orig_basepath
-    else:
-        scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
+    from pyontutils.config import auth as pauth
 except ModuleNotFoundError:
     from ontquery.plugins.services import scigraph_client as scigraph
     from ontquery.plugins.namespaces.nifstd import CURIE_MAP
