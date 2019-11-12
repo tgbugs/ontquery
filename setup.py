@@ -75,7 +75,7 @@ try:
         tests_require=tests_require,
         install_requires=[
         ],
-        extras_require={'dev':['pyontutils',],
+        extras_require={'dev': ['pyontutils>=0.1.5', 'pytest-cov', 'wheel',],
                         'services': services_require,
                         'test': tests_require},
         entry_points={
