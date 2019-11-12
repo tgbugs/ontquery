@@ -1,9 +1,11 @@
 import os
 import unittest
 from uuid import uuid4
+import pytest
 import rdflib
 import ontquery as oq
-from .common import test_graph, skipif_no_net
+from .common import test_graph, skipif_no_net, log
+from .test_interlex_client import skipif_no_api_key
 
 # FIXME TODO per service ... + mismatch warning
 oq.OntCuries({'rdf': str(rdflib.RDF),
@@ -66,6 +68,10 @@ class ServiceBase:
 
 class _TestIlx(ServiceBase):
     remote = oq.plugin.get('InterLex')()
+    skipif_not_dev = pytest.mark.skipif(not remote.port, reason='only implemented on dev')
+
+    test_cache = skipif_not_dev(ServiceBase.test_cache)
+    test_ontid = skipif_not_dev(ServiceBase.test_ontid)
 
     def test_problem(self):
         curie = 'ILX:0101431'
@@ -73,6 +79,7 @@ class _TestIlx(ServiceBase):
         # FIXME UBERON:0000955 is lost in predicates
         assert t.curie == curie, t
 
+    @skipif_not_dev
     def test_no_label(self):
         t = self.OntTerm('NLX:60355')
         try:
@@ -82,14 +89,17 @@ class _TestIlx(ServiceBase):
 
         assert t.label, ser
 
+    @skipif_not_dev
     def test_query_ot(self):
         """ This was an issue with incorrectly setting curie and iri in InterLexRemote.query """
         term = next(self.OntTerm.query(label='deep'))
         assert term, 'oops?'
 
+    @skipif_not_dev
     def test_z_bad_curie(self):
         qr = next(self.OntTerm.query.services[0].query(curie='BIRNLEX:796'))
 
+    @skipif_no_api_key
     def test_zz_add_entity(self):  # needs zz so that it runs after setup()
         qr = self.remote.add_entity(
             type='term',
@@ -100,6 +110,7 @@ class _TestIlx(ServiceBase):
         # NOTE the values in the response are a mishmash of garbage because
         # the tmp_ ids were never properly abstracted
 
+    @skipif_no_api_key
     def test_add_pde(self):
         qr = self.remote.add_pde(f'test pde {uuid4()}')
         print(qr)
