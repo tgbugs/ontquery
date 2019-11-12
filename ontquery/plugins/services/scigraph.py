@@ -2,18 +2,19 @@ import requests
 import ontquery as oq
 from ontquery.utils import cullNone, one_or_many, log, bunch, red
 from ontquery.services import OntService
-from . import deco
+from . import deco, auth
 
 try:
     from pyontutils import scigraph
 except ModuleNotFoundError:
     from . import scigraph_client as scigraph
+    deco.standalone_scigraph_api(scigraph.restService)
+    deco.scigraph_api_key(scigraph.restService)
 
 
-@deco.scigraph_api_key
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
-    verbose = False
+    verbose = True
     known_inverses = ('', ''),
     def __init__(self, apiEndpoint=None, OntId=oq.OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
         try:
@@ -45,10 +46,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
         yield from self._predicates
 
     def setup(self, **kwargs):
-        # TODO make it possible to set these properties dynamically
-        # one way is just to do scigraph = SciGraphRemote \\ OntQuery(scigraph)
-        if self.api_key is not None:
-            scigraph.restService.api_key = self.api_key
 
         self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
                                        basePath=self.apiEndpoint, safe_cache=True)
@@ -374,12 +371,12 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
 class SciCrunchRemote(SciGraphRemote):
     known_inverses = ('partOf:', 'hasPart:'),
-    defaultEndpoint = 'https://scicrunch.org/api/1/sparc-scigraph'
+    defaultEndpoint = auth.get_default('standalone-scigraph-api')
     def __init__(self, apiEndpoint=defaultEndpoint, OntId=oq.OntId):
         super().__init__(apiEndpoint=apiEndpoint, OntId=OntId)
 
     def setup(self, **kwargs):
-        if self.api_key is None and self.apiEndpoint == self.defaultEndpoint:
+        if scigraph.restService.api_key is None and self.apiEndpoint == self.defaultEndpoint:
             raise ValueError('You have not set an API key for the SciCrunch API!')
 
         super().setup(**kwargs)

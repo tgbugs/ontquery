@@ -70,8 +70,13 @@ class _TestIlx(ServiceBase):
     remote = oq.plugin.get('InterLex')()
     skipif_not_dev = pytest.mark.skipif(not remote.port, reason='only implemented on dev')
 
-    test_cache = skipif_not_dev(ServiceBase.test_cache)
-    test_ontid = skipif_not_dev(ServiceBase.test_ontid)
+    @skipif_not_dev
+    def test_cache(self):
+        super().test_cache()
+
+    @skipif_not_dev
+    def test_ontid(self):
+        super().test_cache()
 
     def test_problem(self):
         curie = 'ILX:0101431'
