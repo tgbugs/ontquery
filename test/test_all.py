@@ -2,22 +2,8 @@ import os
 import unittest
 import pytest
 import rdflib
-try:
-    from pyontutils.namespaces import PREFIXES as CURIE_MAP
-    from pyontutils import scigraph
-    orig_basepath = 'https://scicrunch.org/api/1/sparc-scigraph'  # FIXME hardcoding
-    if 'SCICRUNCH_API_KEY' in os.environ:
-        scigraph.scigraph_client.BASEPATH = orig_basepath
-    else:
-        scigraph.scigraph_client.BASEPATH = 'http://localhost:9000/scigraph'
-except ModuleNotFoundError:
-    from ontquery.plugins.namespaces import CURIE_MAP
-    from ontquery.plugins import scigraph_client as scigraph
-
 import ontquery as oq
-from .common import skipif_no_net
-
-oq.utils.log.setLevel('DEBUG')
+from .common import skipif_no_net, CURIE_MAP
 
 
 class OntTerm(oq.OntTerm):
@@ -29,12 +15,7 @@ class SetupHelper:
         #bs = oq.BasicService()  # TODO
         #self.query = oq.OntQuery(bs, upstream=OntTerm)
         #oq.QueryResult._OntTerm = OntTerm
-        if 'SCICRUNCH_API_KEY' in os.environ:
-            SCR = oq.plugin.get('SciCrunch')()
-            SCR.api_key = os.environ['SCICRUNCH_API_KEY']
-        else:
-            SCR = oq.plugin.get('SciCrunch')(apiEndpoint='http://localhost:9000/scigraph')
-
+        SCR = oq.plugin.get('SciCrunch')()
         services = SCR,
         # this was an ok idea, but better to also have known good local prefixes
         # probably need to clean up an clarify the bad old

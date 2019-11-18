@@ -23,15 +23,19 @@ RELEASE = '--release' in sys.argv
 if RELEASE:
     sys.argv.remove('--release')
 
-    namespaces = 'ontquery/plugins/namespaces.py'
+    namespaces = Path('ontquery/plugins/namespaces/nifstd.py')
     scigraph_client = 'ontquery/plugins/services/scigraph_client.py'
 
     # namespaces
-    if not Path(namespaces).exists():
+    if not namespaces.exists():
         from pyontutils.namespaces import PREFIXES
 
         lines = ['CURIE_MAP = {\n'] + [f'    {k!r}: {v!r},\n'
                                        for k, v in sorted(PREFIXES.items())] + ['}']
+
+        if not namespaces.parent.exists():
+            namespaces.parent.mkdir()
+
         with open(namespaces, 'wt') as f:
             f.writelines(lines)
 
@@ -43,7 +47,7 @@ if RELEASE:
         if status_code:
             raise OSError(f'scigraph-codegen failed with status {status_code}')
 
-services_require = ['rdflib', 'requests', 'orthauth']
+services_require = ['rdflib', 'requests', 'orthauth>=0.0.3']
 tests_require = ['pytest', 'pytest-runner'] + services_require
 try:
     setup(
@@ -61,6 +65,9 @@ try:
             'License :: OSI Approved :: MIT License',
             'Programming Language :: Python :: 3.6',
             'Programming Language :: Python :: 3.7',
+            'Operating System :: POSIX :: Linux',
+            'Operating System :: MacOS :: MacOS X',
+            'Operating System :: Microsoft :: Windows',
         ],
         keywords='ontology terminology scigraph interlex term lookup ols',
         packages=['ontquery', 'ontquery.plugins', 'ontquery.plugins.services'],
@@ -68,7 +75,7 @@ try:
         tests_require=tests_require,
         install_requires=[
         ],
-        extras_require={'dev':['pyontutils',],
+        extras_require={'dev': ['pyontutils>=0.1.5', 'pytest-cov', 'wheel',],
                         'services': services_require,
                         'test': tests_require},
         entry_points={

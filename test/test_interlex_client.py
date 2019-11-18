@@ -8,7 +8,7 @@ import requests as r
 from ontquery.plugins.services.interlex_client import InterLexClient
 from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
-from .common import skipif_no_net, SKIP_NETWORK
+from .common import skipif_no_net, SKIP_NETWORK, log
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
 TEST_PREFIX = 'tmp' # sigh
@@ -19,7 +19,30 @@ TEST_ANNOTATION_ID = f'{TEST_PREFIX}_0738407'
 TEST_RELATIONSHIP_ID = f'{TEST_PREFIX}_0738408'
 
 
+NO_API_KEY = False
+NOAUTH = False
+if not SKIP_NETWORK:
+    try:
+        ilx_cli = InterLexClient(base_url=API_BASE)
+        ilxremote = InterLexRemote(apiEndpoint=API_BASE)
+        ilxremote.setup(instrumented=oq.OntTerm)
+    except InterLexClient.NoApiKeyError as e:
+        log.exception(e)
+        NO_API_KEY = True
+    except InterLexClient.IncorrectAuthError as e:
+        NOAUTH = True
+
+skipif_no_auth = pytest.mark.skipif(NOAUTH, reason='no basic auth')
+skipif_no_api_key = pytest.mark.skipif(NO_API_KEY, reason='no api key')
+
+
+def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
+    return ''.join(random.choice(chars) for _ in range(size))
+
+
 @skipif_no_net
+@skipif_no_auth
+@skipif_no_api_key
 def test_api_key():
     ilxremote = InterLexRemote(apiEndpoint=API_BASE)
     ilxremote.setup(instrumented=oq.OntTerm)
@@ -34,17 +57,9 @@ def test_api_key():
     assert not os.environ.get('INTERLEX_API_KEY')
 
 
-if not SKIP_NETWORK:
-    ilxremote = InterLexRemote(apiEndpoint=API_BASE)
-    ilxremote.setup(instrumented=oq.OntTerm)
-    ilx_cli = ilxremote.ilx_cli
-
-
-def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
-    return ''.join(random.choice(chars) for _ in range(size))
-
-
 @skipif_no_net
+@skipif_no_auth
+@skipif_no_api_key
 @pytest.mark.parametrize("test_input, expected", [
     ("ILX:123", 'ilx_123'),
     ("ilx_123", 'ilx_123'),
@@ -58,6 +73,8 @@ def test_fix_ilx(test_input, expected):
 
 
 @skipif_no_net
+@skipif_no_auth
+@skipif_no_api_key
 class Test(unittest.TestCase):
     def test_query_elastic(self):
         label = 'brain'

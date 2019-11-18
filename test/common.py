@@ -2,10 +2,18 @@ import os
 import pytest
 import rdflib
 import ontquery as oq
+import orthauth as oa
+
+oa.utils.log.setLevel('DEBUG')
+oq.utils.log.setLevel('DEBUG')
+log = oq.utils.log.getChild('test')
+
 try:
     from pyontutils.namespaces import PREFIXES as CURIE_MAP
+    from pyontutils import scigraph
 except ModuleNotFoundError:
-    from ontquery.plugins.namespaces import CURIE_MAP
+    from ontquery.plugins.services import scigraph_client as scigraph
+    from ontquery.plugins.namespaces.nifstd import CURIE_MAP
 
 SKIP_NETWORK = ('SKIP_NETWORK' in os.environ or
                 'FEATURES' in os.environ and 'network-sandbox' in os.environ['FEATURES'])

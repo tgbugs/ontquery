@@ -5,16 +5,20 @@ include ontquery/__init__.py
 include ontquery/exceptions.py
 include ontquery/plugin.py
 include ontquery/plugins/__init__.py
-include ontquery/plugins/services.py
-include ontquery/plugins/interlex_client.py
+include ontquery/plugins/services/__init__.py
+include ontquery/plugins/services/auth-config.py
+include ontquery/plugins/services/interlex_client.py
+include ontquery/plugins/services/interlex.py
+include ontquery/plugins/services/rdflib.py
+include ontquery/plugins/services/scigraph.py
 include ontquery/query.py
 include ontquery/services.py
 include ontquery/terms.py
 include ontquery/trie.py
 include ontquery/utils.py
 
-include ontquery/plugins/namespaces.py
-include ontquery/plugins/scigraph_client.py
+include ontquery/plugins/namespaces/nifstd.py
+include ontquery/plugins/services/scigraph_client.py
 
 exclude .gitignore
 exclude .travis.yml
