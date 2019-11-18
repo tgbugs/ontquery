@@ -123,7 +123,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return tresp
 
     def add_entity(self, type, subThingOf, label, definition: str=None,
-                   synonyms=tuple(), comment: str=None, predicates: dict=None):
+                   synonyms=tuple(), comment: str=None, predicates: dict=None,
+                   existing_ids=None, cid=None):
 
         if self.readonly:
             raise exc.ReadOnlyError('InterLexRemote is in readonly mode.')
@@ -135,6 +136,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             definition = definition,
             comment = comment,
             synonyms = synonyms,
+            existing_ids = existing_ids,
+            cid = cid,
         )
         out_predicates = {}
 
@@ -166,7 +169,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
                       definition: str=None, synonyms=tuple(), comment: str=None,
                       predicates_to_add: dict=None, add_existing_ids: List[dict]=None,
-                      delete_existing_ids: List[dict]=None, predicates_to_delete: dict=None):
+                      delete_existing_ids: List[dict]=None, predicates_to_delete: dict=None, cid:str=None):
         """Update existing entity.
 
         :param List[dict] add_existing_ids: iris and curies to be added to entity.
@@ -185,6 +188,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             synonyms = synonyms,
             add_existing_ids = add_existing_ids,
             delete_existing_ids = delete_existing_ids,
+            cid = cid,
             # predicates = tresp,
         )
 
@@ -484,5 +488,3 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                     return
 
             yield from out
-
-

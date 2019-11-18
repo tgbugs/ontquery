@@ -290,7 +290,8 @@ class InterLexClient:
                 raise ValueError(
                     f'Missing needing key(s) in existing_ids '
                     f'for label: {label}')
-            if len(existing_id) > 2:
+            # TODO: wtf is this logic? get it together troy.
+            if len(existing_id) > 3:
                 raise ValueError(
                     f'Extra keys not recognized in existing_ids '
                     f'for label: {label}')
@@ -455,10 +456,12 @@ class InterLexClient:
     def add_entity(self,
                    label: str,
                    type: str,
+                   cid: str = None,
                    definition: str = None,
                    comment: str = None,
                    superclass: str = None,
-                   synonyms: list = None) -> dict:
+                   synonyms: list = None,
+                   existing_ids: list = None,) -> dict:
         """Short summary.
 
         :param str label: .
@@ -497,6 +500,18 @@ class InterLexClient:
 
         if synonyms:
             entity_input['synonyms'] = [{'literal': syn} for syn in synonyms]
+
+        if existing_ids:
+            # need to update to check if it already exists somewhere else
+            for ex in existing_ids:
+                if ex.get('iri') and ex.get('curie'):
+                    ex['preferred'] = '0'
+                else:
+                    raise ValueError('need iri and curie for existing_ids.')
+            entity_input['existing_ids'] = self.fix_existing_ids_preferred(existing_ids)
+
+        if cid and isinstance(cid, str):
+            entity_input['cid'] = cid
 
         raw_entity_outout = self.add_raw_entity(entity_input)
 
@@ -749,6 +764,38 @@ class InterLexClient:
 
         return preferred_fixed_existing_ids
 
+    def deprecate_entity(self, ilx_id: str) -> dict:
+        """ Annotates for deprecation while updating the status on databases.
+
+        status =  0 :: active
+        status = -1 :: hidden
+        status = -2 :: deleted
+
+        Note the point is not to actually delete the entity.
+        """
+        deprecated_id = 'http://uri.interlex.org/base/ilx_0383241'
+        deprecated = self.get_entity(deprecated_id)
+        if deprecated['label'] == 'deprecated' and deprecated['type'] == 'annotation':
+            pass
+        else:
+            raise ValueError('Oops! Annotation "deprecated" was move. Please update deprecated')
+
+        ### ADD DEPREACTED ANNOTATION
+        annotation = self.add_annotation(
+            term_ilx_id = ilx_id,
+            annotation_type_ilx_id = deprecated_id,
+            annotation_value = 'True',
+        )
+        if annotation['value'] != 'True':
+            raise ValueError('Deprecation annotation was not added correctly!')
+        log.info(annotation)
+        ### GIVE STATUS -2
+        update = self.update_entity(ilx_id=ilx_id, status='-2')
+        if update['status'] != '-2':
+            raise ValueError('Entity status for deprecation failed!')
+        log.info(update)
+        return update
+
     def update_entity(
             self,
             ilx_id: str,
@@ -759,7 +806,9 @@ class InterLexClient:
             superclass: str = None,
             synonyms: list = None,
             add_existing_ids: List[dict] = None,
-            delete_existing_ids: List[dict] = None,) -> dict:
+            delete_existing_ids: List[dict] = None,
+            status: str = '0',
+            cid:str = None,) -> dict:
         """ Updates pre-existing entity as long as the api_key is from the account that created it
 
             Args:
@@ -868,6 +917,10 @@ class InterLexClient:
                 for existing_id in existing_entity['existing_ids']
                 if delete_ex_indx.get(existing_id['iri']) != existing_id['curie']
             ])
+
+        if cid:
+            # TODO: check if cid exists
+            existing_entity['cid'] = cid
 
         # Just in case I need this...
         # if synonyms_to_delete:
