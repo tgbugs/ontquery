@@ -14,7 +14,7 @@ except ModuleNotFoundError:
 
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
     cache = True
-    verbose = True
+    verbose = False
     known_inverses = ('', ''),
     def __init__(self, apiEndpoint=None, OntId=oq.OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
         try:
