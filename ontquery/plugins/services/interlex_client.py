@@ -736,6 +736,8 @@ class InterLexClient:
                     'IAO',
                     'NIFEXT',
                     'OEN',
+                    'MESH',
+                    'NCIM',
                     'ILX',
             ]
         # will always be larger than last index :)
@@ -917,6 +919,9 @@ class InterLexClient:
                 for existing_id in existing_entity['existing_ids']
                 if delete_ex_indx.get(existing_id['iri']) != existing_id['curie']
             ])
+
+        # Ranking fix
+        existing_entity['existing_ids'] = self.fix_existing_ids_preferred(existing_entity['existing_ids'])
 
         if cid:
             # TODO: check if cid exists
