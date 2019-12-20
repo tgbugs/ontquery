@@ -154,3 +154,12 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
 
 class TestRdflib(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('rdflib')(test_graph)
+
+
+@skipif_no_net
+class TestGitHub(ServiceBase, unittest.TestCase):
+    remote = oq.plugin.get('GitHub')('SciCrunch', 'NIF-Ontology', 'ttl/bridge/uberon-bridge.ttl', 'ttl/NIF-GrossAnatomy.ttl', branch='dev')
+
+    def test_ontid(self):
+        t = self.OntTerm(OntId('BIRNLEX:796'))
+        assert t.label, repr(t)
