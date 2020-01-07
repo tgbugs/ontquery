@@ -1,4 +1,5 @@
 import rdflib
+import requests
 import ontquery as oq
 import ontquery.exceptions as exc
 from ontquery.utils import log, red
