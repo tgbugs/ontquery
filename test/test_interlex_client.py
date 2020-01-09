@@ -78,32 +78,34 @@ def test_fix_ilx(test_input, expected):
 class Test(unittest.TestCase):
     def test_query_elastic(self):
         label = 'brain'
-        query = {
-            'bool': {
-                'should': [
-                    {
-                        'fuzzy': {
-                            'label': {
-                                'value': label,
-                                'fuzziness': 1
+        body = {
+            'query': {
+                'bool': {
+                    'should': [
+                        {
+                            'fuzzy': {
+                                'label': {
+                                    'value': label,
+                                    'fuzziness': 1
+                                    }
+                                }
+                            },
+                        {
+                            'match': {
+                                'label': {
+                                    'query': label,
+                                    'boost': 100
                                 }
                             }
-                        },
-                    {
-                        'match': {
-                            'label': {
-                                'query': label,
-                                'boost': 100
-                            }
                         }
-                    }
-                ]
+                    ]
+                }
             }
         }
         params = {
             'term': label,
             'key': ilx_cli.api_key,
-            'query': json.dumps(query),
+            'query': json.dumps(body['query']),
             "size": 1,
             "from": 0
         }
@@ -111,7 +113,7 @@ class Test(unittest.TestCase):
         assert hits[0]['label'].lower() == 'brain'
         hits = ilx_cli.query_elastic(label='brain')
         assert hits[0]['label'].lower() == 'brain'
-        hits = ilx_cli.query_elastic(term='brain')
+        hits = ilx_cli.query_elastic(body=body)
         assert hits[0]['label'].lower() == 'brain'
 
 
@@ -390,7 +392,7 @@ class Test(unittest.TestCase):
 
         update_entity_data = {
             'ilx_id': TEST_TERM_ID,
-            # 'label': label,
+            'label': label,
             'definition': definition,
             'type': type,
             'comment': comment,
