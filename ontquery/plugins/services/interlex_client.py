@@ -290,11 +290,11 @@ class InterLexClient:
                 raise ValueError(
                     f'Missing needing key(s) in existing_ids '
                     f'for label: {label}')
-            # TODO: wtf is this logic? get it together troy.
-            if len(existing_id) > 3:
-                raise ValueError(
-                    f'Extra keys not recognized in existing_ids '
-                    f'for label: {label}')
+            for key in existing_id:
+                if key not in ['iri', 'curie', 'preferred']:
+                    raise ValueError(
+                        f'Extra keys not recognized in existing_ids '
+                        f'for label: {label}')
         return entity
 
     def query_elastic(self,
@@ -1315,6 +1315,7 @@ def examples():
         # 1,2-Dibromo chemical ILX ID
         'entity2_ilx': 'http://uri.interlex.org/base/ilx_0100000',
     }
+    print(sci.query_elastic(label='brain'))
     # print(sci.add_relationship(**relationship))
     # print(resp)
     # print(sci.update_entity(**update_entity_data))
