@@ -25,7 +25,7 @@ class OntService:
 
     def setup(self, instrumented=None, **kwargs):
         if instrumented is None:
-            raise TypeError('OntTerm is a required argument!')  # FIXME only require instrumented
+            raise TypeError('instrumented is a required argument!')  # FIXME only require instrumented
 
         self.OntId = instrumented._uninstrumented_class()
         self.OntTerm = instrumented
