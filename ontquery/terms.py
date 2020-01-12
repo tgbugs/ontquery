@@ -1,4 +1,3 @@
-import rdflib
 import sys
 import copy
 from itertools import chain
