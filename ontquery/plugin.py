@@ -1,14 +1,13 @@
-from pkg_resources import iter_entry_points
 from ontquery.services import OntService
 
 entry_points = {'ontquery.plugins.services': OntService}
 
 _plugins = {}
 
-# register plugins from outside
-for entry_point in entry_points:
-    for ep in iter_entry_points(entry_point):
-        _plugins[ep.name] = PKGPlugin(ep.name, ep)
+# calling pkg_resources import iter_entry_points is EXTREMELY SLOW
+# so we are no longer supporting it, register your plugins manually
+# I have no idea why setuptools is so insanely slow for this
+
 
 class Plugin:
     def __init__(self, name, module_path, class_name):
