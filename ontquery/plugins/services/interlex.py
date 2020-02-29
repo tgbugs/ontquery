@@ -384,11 +384,23 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                         break
             return resp
 
+        class NoOnt(Exception): pass
+        class NoAbout(Exception): pass
+
         def isAbout(g):
-            ontid, *r1 = g[:self.RDF.type:self.OWL.Ontology]
-            o, *r2 = g[ontid:self.URIRef('http://purl.obolibrary.org/obo/IAO_0000136')]
+            try:
+                ontid, *r1 = g[:self.RDF.type:self.OWL.Ontology]
+            except ValueError:
+                raise NoOnt('oops!') from e
+
+            try:
+                o, *r2 = g[ontid:self.URIRef('http://purl.obolibrary.org/obo/IAO_0000136')]
+            except ValueError as e:
+                raise NoAbout('oops!') from e
+
             if r1 or r2:
                 raise ValueError(f'NonUnique value for ontology {r1} or about {r2}')
+
             return o
 
         if curie:
@@ -420,9 +432,14 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         try:
             ia_iri = isAbout(graph)
-        except ValueError as e:
-            breakpoint()
-            raise e
+        except NoOnt as e:
+            # almost certainly an old interlex format
+            log.exception(e)
+            return None
+        except NoAbout as e:
+            # almost certainly an old interlex format
+            log.exception(e)
+            return None
 
         i = self.OntId(ia_iri)
         if exclude_prefix and i.prefix in exclude_prefix:
