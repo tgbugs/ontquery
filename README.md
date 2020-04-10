@@ -90,13 +90,16 @@ ilx_cli.setup()
 
 # NEEDS: label, type, subThingOf
 response = ilx_cli.add_entity(
+    label = 'Label of entity you wish to create',
     type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
     # subThingOf can take either iri or curie form of ID
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
-    label = 'Label of entity you wish to create',
     definition = 'Entities definition',
     comment = 'A comment to help understand entity',
     synonyms = ['synonym1', 'synonym2', 'etc'],
+    # exisiting IDs are List[dict] with keys iri & curie
+    existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
+    cid = None, # community ID
     predicates = {
         # annotation_entity_ilx_id : 'annotation_value',
         'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
@@ -126,21 +129,31 @@ response = ilx_cli.update_entity(
     ilx_id = 'TMP:0101431', # entity "brain" ilx_id example
     definition = 'update!',
     comment = 'update!',
-    # Optional
+    # Optional by needed long term for usability
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-    synonyms = ['Encephalon', 'Cerebro'],
+    synonyms = ['Encephalon', {'literal': 'Cerebro', 'type': 'hasExactSynonym'}],
+    add_existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
+    delete_existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
+    cid = None, # community ID
     predicates_to_add = {
         # Annotation
         'http://uri.interlex.org/base/tmp_0381624': 'PMID:12346',
         # Relationship
-        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100000', # relationship
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100000',
     },
     # Need to be exact or they will be ignored
     predicates_to_delete = {
         # Annotation
         'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
         # Relationship
-        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001',
     },
+)
+
+# NEEDS: Only needs label, type is auto to the type in its name (i.e pde, cde, and fde)
+# SAME INPUTS AS add_entity, without the type parameter.
+response = ilx_cli.add_pde(...)
+response = ilx_cli.add_cde(...)
+response = ilx_cli.add_fde(...)
 )
 ```

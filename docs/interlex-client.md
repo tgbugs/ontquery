@@ -73,7 +73,27 @@ added_entity_data = ilx_cli.add_entity(
     definition = '',
     comment = '',
     superclass = '',
-    synonyms = ['',],
+    synonyms = [
+        '', # literal
+        # or
+        {
+            'literal':'',
+            'type':'',
+        },
+    ],
+    existing_ids = [
+        {
+            'iri': '',
+            'curie': '',
+        }
+    ],
+    cid = None, # community ID
+    predicates = {
+        # annotation_entity_ilx_id : 'annotation_value',
+        '': '', # annotation
+        # relationship_entity_ilx_id : 'entity2_ilx_id',
+        '': '', # relationship
+    }
 )
 ```
 
@@ -82,7 +102,7 @@ added_entity_data = ilx_cli.add_entity(
 ```python
 added_entity_data = ilx_cli.add_entity(
     label = '',
-    type = '',
+    type = '', # term, fde, cde, pde, relationship, annotation
 )
 ```
 
@@ -90,12 +110,22 @@ added_entity_data = ilx_cli.add_entity(
 
 ```python
 added_entity_data = ilx_cli.add_entity(
-    label = 'brain',
-    type = 'term',
-    definition = 'Part of the central nervous system',
-    comment = 'Cannot live without it',
-    superclass = 'http://uri.interlex.org/base/ilx_0108124',
-    synonyms = ['Encephalon', 'Cerebro'],
+    label = 'Label of entity you wish to create',
+    type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
+    # subThingOf can take either iri or curie form of ID
+    subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
+    definition = 'Entities definition',
+    comment = 'A comment to help understand entity',
+    synonyms = ['synonym1', {'literal': 'synonym2', 'type': 'hasExactSynonym'}, 'etc'],
+    # exisiting IDs are List[dict] with keys iri & curie
+    existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
+    cid = None, # community ID
+    predicates = {
+        # annotation_entity_ilx_id : 'annotation_value',
+        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
+        # relationship_entity_ilx_id : 'entity2_ilx_id',
+        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
+    }
 )
 ```
 

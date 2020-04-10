@@ -2,15 +2,16 @@ import os
 import json
 import pathlib
 from typing import Union, List, Tuple, Dict
+
 import requests
-from ontquery.utils import log
+
 from . import deco, auth
+from .interlex_session import InterlexSession
+from ontquery.utils import log
 
 
-@deco.interlex_basic_u
-@deco.interlex_basic_p
 @deco.interlex_api_key
-class InterLexClient:
+class InterLexClient(InterlexSession):
 
     """ Connects to SciCrunch via its' api endpoints
 
@@ -29,9 +30,6 @@ class InterLexClient:
     """
     class Error(Exception):
         """Script could not complete."""
-
-    class NoApiKeyError(Error):
-        """ No api key has been set """
 
     class SuperClassDoesNotExistError(Error):
         """The superclass listed does not exist!"""
@@ -74,74 +72,11 @@ class InterLexClient:
 
         :param str base_url: . Defaults to default_base_url.
         """
+        InterlexSession.__init__(self,
+                                 key = self.api_key,
+                                 host = base_url)
         self.base_url = base_url
-
-        if self.api_key is None:  # injected by orthauth
-            # we do error here because viewing without a key handled in InterLexRemote not here
-            raise self.NoApiKeyError('You have not set an API key for the SciCrunch API!')
-
-        if 'test' in base_url:
-            bauth = self._auth
-            if bauth is None or not bauth[0] or not bauth[1]:
-                #f = pathlib.Path(this__file__).parent / auth-config.py
-                f = auth._path
-                raise self.IncorrectAuthError(
-                    'TEST needs a user & password to get into '
-                    'https://test[0-9].scicrunch.org.\n'
-                    'Either run\n'
-                    'export SCICRUNCH_TEST_U=put_user_here\n'
-                    'export SCICRUNCH_TEST_P=put_password_here\n'
-                    'or add a value for      interlex-basic-auth-user\n'
-                    'and a secrets path for  interlex-basic-auth-pass\n'
-                    'to ~/.config/ontquery/config.yaml\n'
-                    'and add the paths to your secrets file.\n'
-                    f'See {f} for details'
-                )
-            if not self.api_key:
-                #f = pathlib.Path(this__file__).parent / auth-config.py
-                f = auth._path
-                raise self.IncorrectAPIKeyError(
-                    'TEST api_key not found. Please go to '
-                    'https://test.scicrunch.org/ '
-                    'and get an api_key. The either run\n'
-                    'export SCICRUNCH_API_KEY=your_api_key_here\n'
-                    'or add a secrets path to\n'
-                    'interlex-api-key\n'
-                    'to ~/.config/ontquery/config.yaml\n'
-                    'and add the path to your secrets file.'
-                    f'See {f} for details'
-                )
-
-        user_info_url = self.base_url + 'user/info?key=' + self.api_key
-        self.check_api_key(user_info_url)
-        self.user_id = str(self.get(user_info_url)['id'])
-
-    @property
-    def _auth(self):
-        u = self._basic_auth_user
-        p = self._basic_auth_pass
-        if u and p:
-            return u, p
-
-    def check_api_key(self, url: str) -> None:
-        """Resquests user info to check if user exists and has validation.
-
-        :param type url: API endpoint to request user info.
-        :return: None
-        :rtype: None
-        :raises IncorrectAPIKeyError keyError: raises Error
-        """
-        kwargs = {}
-        if self._auth is not None:
-            kwargs['auth'] = self._auth
-
-        response = requests.get(url,
-                                headers={'Content-type': 'application/json'},
-                                **kwargs)
-        if response.status_code not in [200, 201]:  # Safety catch.
-            sec = url.replace(self.api_key, '[secure]')
-            raise self.IncorrectAPIKeyError(
-                f'api_key given is incorrect. {sec}')
+        self.user_id = self._get('user/info')['id']
 
     def process_response(self,
                          response: requests.models.Response,
@@ -191,7 +126,6 @@ class InterLexClient:
         :rtype: Union[list, dict]
         """
         if not params: params = {}
-        auth = auth if auth else self._auth
         params = {
             **params,
             'api_key': self.api_key,
@@ -217,17 +151,13 @@ class InterLexClient:
         data.update({
             'api_key': self.api_key,
         })
-        kwargs = {}
-        if self._auth is not None:
-            kwargs['auth'] = self._auth
-
         response = requests.post(
             url,
             # Elastic takes in dict while other apis need a string...
             # Yeah I know...
             data=json.dumps(data) if 'elastic' not in url else data,
             headers={'Content-type': 'application/json'},
-            **kwargs
+            # **kwargs
         )
         output = self.process_response(response)
         return output
