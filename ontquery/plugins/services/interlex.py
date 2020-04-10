@@ -77,20 +77,50 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                   predicates: dict=None):
         return self.add_entity('term', subClassOf, label, definition, synonyms, comment, predicates)
 
-    def add_pde(self,
-                label,
-                definition:str=None,
-                synonyms=tuple(),
-                comment: str=None,
-                predicates: dict=None):
+    def add_pde(self, label, subThingOf, definition: str=None,
+                synonyms=tuple(), comment: str=None, predicates: dict=None,
+                existing_ids=None, cid=None):
         return self.add_entity(
-            type = 'pde',
-            label = label,
-            subThingOf = None,  # FIXME works for now
-            definition = definition,
-            synonyms = synonyms,
-            comment = comment,
-            predicates = predicates)
+            type='pde',
+            cid=cid,
+            subThingOf=subThingOf,
+            label=label,
+            definition=definition,
+            synonyms=synonyms,
+            comment=comment,
+            predicates=predicates,
+            existing_ids=existing_ids,
+        )
+
+    def add_cde(self, label, subThingOf, definition: str=None,
+                synonyms=tuple(), comment: str=None, predicates: dict=None,
+                existing_ids=None, cid=None):
+        return self.add_entity(
+            type='cde',
+            cid=cid,
+            subThingOf=subThingOf,
+            label=label,
+            definition=definition,
+            synonyms=synonyms,
+            comment=comment,
+            predicates=predicates,
+            existing_ids=existing_ids,
+        )
+
+    def add_fde(self, label, subThingOf, definition: str=None,
+                synonyms=tuple(), comment: str=None, predicates: dict=None,
+                existing_ids=None, cid=None):
+        return self.add_entity(
+            type='fde',
+            cid=cid,
+            subThingOf=subThingOf,
+            label=label,
+            definition=definition,
+            synonyms=synonyms,
+            comment=comment,
+            predicates=predicates,
+            existing_ids=existing_ids,
+        )
 
     def add_predicates(self, ilx_curieoriri: str, predicate_objects_dict: dict) -> list:
         tresp = []
