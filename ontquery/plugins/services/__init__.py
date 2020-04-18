@@ -1,6 +1,6 @@
 try:
     import orthauth as oa
-    auth = oa.configure_relative('auth-config.py')
+    auth = oa.configure_here('auth-config.py', __name__)
     class deco:
         standalone_scigraph_api = auth.tangential_init('_basePath', 'standalone-scigraph-api', after=True)
         scigraph_api_key = auth.tangential_init('api_key', 'scigraph-api-key', after=True)
