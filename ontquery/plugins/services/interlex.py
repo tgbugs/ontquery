@@ -77,9 +77,16 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                   predicates: dict=None):
         return self.add_entity('term', subClassOf, label, definition, synonyms, comment, predicates)
 
-    def add_pde(self, label, subThingOf, definition: str=None,
-                synonyms=tuple(), comment: str=None, predicates: dict=None,
-                existing_ids=None, cid=None):
+    def add_pde(self,
+                label,
+                definition: str=None,
+                synonyms=tuple(),
+                comment: str=None,
+                predicates: dict=None,
+                subThingOf: str=None,
+                existing_ids=None,
+                cid=None):
+        """ add a personal data element """
         return self.add_entity(
             type='pde',
             cid=cid,
@@ -92,9 +99,16 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             existing_ids=existing_ids,
         )
 
-    def add_cde(self, label, subThingOf, definition: str=None,
-                synonyms=tuple(), comment: str=None, predicates: dict=None,
-                existing_ids=None, cid=None):
+    def add_cde(self,
+                label,
+                definition: str=None,
+                synonyms=tuple(),
+                comment: str=None,
+                predicates: dict=None,
+                subThingOf: str=None,
+                existing_ids=None,
+                cid=None):
+        """ add a common data element """
         return self.add_entity(
             type='cde',
             cid=cid,
@@ -107,9 +121,16 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             existing_ids=existing_ids,
         )
 
-    def add_fde(self, label, subThingOf, definition: str=None,
-                synonyms=tuple(), comment: str=None, predicates: dict=None,
-                existing_ids=None, cid=None):
+    def add_fde(self,
+                label,
+                definition: str=None,
+                synonyms=tuple(),
+                comment: str=None,
+                predicates: dict=None,
+                subThingOf: str=None,
+                existing_ids=None,
+                cid=None):
+        """ add a federated data element """
         return self.add_entity(
             type='fde',
             cid=cid,
