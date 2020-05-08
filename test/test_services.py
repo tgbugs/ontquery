@@ -120,9 +120,19 @@ class _TestIlx(ServiceBase):
         qr = self.remote.add_pde(f'test pde {uuid4()}')
         print(qr)
 
+    @skipif_no_api_key
+    def test_add_cde(self):
+        qr = self.remote.add_cde(f'test cde {uuid4()}')
+        print(qr)
+
+    @skipif_no_api_key
+    def test_add_fde(self):
+        qr = self.remote.add_fde(f'test fde {uuid4()}')
+        print(qr)
+
 
 if 'CI' not in os.environ:  # production uri resolver doesn't have all the required features yet
-    beta = 'https://test.scicrunch.org/api/1/'
+    beta = 'https://test3.scicrunch.org/api/1/'
     @skipif_no_net
     class TestIlx(_TestIlx, unittest.TestCase):
         remote = oq.plugin.get('InterLex')(apiEndpoint=beta)

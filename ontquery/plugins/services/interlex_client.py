@@ -1179,7 +1179,7 @@ def examples():
         to not cause harm to existing metadata within the database.
     '''
     sci = InterLexClient(
-        base_url='https://test.scicrunch.org/api/1/',  # NEVER CHANGE
+        base_url='https://test3.scicrunch.org/api/1/',  # NEVER CHANGE
     )
     entity = {
         'label': 'brain115',

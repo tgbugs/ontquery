@@ -1,13 +1,9 @@
 import json
-import os
-from typing import Union, Dict, List, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-
-from pyontutils.utils import Async, deferred
 
 
 class InterlexSession:
@@ -121,12 +117,3 @@ class InterlexSession:
     def _post(self, endpoint: str , data: dict = None) -> dict:
         """ Quick POST for SciCrunch. """
         return self.__session_shortcut(endpoint, data, 'POST')
-
-
-def main():
-    ilx = InterlexSession(key=os.environ.get('INTERLEX_API_KEY'))
-    print(ilx.key, ilx.host)
-
-
-if __name__ == '__main__':
-    main()
