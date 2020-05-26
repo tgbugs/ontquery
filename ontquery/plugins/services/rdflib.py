@@ -25,7 +25,27 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                                            rdflib.URIRef(self.OntId('oboInOwl:hasExactSynonym')),
                                            rdflib.URIRef(self.OntId('oboInOwl:hasNarroSynonym')),
                                   ),
+                                  'definition': (
+                                      rdflib.URIRef(self.OntId('definition:')),
+                                      rdflib.URIRef(self.OntId('skos:definition')),
+                                  ),
         }
+
+        self._translate = {rdflib.RDFS.label:'label',
+                           #rdflib.RDFS.subClassOf:'subClassOf',
+                           #rdflib.RDF.type:'type',
+                           #rdflib.OWL.disjointWith:'disjointWith',
+                           #NIFRID.definingCitation:'definingCitation',
+
+                           rdflib.URIRef(self.OntId('NIFRID:synonym')): 'synonyms',
+                           rdflib.URIRef(self.OntId('oboInOwl:hasSynonym')): 'synonyms',
+                           rdflib.URIRef(self.OntId('oboInOwl:hasExactSynonym')): 'synonyms',
+                           rdflib.URIRef(self.OntId('oboInOwl:hasNarroSynonym')): 'synonyms',
+
+                           rdflib.URIRef(self.OntId('definition:')): 'definition',
+                           rdflib.URIRef(self.OntId('skos:definition')): 'definition',
+                    }
+
         super().__init__()
 
     @property
@@ -66,12 +86,6 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
         out['curie'] = identifier.curie
         out['iri'] = identifier.iri
-        translate = {rdflib.RDFS.label:'label',
-                        #rdflib.RDFS.subClassOf:'subClassOf',
-                        #rdflib.RDF.type:'type',
-                        #rdflib.OWL.disjointWith:'disjointWith',
-                        #NIFRID.definingCitation:'definingCitation',
-                    }
         o = None
         owlClass = None
         owl = rdflib.OWL
@@ -79,7 +93,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             if isinstance(o, rdflib.BNode):
                 continue
 
-            pn = translate.get(p, None)
+            pn = self._translate.get(p, None)
             if isinstance(o, rdflib.Literal):
                 o = o.toPython()
 
@@ -116,7 +130,13 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
                 c = pn
-                out[c] = o  # FIXME kobbering?
+                if c in out:
+                    if not isinstance(out[c], tuple):
+                        out[c] = out.pop(c), o
+                    else:
+                        out[c] += o,
+                else:
+                    out[c] = o
 
             if p in predicates and depth:
                 # FIXME traverse restrictions on transitive properties

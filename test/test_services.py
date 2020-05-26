@@ -56,6 +56,17 @@ class ServiceBase:
         except TypeError:
             pass
 
+    def test_definition(self):
+        t1 = self.OntTerm('BIRNLEX:796')
+        assert t1.definition is not None
+
+    def test_synonyms(self):
+        t1 = self.OntTerm('BIRNLEX:796')
+        if not t1.synonyms:  # No syns in SciGraph
+            t1 = self.OntTerm('BIRNLEX:798')
+
+        assert len(t1.synonyms)
+
     def test_cache(self):
         t1 = self.OntTerm('BIRNLEX:796')
         t2 = self.OntTerm('BIRNLEX:796')
@@ -168,7 +179,9 @@ class TestRdflib(ServiceBase, unittest.TestCase):
 
 @skipif_no_net
 class TestGitHub(ServiceBase, unittest.TestCase):
-    remote = oq.plugin.get('GitHub')('SciCrunch', 'NIF-Ontology', 'ttl/bridge/uberon-bridge.ttl', 'ttl/NIF-GrossAnatomy.ttl', branch='dev')
+    remote = oq.plugin.get('GitHub')('SciCrunch', 'NIF-Ontology',
+                                     'ttl/bridge/uberon-bridge.ttl',
+                                     'ttl/NIF-GrossAnatomy.ttl', branch='dev')
 
     def test_ontid(self):
         t = self.OntTerm(OntId('BIRNLEX:796'))
