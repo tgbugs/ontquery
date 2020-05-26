@@ -37,8 +37,13 @@ triples = (('UBERON:0000955', 'rdf:type', 'owl:Class'),
            ('UBERON:0000955', 'rdfs:subClassOf', 'owl:Thing'),
            ('BIRNLEX:796', 'rdf:type', 'owl:Class'),
            ('BIRNLEX:796', 'rdfs:label', 'Brain'),
+           ('BIRNLEX:796', 'definition:', 'Gray mushy thing in the nogin.'),
+           ('BIRNLEX:796', 'NIFRID:synonym', 'biocpu'),
+           ('BIRNLEX:796', 'NIFRID:synonym', 'thinkthink'),
 )
 
 for proto_t in triples:
-    test_graph.add(rdflib.URIRef(oq.OntId(e)) if ':' in e else rdflib.Literal(e) for e in proto_t)
+    test_graph.add(rdflib.URIRef(oq.OntId(e))
+                   if ':' in e else
+                   rdflib.Literal(e) for e in proto_t)
 
