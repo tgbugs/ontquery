@@ -9,6 +9,8 @@ from ontquery.plugins.services.interlex_client import InterLexClient
 from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
 from .common import skipif_no_net, SKIP_NETWORK, log
+# from IPython import embed
+
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
 TEST_PREFIX = 'tmp' # sigh
@@ -23,7 +25,7 @@ NO_API_KEY = False
 NOAUTH = False
 if not SKIP_NETWORK:
     try:
-        ilx_cli = InterLexClient(base_url=API_BASE)
+        ilx_cli = InterLexClient(base_url=API_BASE, debug=True)
         ilxremote = InterLexRemote(apiEndpoint=API_BASE)
         ilxremote.setup(instrumented=oq.OntTerm)
     except InterLexClient.NoApiKeyError as e:
@@ -151,7 +153,6 @@ class Test(unittest.TestCase):
         }
 
         added_entity_data = ilx_cli.add_raw_entity(entity.copy())
-
         # returned value is not identical to get_entity
         added_entity_data = ilx_cli.get_entity(added_entity_data['ilx'])
 
@@ -208,25 +209,6 @@ class Test(unittest.TestCase):
             ilx_cli.add_raw_entity(bad_entity)
         bad_entity = entity.copy()
         bad_entity['superclass']['ilx_id'] = TEST_SUPERCLASS_ID
-
-        # Invalid synonyms -> literal not found
-        bad_entity['synonyms'][0]['literals'] = bad_entity['synonyms'][0].pop('literal')
-        with pytest.raises(
-            ValueError,
-            match=r"Synonym not given a literal for label: " + bad_entity['label']
-        ):
-            ilx_cli.add_raw_entity(bad_entity)
-        bad_entity['synonyms'][0]['literal'] = bad_entity['synonyms'][0].pop('literals')
-
-        # Invalid synonyms -> keys besides literal found
-        bad_entity = entity.copy()
-        bad_entity['synonyms'][0]['literals'] = 'bad_literal_key'
-        with pytest.raises(
-            ValueError,
-            match=r"Too many keys in synonym for label: " + bad_entity['label']
-        ):
-            ilx_cli.add_raw_entity(bad_entity)
-        bad_entity['synonyms'][0].pop('literals')
 
         # Invalid existing_ids -> needed not found
         bad_entity = entity.copy()
@@ -336,8 +318,8 @@ class Test(unittest.TestCase):
         assert added_entity_data['comment'] == entity['comment']
         #assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
         assert added_entity_data['superclass'] == entity['superclass']
-        assert added_entity_data['synonyms'][0] == entity['synonyms'][0]
-        assert added_entity_data['synonyms'][1] == entity['synonyms'][1]
+        assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
+        assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]
 
         ### ALREADY EXISTS TEST
         added_entity_data = ilx_cli.add_entity(**entity.copy())
@@ -348,8 +330,8 @@ class Test(unittest.TestCase):
         assert added_entity_data['comment'] == entity['comment']
         #assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
         assert added_entity_data['superclass'] == entity['superclass']
-        assert added_entity_data['synonyms'][0] == entity['synonyms'][0]
-        assert added_entity_data['synonyms'][1] == entity['synonyms'][1]
+        assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
+        assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]
 
 
     def test_add_entity_minimum(self):
@@ -372,6 +354,38 @@ class Test(unittest.TestCase):
         assert added_entity_data['type'] == entity['type']
 
 
+    def test_partial_update(self):
+        def rando_str():
+            return 'test_' + id_generator(size=12)
+        entity = {
+            'label': rando_str(),
+            'type': 'term',
+        }
+        added_entity_data = ilx_cli.add_entity(**entity.copy())
+        partially_updated_entity = ilx_cli.partial_update(
+            curie = 'ILX:'+added_entity_data['curie'].split(':')[-1],
+            definition = 'new',
+            comment = 'new',
+            synonyms = ['new1', {'literal':'new2'}, {'literal':'new3', 'type':'obo:hasExactSynonym'}],
+            existing_ids = [{'iri':'http://fake.org/123', 'curie':'FAKE:123', 'preferred':'0'}],
+        )
+        assert partially_updated_entity['definition'] == 'new'
+        entity = {
+            'label': rando_str(),
+            'type': 'term',
+            'definition': 'original',
+            'comment': 'original',
+        }
+        added_entity_data = ilx_cli.add_entity(**entity.copy())
+        partially_updated_entity = ilx_cli.partial_update(
+            curie = 'ILX:'+added_entity_data['curie'].split(':')[-1],
+            definition = 'new',
+            comment = 'new',
+            synonyms = ['new1', {'literal':'new2'}, {'literal':'new3', 'type':'obo:hasExactSynonym'}],
+            existing_ids = [{'iri':'http://fake.org/123', 'curie':'FAKE:123', 'preferred':'0'}],
+        )
+        assert partially_updated_entity['definition'] == 'original'
+
     def test_update_entity(self):
 
         def rando_str():
@@ -380,6 +394,7 @@ class Test(unittest.TestCase):
         entity = {
             'label': rando_str(),
             'type': 'term', # broken at the moment NEEDS PDE HARDCODED
+            'synonyms': 'original_synonym',
         }
         added_entity_data = ilx_cli.add_entity(**entity.copy())
 
@@ -397,7 +412,9 @@ class Test(unittest.TestCase):
             'type': type,
             'comment': comment,
             'superclass': superclass,
-            'synonyms': ['test', synonym],
+            'add_synonyms': ['test', synonym],
+            # should delete new synonym before it was even added to avoid endless synonyms
+            'delete_synonyms': ['original_synonym', {'literal':synonym, 'type':None}],
         }
 
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
@@ -408,9 +425,9 @@ class Test(unittest.TestCase):
         assert updated_entity_data['comment'] == comment
         assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
         # test if random synonym was added
-        assert synonym in update_entity_data['synonyms']
+        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
         # test if dupclicates weren't created
-        assert update_entity_data['synonyms'].count('test') == 1
+        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
 
 
     def test_annotation(self):
@@ -492,8 +509,8 @@ class Test(unittest.TestCase):
         assert ilxremote_resp['definition'] == entity['definition']
         # assert ilxremote_resp['comment'] == entity['comment']
         # assert ilxremote_resp['superclass'] == entity['superclass']
-        assert ilxremote_resp['synonyms'][0] == entity['synonyms'][0]
-        assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
+        assert ilxremote_resp['synonyms'][0]['literal'] == entity['synonyms'][0]
+        assert ilxremote_resp['synonyms'][1]['literal'] == entity['synonyms'][1]
 
         assert added_annotation['value'] == 'sample_value'
         assert added_annotation['annotation_term_ilx'] == TEST_ANNOTATION_ID
@@ -507,7 +524,7 @@ class Test(unittest.TestCase):
             'definition': 'Updated definition!',
             'comment': 'Cannot live without it UPDATE',
             'subThingOf': 'http://uri.interlex.org/base/'+TEST_TERM_ID, # ILX ID for Organ
-            'synonyms': ['Encephalon', 'Cerebro_update'],
+            'add_synonyms': ['Encephalon', 'Cerebro_update'],
             'predicates_to_add': {
                 # DUPCLICATE CHECK
                 'http://uri.interlex.org/base/'+TEST_ANNOTATION_ID: 'sample_value', # spont firing beta ID | annotation
@@ -524,14 +541,13 @@ class Test(unittest.TestCase):
         added_entity_data = ilx_cli.get_entity(ilxremote_resp['curie'])
         added_annotations = ilx_cli.get_annotation_via_tid(added_entity_data['id'])
         added_relationships = ilx_cli.get_relationship_via_tid(added_entity_data['id'])
-
         assert ilxremote_resp['label'] == entity['label']
         # assert ilxremote_resp['type'] == entity['type']
         assert ilxremote_resp['definition'] == entity['definition']
         # assert ilxremote_resp['comment'] == entity['comment']
         # assert ilxremote_resp['superclass'] == entity['superclass']
-        assert ilxremote_resp['synonyms'][0] == entity['synonyms'][0]
-        assert ilxremote_resp['synonyms'][1] == entity['synonyms'][1]
+        assert ilxremote_resp['synonyms'][0] == entity['add_synonyms'][0]
+        assert ilxremote_resp['synonyms'][2] == entity['add_synonyms'][1]
 
         assert len(added_annotations) == 1
         assert len(added_relationships) == 1

@@ -12,9 +12,6 @@ class InterlexSession:
     class Error(Exception):
         """Script could not complete."""
 
-    class NoApiKeyError(Error):
-        """ No api key has been set """
-
     class IncorrectAPIKeyError(Error):
         """Incorrect API key for scicrunch website used."""
 
@@ -25,7 +22,7 @@ class InterlexSession:
                  retries: int = 3, # retries if code in status_forcelist
                  backoff_factor: float = 1.0, # delay factor for reties
                  status_forcelist: tuple = (400, 500, 502, 504), # flagged codes for retry
-                 ) -> None:
+                 debug=False,) -> None:
         """ Initialize Session with SciCrunch Server.
 
         :param str key: API key for SciCrunch [should work for test hosts].
@@ -34,6 +31,7 @@ class InterlexSession:
         self.key = key
         self.host = ''
         self.api = ''
+        self.debug = debug
 
         # Pull host for potential url
         if host.startswith('http'):
@@ -91,6 +89,9 @@ class InterlexSession:
             for key, value in data.items():
                 url = url.format(**{key:value})
         data = _prepare_data(data)
+        if self.debug:
+            print(url)
+            print(data)
         try:
             # TODO: Could use a Request here to shorten code.
             if session_type == 'GET':

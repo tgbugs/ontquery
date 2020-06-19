@@ -52,6 +52,9 @@ class InterLexClient(InterlexSession):
     class NoTypeError(Error):
         """New Entities need a type given."""
 
+    class NoApiKeyError(Error):
+        """ No api key has been set """
+
     class MissingKeyError(Error):
         """Missing dict key for scicrunch entity for API endpoint used."""
 
@@ -67,29 +70,37 @@ class InterLexClient(InterlexSession):
     default_base_url = 'https://scicrunch.org/api/1/'
     ilx_base_url = 'http://uri.interlex.org/base/'
 
-    def __init__(self, base_url: str = default_base_url):
+    def __init__(self, key: str = None, base_url: str = default_base_url, debug=False):
         """Short summary.
 
         :param str base_url: . Defaults to default_base_url.
         """
+        if not key:
+            key = os.environ.get('INTERLEX_API_KEY',
+                                 os.environ.get('SCICRUNCH_API_KEY', None))
+        if not key:
+            raise ApiKeyError()
+
+        self.key = key
         InterlexSession.__init__(self,
-                                 key = self.api_key,
-                                 host = base_url)
+                                 key=key,
+                                 host=base_url,
+                                 debug=debug,)
+        self.api_key = key
         self.base_url = base_url
         self.user_id = self._get('user/info')['id']
 
     def process_response(self,
                          response: requests.models.Response,
                          params: dict = None) -> dict:
-        """Checks for correct data response and status codes.
+        """ Checks for correct data response and status codes.
 
-        :param requests.models.Response response: requests get/post output.
-        :param dict params: requests get/post params input.
-        :return: single scicrunch entity in dict format.
-        :rtype: dict
+            :param requests.models.Response response: requests get/post output.
+            :param dict params: requests get/post params input.
+            :return: single scicrunch entity in dict format.
         """
         if params:
-            params = {k:v for k, v in params.items() if k != 'key'}
+            params = {k: v for k, v in params.items() if k != 'key'}
         try:
             output = response.json()
         except json.JSONDecodeError:  # Server is having a bad day and crashed.
@@ -125,7 +136,8 @@ class InterLexClient(InterlexSession):
         :return: Entity dict or list of Entity dicts.
         :rtype: Union[list, dict]
         """
-        if not params: params = {}
+        if not params:
+            params = {}
         params = {
             **params,
             'api_key': self.api_key,
@@ -163,16 +175,16 @@ class InterLexClient(InterlexSession):
         return output
 
     def fix_ilx(self, ilx_id: str) -> str:
-        """Database only excepts lower case and underscore version of ID.
+        """ Database only excepts lower case and underscore version of ID.
 
-        :param str ilx_id: Intended.
-        :return: .
-        :rtype: str
+            :param str ilx_id: Intended.
+            :return: .
+            :rtype: str
 
-        >>>fix_ilx('http://uri.interlex.org/base/ilx_0101431')
-        ilx_0101431
-        >>>fix_ilx('ILX:ilx_0101431')
-        ilx_0101431
+            >>>fix_ilx('http://uri.interlex.org/base/ilx_0101431')
+            ilx_0101431
+            >>>fix_ilx('ILX:ilx_0101431')
+            ilx_0101431
         """
         # Incase of url pass through
         ilx_id = ilx_id.rsplit('/', 1)[-1]
@@ -180,6 +192,7 @@ class InterLexClient(InterlexSession):
         if ilx_id[:4] not in ['TMP:', 'tmp_', 'ILX:', 'ilx_']:
             raise ValueError(
                 f"Provided ID {ilx_id} couldn't be determined as InterLex ID.")
+
         return ilx_id.replace('ILX:', 'ilx_').replace('TMP:', 'tmp_')
 
     def process_superclass(self, entity: List[dict]) -> List[dict]:
@@ -195,20 +208,6 @@ class InterLexClient(InterlexSession):
                 'Superclass ILX ID: ' + superclass['ilx_id'] + ' does not exist in SciCrunch')
         # BUG: only excepts superclass_tid
         entity['superclasses'] = [{'superclass_tid': superclass_data['id']}]
-        return entity
-
-    def process_synonyms(self, entity: List[dict]) -> List[dict]:
-        """ Making sure key/value is in proper format for synonyms in entity
-        """
-        label = entity['label']
-        for synonym in entity['synonyms']:
-            # these are internal errors and users should never see them
-            if 'literal' not in synonym:
-                raise ValueError(
-                    f'Synonym not given a literal for label: {label}')
-            if len(synonym) > 1:
-                raise ValueError(
-                    f'Too many keys in synonym for label: {label}')
         return entity
 
     def process_existing_ids(self, entity: List[dict]) -> List[dict]:
@@ -285,9 +284,9 @@ class InterLexClient(InterlexSession):
                                         "label": {
                                             "value": label,
                                             "fuzziness": 1
-                                            }
                                         }
-                                    },
+                                    }
+                                },
                                 {
                                     "match": {
                                         "label": {
@@ -309,7 +308,7 @@ class InterLexClient(InterlexSession):
         hits = self.get(
             url,
             params=params,
-        )['hits']['hits'] # elastic nests the hits twice
+        )['hits']['hits']  # elastic nests the hits twice
 
         # no hits will return an empty list
         if hits:
@@ -356,26 +355,28 @@ class InterLexClient(InterlexSession):
         # No label AND user id match
         return {}
 
-    def get_entity(self, ilx_id: str, iri_curie: bool = False) -> dict:
-        """Get full Entity metadata from its ILX ID.
+    def get_entity_from_curie(self, curie: str) -> dict:
+        """ Pull InterLex entity if curie exists in existing_ids """
+        return self._get(f'term/curie/{curie}')
 
-        (expect their annotations and relationships)
+    def get_entity(self,
+                   ilx_id: str,
+                   iri_curie: bool = False) -> dict:
+        """ Get full Entity metadata from its ILX ID.
 
-        :param str ilx_id: ILX ID of current Entity.
-        :param bool iri_curie: . Defaults to False.
+            Expect their annotations and relationships.
+
+            :param str ilx_id: ILX ID of current Entity.
+            :param bool iri_curie: . Defaults to False.
         """
         ilx_id = self.fix_ilx(ilx_id)
         url = self.base_url + f"ilx/search/identifier/{ilx_id}"
-        resp = self.get(
-            url,
-        )
-        # BUG: created terms in test env over api will be ilx output
-        # instead of tmp_ fragment
+        resp = self.get(url)
+        # BUG: created terms in test env over api will be ilx output instead of tmp_ fragment
         if ilx_id.startswith('tmp_') and resp['id'] == None:
-            url = self.base_url + f"ilx/search/identifier/{ilx_id.replace('tmp_', 'ilx_')}"
-            resp = self.get(
-                url,
-            )
+            url = self.base_url + \
+                f"ilx/search/identifier/{ilx_id.replace('tmp_', 'ilx_')}"
+            resp = self.get(url)
         # work around for ontquery.utils.QueryResult input
         if iri_curie:
             resp['iri'] = 'http://uri.interlex.org/base/' + resp['ilx']
@@ -391,7 +392,8 @@ class InterLexClient(InterlexSession):
                    comment: str = None,
                    superclass: str = None,
                    synonyms: list = None,
-                   existing_ids: list = None,) -> dict:
+                   existing_ids: list = None,
+                   **kwargs,) -> dict:
         """Short summary.
 
         :param str label: .
@@ -417,6 +419,7 @@ class InterLexClient(InterlexSession):
         entity_input = {
             'label': label,
             'type': type,
+            'synonyms': [],
         }
 
         if definition:
@@ -429,7 +432,18 @@ class InterLexClient(InterlexSession):
             entity_input['superclass'] = {'ilx_id': self.fix_ilx(superclass)}
 
         if synonyms:
-            entity_input['synonyms'] = [{'literal': syn} for syn in synonyms]
+            for synonym in synonyms:
+                if isinstance(synonym, dict):
+                    literal, _type = None, None
+                    if 'literal' in synonym:
+                        literal = synonym['literal']
+                    if 'type' in synonym:
+                        _type = synonym['type']
+                    if literal:
+                        entity_input['synonyms'].append(
+                            {'literal': literal, 'type': _type})
+                else:
+                    entity_input['synonyms'].append({'literal': synonym})
 
         if existing_ids:
             # need to update to check if it already exists somewhere else
@@ -438,7 +452,8 @@ class InterLexClient(InterlexSession):
                     ex['preferred'] = '0'
                 else:
                     raise ValueError('need iri and curie for existing_ids.')
-            entity_input['existing_ids'] = self.fix_existing_ids_preferred(existing_ids)
+            entity_input['existing_ids'] = self.fix_existing_ids_preferred(
+                existing_ids)
 
         if cid and isinstance(cid, str):
             entity_input['cid'] = cid
@@ -462,15 +477,17 @@ class InterLexClient(InterlexSession):
             if key == 'superclass':
                 entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
             elif key == 'synonyms':
-                entity_output[key] = [syn['literal']
+                entity_output[key] = [{'literal': syn['literal'], 'type': syn.get('type')}
                                       for syn in raw_entity_outout['synonyms']]
+            elif key in ['kwargs']:
+                continue
             else:
                 entity_output[key] = str(raw_entity_outout[key])
 
         # skip this for now, I check it downstream be cause I'm paranoid, but in this client it is
         # safe to assume that the value given will be the value returned if there is a return at all
         # it also isn't that they match exactly, because some new values (e.g. iri and curie) are expected
-        #if entity_output != template_entity_input:
+        # if entity_output != template_entity_input:
             # DEBUG: helps see what's wrong; might want to make a clean version of this
             # for key, value in template_entity_input.items():
             #     if template_entity_input[key] != entity_output[key]:
@@ -505,7 +522,8 @@ class InterLexClient(InterlexSession):
                     },
                     'synonyms': [
                         {
-                            'literal': ''
+                            'literal': '',
+                            'type': '',
                         },
                     ],
                     'existing_ids': [
@@ -547,7 +565,6 @@ class InterLexClient(InterlexSession):
                     ],
                 }
         """
-
         needed_in_entity = set([
             'label',
             'type',
@@ -582,7 +599,7 @@ class InterLexClient(InterlexSession):
         if entity.get('superclass'):
             entity = self.process_superclass(entity)
         if entity.get('synonyms'):
-            entity = self.process_synonyms(entity)
+            entity['synonyms'] = list(self.__process_synonyms(entity['synonyms']))
         if entity.get('existing_ids'):
             entity = self.process_existing_ids(entity)
         entity['uid'] = self.user_id  # BUG: php lacks uid update
@@ -644,37 +661,37 @@ class InterLexClient(InterlexSession):
 
         if not ranking:
             ranking = [
-                    'CHEBI',
-                    'NCBITaxon',
-                    'COGPO',
-                    'CAO',
-                    'DICOM',
-                    'UBERON',
-                    'FMA',
-                    'NLX',
-                    'NLXANAT',
-                    'NLXCELL',
-                    'NLXFUNC',
-                    'NLXINV',
-                    'NLXORG',
-                    'NLXRES',
-                    'NLXSUB'
-                    'BIRNLEX',
-                    'SAO',
-                    'NDA.CDE',
-                    'PR',
-                    'IAO',
-                    'NIFEXT',
-                    'OEN',
-                    'MESH',
-                    'NCIM',
-                    'ILX',
+                'CHEBI',
+                'NCBITaxon',
+                'COGPO',
+                'CAO',
+                'DICOM',
+                'UBERON',
+                'FMA',
+                'NLX',
+                'NLXANAT',
+                'NLXCELL',
+                'NLXFUNC',
+                'NLXINV',
+                'NLXORG',
+                'NLXRES',
+                'NLXSUB'
+                'BIRNLEX',
+                'SAO',
+                'NDA.CDE',
+                'PR',
+                'IAO',
+                'NIFEXT',
+                'OEN',
+                'MESH',
+                'NCIM',
+                'ILX',
             ]
         # will always be larger than last index :)
         default_rank = len(ranking)
         # prefix to rank mapping
         # dict allows us to reasign ranking if we can't get it.
-        ranking = {prefix.upper():ranking.index(prefix) for prefix in ranking}
+        ranking = {prefix.upper(): ranking.index(prefix) for prefix in ranking}
 
         # using ranking on curie prefix to get rank
         for ex_id in existing_ids:
@@ -683,7 +700,8 @@ class InterLexClient(InterlexSession):
             ranked_existing_ids.append((rank, ex_id))
 
         # sort existing_id curie prefixes ASC using ranking as a reference
-        sorted_ranked_existing_ids = sorted(ranked_existing_ids, key=lambda x: x[0])
+        sorted_ranked_existing_ids = sorted(
+            ranked_existing_ids, key=lambda x: x[0])
 
         # update preferred to proper ranking and append to new list
         for i, rank_ex_id in enumerate(sorted_ranked_existing_ids):
@@ -710,37 +728,163 @@ class InterLexClient(InterlexSession):
         if deprecated['label'] == 'deprecated' and deprecated['type'] == 'annotation':
             pass
         else:
-            raise ValueError('Oops! Annotation "deprecated" was move. Please update deprecated')
+            raise ValueError(
+                'Oops! Annotation "deprecated" was move. Please update deprecated')
 
-        ### ADD DEPREACTED ANNOTATION
+        # ADD DEPREACTED ANNOTATION
         annotation = self.add_annotation(
-            term_ilx_id = ilx_id,
-            annotation_type_ilx_id = deprecated_id,
-            annotation_value = 'True',
+            term_ilx_id=ilx_id,
+            annotation_type_ilx_id=deprecated_id,
+            annotation_value='True',
         )
         if annotation['value'] != 'True':
             raise ValueError('Deprecation annotation was not added correctly!')
         log.info(annotation)
-        ### GIVE STATUS -2
+        # GIVE STATUS -2
         update = self.update_entity(ilx_id=ilx_id, status='-2')
         if update['status'] != '-2':
             raise ValueError('Entity status for deprecation failed!')
         log.info(update)
         return update
 
-    def update_entity(
-            self,
-            ilx_id: str,
-            label: str = None,
-            type: str = None,
-            definition: str = None,
-            comment: str = None,
-            superclass: str = None,
-            synonyms: list = None,
-            add_existing_ids: List[dict] = None,
-            delete_existing_ids: List[dict] = None,
-            status: str = '0',
-            cid:str = None,) -> dict:
+    def __process_synonyms(self, synonyms: Union[List[dict], List[str]]) -> iter:
+        """ Make sure synonyms match indended input.
+            :param synonyms: Synonyms of entity.
+            >>>process_synonyms([''])
+        """
+        # Incase user only has a single input
+        if isinstance(synonyms, str):
+            synonyms = [synonyms]
+        # For each synonym -- transform
+        for synonym in synonyms:
+            if isinstance(synonym, str):
+                synonym = {
+                    'literal': synonym,
+                    'type': None,
+                }
+            else:
+                synonym = {
+                    'literal': synonym['literal'],
+                    'type': synonym.get('type'),
+                }
+            yield synonym
+
+    def __remove_records(self,
+                         ref_records: List[str],
+                         records: List[str],
+                         on: Union[List[str], str],) -> List[dict]:
+        """ Removes match records on field value matches.
+
+            :param Union[List[str], str] on: Exact composite key value check.
+        """
+        if isinstance(on, str):
+            on = [on]
+        old_indexes_to_remove = []
+        for i, ref_record in enumerate(ref_records):
+            for record in records:
+                on_hit = all([
+                    True if ref_record[key] == record.get(key)
+                    else False
+                    for key in on
+                ])
+                if on_hit is True:
+                    old_indexes_to_remove.append(i)
+        for i in sorted(old_indexes_to_remove, reverse=True):
+            ref_records.pop(i)
+        return ref_records
+
+    def __merge_records(self,
+                        ref_records: List[dict],
+                        records: List[dict],
+                        on: Union[List[str], str] = [],
+                        alt: Union[List[str], str] = [],
+                        passive: bool = False,) -> List[dict]:
+        """ Merge records, removing duplicicates on where it matters.
+
+            :param Union[List[str], str] on: Exact composite key value check.
+            :param Union[List[str], str] alt: Fields to logically update if exact keys all match.
+        """
+        # Makes sure merge is never empty
+        if on is []:
+            on = list(ref_records)
+        if isinstance(on, str):
+            on = [on]
+        if isinstance(alt, str):
+            alt = [alt]
+        # duplicate records to be removed before being added to ref records
+        new_indexes_to_remove = []
+        ### Judge if an of the records are new ###
+        for i, record in enumerate(records):
+            for j, ref_record in enumerate(ref_records):
+                # True if unique keys match
+                on_hit = all([
+                    True if ref_record[key] == record.get(key)
+                    else False
+                    for key in on
+                ])
+                # If no match
+                if on_hit is False:
+                    continue
+                # If a match with no second chances, it already exists
+                if on_hit is True and alt is []:
+                    new_indexes_to_remove.append(i)
+                    break
+                # True if any differences in non-unique keys
+                alt_hit = any([
+                    True if (ref_record[key] != record.get(key)) and (record.get(key) is not None) and (ref_record[key] is None)
+                    else False
+                    for key in alt
+                ])
+                # Failed second chance, it already exists
+                if alt_hit is False:
+                    new_indexes_to_remove.append(i)
+                    break
+                # Will just add matches to end if passive is True
+                if passive is False:
+                    # Remove new record since it's merge into old record
+                    new_indexes_to_remove.append(i)
+                    ### Update old record with matched new record at alt keys ###
+                    for key in alt:
+                        if (ref_record[key] is None) and (record.get(key) is not None):
+                            ref_record[key] = record[key]
+        for i in sorted(new_indexes_to_remove, reverse=True):
+            records.pop(i)
+        return ref_records + records
+
+    def partial_update(self,
+                       curie: str = None,
+                       superclass: str = None,
+                       definition: str = None,
+                       comment: str = None,
+                       synonyms: List[dict] = None,
+                       existing_ids: List[dict] = None,) -> dict:
+        """ Update entity fields only if the fields are empty.
+            If field is a list, it will add if not a duplicate. """
+        entity = self.get_entity_from_curie(curie)
+        if entity['ilx'] is None:
+            raise ValueError(
+                f'curie [{curie}] does not exist yet in InterLex.')
+        response = self.update_entity(
+            ilx_id=entity['ilx'],
+            definition=definition if not entity['definition'] else None,
+            comment=comment if not entity['comment'] else None,
+            superclass=superclass if not entity['superclasses'] else None,
+            add_existing_ids=existing_ids or [],
+            add_synonyms=synonyms or [],)
+        return response
+
+    def update_entity(self,
+                      ilx_id: str,
+                      label: str = None,
+                      type: str = None,
+                      definition: str = None,
+                      comment: str = None,
+                      superclass: str = None,
+                      add_synonyms: list = None,
+                      delete_synonyms: list = None,
+                      add_existing_ids: List[dict] = None,
+                      delete_existing_ids: List[dict] = None,
+                      cid: str = None,) -> dict:
         """ Updates pre-existing entity as long as the api_key is from the account that created it
 
             Args:
@@ -789,21 +933,26 @@ class InterLexClient(InterlexSession):
             existing_entity = self.process_superclass(existing_entity)
         # superclass bug, needs superclass_tid only
         elif existing_entity['superclasses']:
-            existing_entity['superclasses'] = [{'superclass_tid': existing_entity['superclasses'][0]['id']}]
+            existing_entity['superclasses'] = [
+                {'superclass_tid': existing_entity['superclasses'][0]['id']}]
 
         # If a match use old data, else append new synonym
-        if synonyms:
-            if existing_entity['synonyms']:
-                new_existing_synonyms = []
-                existing_synonyms = {syn['literal'].lower(
-                ): syn for syn in existing_entity['synonyms']}
-                for synonym in synonyms:
-                    existing_synonym = existing_synonyms.get(synonym.lower())
-                    if not existing_synonym:
-                        new_existing_synonyms.append({'literal': synonym})
-                    else:
-                        new_existing_synonyms.append(existing_synonym)
-                existing_entity['synonyms'] = new_existing_synonyms
+        if add_synonyms:
+            synonyms = list(self.__process_synonyms(add_synonyms))
+            existing_entity['synonyms'] = self.__merge_records(
+                ref_records=existing_entity['synonyms'],
+                records=synonyms,
+                on=['literal'],
+                alt=['type']
+            )
+
+        if delete_synonyms:
+            synonyms = list(self.__process_synonyms(delete_synonyms))
+            existing_entity['synonyms'] = self.__remove_records(
+                ref_records=existing_entity['synonyms'],
+                records=synonyms,
+                on=['literal', 'type'],
+            )
 
         if add_existing_ids:
             for r in add_existing_ids:
@@ -814,14 +963,19 @@ class InterLexClient(InterlexSession):
                 if not r.get('preferred'):
                     raise self.MissingKeyError('preferred')
                 if set(r.keys()) - {'curie', 'iri', 'preferred'}:
-                    raise self.IncorrectKeyError(f"{set(r.keys()) - {'curie', 'iri', 'preferred'}}")
-            clean = lambda s: s.strip().lower()
+                    raise self.IncorrectKeyError(
+                        f"{set(r.keys()) - {'curie', 'iri', 'preferred'}}")
+
+            def clean(s): return s.strip().lower()
             curies_to_add = {clean(r['curie']) for r in add_existing_ids}
             iris_to_add = {clean(r['iri']) for r in add_existing_ids}
-            curies_existing = {clean(r['curie']) for r in existing_entity['existing_ids']}
-            iris_existing = {clean(r['iri']) for r in existing_entity['existing_ids']}
+            curies_existing = {clean(r['curie'])
+                               for r in existing_entity['existing_ids']}
+            iris_existing = {clean(r['iri'])
+                             for r in existing_entity['existing_ids']}
             if curies_to_add & curies_existing:
-                raise self.AlreadyExistsError(f'{curies_existing - curies_to_add}')
+                raise self.AlreadyExistsError(
+                    f'{curies_existing - curies_to_add}')
             if iris_to_add & iris_existing:
                 raise self.AlreadyExistsError(f'{iris_existing - iris_to_add}')
             existing_entity['existing_ids'].extend(add_existing_ids)
@@ -833,17 +987,24 @@ class InterLexClient(InterlexSession):
                 if not r.get('iri'):
                     raise self.MissingKeyError('iri')
                 if set(r.keys()) - {'curie', 'iri'}:
-                    raise self.IncorrectKeyError(f"{set(r.keys()) - {'curie', 'iri'}}")
-            clean = lambda s: s.strip().lower()
+                    raise self.IncorrectKeyError(
+                        f"{set(r.keys()) - {'curie', 'iri'}}")
+
+            def clean(s): return s.strip().lower()
             curies_to_delete = {clean(r['curie']) for r in delete_existing_ids}
             iris_to_delete = {clean(r['iri']) for r in delete_existing_ids}
-            curies_existing = {clean(r['curie']) for r in existing_entity['existing_ids']}
-            iris_existing = {clean(r['iri']) for r in existing_entity['existing_ids']}
+            curies_existing = {clean(r['curie'])
+                               for r in existing_entity['existing_ids']}
+            iris_existing = {clean(r['iri'])
+                             for r in existing_entity['existing_ids']}
             if not (curies_to_delete & curies_existing):
-                raise self.DoesntExistError(f'{curies_to_delete - curies_existing}')
+                raise self.DoesntExistError(
+                    f'{curies_to_delete - curies_existing}')
             if not (iris_to_delete & iris_existing):
-                raise self.DoesntExistError(f'{iris_to_delete - iris_existing}')
-            delete_ex_indx = {r['iri']:r['curie'] for r in delete_existing_ids}
+                raise self.DoesntExistError(
+                    f'{iris_to_delete - iris_existing}')
+            delete_ex_indx = {r['iri']: r['curie']
+                              for r in delete_existing_ids}
             existing_entity['existing_ids'] = self.fix_existing_ids_preferred([
                 existing_id
                 for existing_id in existing_entity['existing_ids']
@@ -851,7 +1012,8 @@ class InterLexClient(InterlexSession):
             ])
 
         # Ranking fix
-        existing_entity['existing_ids'] = self.fix_existing_ids_preferred(existing_entity['existing_ids'])
+        existing_entity['existing_ids'] = self.fix_existing_ids_preferred(
+            existing_entity['existing_ids'])
 
         if cid:
             # TODO: check if cid exists
@@ -894,15 +1056,15 @@ class InterLexClient(InterlexSession):
             if key == 'superclass':
                 if raw_entity_outout.get('superclasses'):
                     entity_output[key] = raw_entity_outout['superclasses'][0]['ilx']
-            elif key == 'synonyms':
-                entity_output[key] = [syn['literal']
-                                      for syn in raw_entity_outout['synonyms']]
+            elif key in ['add_synonyms', 'delete_synonyms']:
+                pass
             elif key == 'ilx_id':
                 pass
             elif key == 'add_existing_ids' or key == 'delete_existing_ids':
                 pass
             else:
                 entity_output[key] = str(raw_entity_outout[key])
+        entity_output['synonyms'] = raw_entity_outout['synonyms']
 
         if entity_output.get('superclass'):
             entity_output['superclass'] = self.ilx_base_url + \

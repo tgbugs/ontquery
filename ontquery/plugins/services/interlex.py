@@ -173,6 +173,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 # TODO stick the responding predicates etc in if success
         return tresp
 
+    def get_entity(self, ilx_id: str, iri_curie: bool) -> dict:
+        return self.ilx_cli.get_entity(ilx_id, iri_curie)
+
     def add_entity(self, type, subThingOf, label, definition: str=None,
                    synonyms=tuple(), comment: str=None, predicates: dict=None,
                    existing_ids=None, cid=None):
@@ -218,7 +221,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         )
 
     def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
-                      definition: str=None, synonyms=tuple(), comment: str=None,
+                      definition: str=None, add_synonyms=tuple(), delete_synonyms=tuple(), comment: str=None,
                       predicates_to_add: dict=None, add_existing_ids: List[dict]=None,
                       delete_existing_ids: List[dict]=None, predicates_to_delete: dict=None, cid:str=None):
         """Update existing entity.
@@ -236,7 +239,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             superclass = subThingOf,
             definition = definition,
             comment = comment,
-            synonyms = synonyms,
+            add_synonyms = add_synonyms,
+            delete_synonyms = delete_synonyms,
             add_existing_ids = add_existing_ids,
             delete_existing_ids = delete_existing_ids,
             cid = cid,
@@ -264,7 +268,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
              #abbrev=None, # TODO
              #acronym=None, # TODO
              definition=resp['definition'],
-             synonyms=tuple(resp['synonyms']),
+             synonyms=tuple([d['literal'] for d in resp['synonyms']]),
              #deprecated=None,
              #prefix=None,
              #category=None,
