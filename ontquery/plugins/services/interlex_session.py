@@ -1,9 +1,12 @@
 import json
+from typing import Union, Dict, List, Tuple
 from urllib.parse import urljoin, urlparse
 
 import requests
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+
+from pyontutils.utils import Async, deferred
 
 
 class InterlexSession:
@@ -25,18 +28,16 @@ class InterlexSession:
                  debug=False,) -> None:
         """ Initialize Session with SciCrunch Server.
 
-        :param str key: API key for SciCrunch [should work for test hosts].
-        :param str host: Base url for hosting server [can take localhost:8080].
+            :param str key: API key for SciCrunch [should work for test hosts].
+            :param str host: Base url for hosting server [can take localhost:8080].
         """
         self.key = key
         self.host = ''
         self.api = ''
         self.debug = debug
-
         # Pull host for potential url
         if host.startswith('http'):
             host = urlparse(host).netloc
-
         # Use host to create api url
         if host.startswith('localhost'):
             self.host = "http://" + host
@@ -44,14 +45,14 @@ class InterlexSession:
         else:
             self.host = "https://" + host
             self.api = self.host + '/api/1/'
-
         # Api key check
         if self.key is None:  # injected by orthauth
             # Error here because viewing without a key handled in InterLexRemote not here
-            raise self.NoApiKeyError('You have not set an API key for the SciCrunch API!')
-        if not requests.get(self.api+'user/info', params={'key':self.key}).status_code in [200, 201]:
+            raise self.NoApiKeyError(
+                'You have not set an API key for the SciCrunch API!')
+        resp = requests.get(self.api+'user/info', params={'key':self.key})
+        if not resp.status_code in [200, 201]:
             raise self.IncorrectAPIKeyError(f'api_key given is incorrect.')
-
         self.session = requests.Session()
         self.session.auth = auth
         self.session.headers.update({'Content-type': 'application/json'})
@@ -66,7 +67,10 @@ class InterlexSession:
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
 
-    def __session_shortcut(self, endpoint: str, data: dict, session_type: str = 'GET') -> dict:
+    def __session_shortcut(self,
+                           endpoint: str,
+                           data: dict,
+                           session_type: str = 'GET') -> dict:
         """ Short for both GET and POST.
 
         Will only crash if success is False or if there a 400+ error.
@@ -103,7 +107,7 @@ class InterlexSession:
                 # if response.json().get('errormsg') == 'could not generate ILX identifier':
                 #     return response.json()
                 raise ValueError(response.text + f' -> STATUS CODE: {response.status_code} @ URL: {response.url}')
-            response.raise_for_status()
+            # response.raise_for_status()
         # crashes if the server couldn't use it or it never made it.
         except:
             raise requests.exceptions.HTTPError(f'{response.text} {response.status_code}')
@@ -118,3 +122,40 @@ class InterlexSession:
     def _post(self, endpoint: str , data: dict = None) -> dict:
         """ Quick POST for SciCrunch. """
         return self.__session_shortcut(endpoint, data, 'POST')
+
+    def boost(self,
+              func: object,
+              kwargs_list: List[dict],
+              rate: int = 3,
+              debug: bool = False) -> iter:
+        """ Async boost for function & list of kwarg params for function. """
+        # Worker
+        gin = lambda kwargs: func(**kwargs)
+        # Builds futures dynamically
+        return Async(rate=rate)(deferred(gin)(kwargs) for kwargs in kwargs_list)
+
+    def get(self,
+            endpoints: Union[list, str],
+            data_list: List[dict],) -> List[Tuple[str, dict]]:
+        if isinstance(endpoints, str): endpoints = [endpoints]
+        if len(endpoints) == 1: endpoints = endpoints * len(data_list)
+        if len(endpoints) != len(data_list):
+            raise ValueError('Endpoints length must match data_list length.')
+        # worker
+        gin = lambda endpoint, data: self._get(endpoint, data)
+        # Builds futures dynamically
+        return Async()(deferred(gin)(endpoint, data)
+                       for endpoint, data in zip(endpoints, data_list))
+
+    def post(self,
+             endpoints: Union[list, str],
+             data_list: List[dict],) -> List[Tuple[str, dict]]:
+        if isinstance(endpoints, str): endpoints = [endpoints]
+        if len(endpoints) == 1: endpoints = endpoints * len(data_list)
+        if len(endpoints) != len(data_list):
+            raise ValueError('Endpoints length must match data_list length.')
+        # worker
+        gin = lambda endpoint, data: self._post(endpoint, data)
+        # Builds futures dynamically
+        return Async()(deferred(gin)(endpoint, data)
+                       for endpoint, data in zip(endpoints, data_list))

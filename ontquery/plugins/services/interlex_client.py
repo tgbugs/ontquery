@@ -783,7 +783,7 @@ class InterLexClient(InterlexSession):
         for i, ref_record in enumerate(ref_records):
             for record in records:
                 on_hit = all([
-                    True if ref_record[key] == record.get(key)
+                    True if ref_record[key].lower().strip() == record.get(key, '').lower().strip()
                     else False
                     for key in on
                 ])
@@ -818,7 +818,7 @@ class InterLexClient(InterlexSession):
             for j, ref_record in enumerate(ref_records):
                 # True if unique keys match
                 on_hit = all([
-                    True if ref_record[key] == record.get(key)
+                    True if ref_record[key].lower().strip() == record.get(key, '').lower().strip()
                     else False
                     for key in on
                 ])
@@ -831,7 +831,7 @@ class InterLexClient(InterlexSession):
                     break
                 # True if any differences in non-unique keys
                 alt_hit = any([
-                    True if (ref_record[key] != record.get(key)) and (record.get(key) is not None) and (ref_record[key] is None)
+                    True if (ref_record[key].lower().strip() != record.get(key, '').lower().strip()) and (record.get(key) is not None) and (ref_record[key] is None)
                     else False
                     for key in alt
                 ])
