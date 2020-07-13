@@ -1,10 +1,11 @@
 import json
-from typing import Union, Dict, List, Tuple
-from urllib.parse import urljoin, urlparse
+from typing import Callable, Union, Dict, List, Tuple
 
 import requests
+from requests import Response
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
+from yarl import URL
 
 from pyontutils.utils import Async, deferred
 
@@ -18,117 +19,107 @@ class InterlexSession:
     class IncorrectAPIKeyError(Error):
         """Incorrect API key for scicrunch website used."""
 
+    class ServerMessage(Error):
+        """Server tailored error message json object."""
+
     def __init__(self,
                  key: str,
-                 host: str = 'test3.scicrunch.org', # MAIN TEST -> test3.scicrunch.org
-                 auth: tuple = ('', ''), # user, password for authentication
-                 retries: int = 3, # retries if code in status_forcelist
-                 backoff_factor: float = 1.0, # delay factor for reties
-                 status_forcelist: tuple = (400, 500, 502, 504), # flagged codes for retry
-                 debug=False,) -> None:
+                 scheme: str = 'https',
+                 host: str = 'test3.scicrunch.org',
+                 auth: Tuple[str, str] = ('', ''),
+                 retries: int = 3,
+                 backoff_factor: float = 1.0,
+                 status_forcelist: tuple = (400, 500, 502, 504),):
         """ Initialize Session with SciCrunch Server.
 
             :param str key: API key for SciCrunch [should work for test hosts].
-            :param str host: Base url for hosting server [can take localhost:8080].
+            :param str host: Base url for hosting server (can take localhost:8080). Default: 'test3.scicrunch.org'
+            :param auth: user, password for authentication. Default: ('', '')
+            :param int retries: Number of API retries if code is in status_forcelist. Default: 3
+            :param backoff_factor: Delay until next retry in seconds. default (1.0 seconds)
+            :param status_forcelist: Status codes that will trigger a retry.
         """
         self.key = key
-        self.host = ''
-        self.api = ''
-        self.debug = debug
-        # Pull host for potential url
-        if host.startswith('http'):
-            host = urlparse(host).netloc
-        # Use host to create api url
-        if host.startswith('localhost'):
-            self.host = "http://" + host
-            self.api = self.host + '/api/1/'
-        else:
-            self.host = "https://" + host
-            self.api = self.host + '/api/1/'
-        # Api key check
-        if self.key is None:  # injected by orthauth
-            # Error here because viewing without a key handled in InterLexRemote not here
-            raise self.NoApiKeyError(
-                'You have not set an API key for the SciCrunch API!')
-        resp = requests.get(self.api+'user/info', params={'key':self.key})
-        if not resp.status_code in [200, 201]:
-            raise self.IncorrectAPIKeyError(f'api_key given is incorrect.')
+        # Setup API url #
+        self.api = URL(host)
+        if not self.api.is_absolute():
+            self.api = URL.build(scheme=scheme, host=host)
+        self.api = self.api.with_path('api/1')
+        # Setup Retries #
         self.session = requests.Session()
-        self.session.auth = auth
+        self.session.auth = auth  # legacy; InterLex no longer needs this.
         self.session.headers.update({'Content-type': 'application/json'})
         retry = Retry(
             total=retries,
             read=retries,
             connect=retries,
             backoff_factor=backoff_factor,
-            status_forcelist=status_forcelist, # 400 for no ILX ID generated.
+            status_forcelist=status_forcelist,
         )
         adapter = HTTPAdapter(max_retries=retry)
         self.session.mount('http://', adapter)
         self.session.mount('https://', adapter)
+        # Validate API key & get User ID #
+        self.user_id = self._get('user/info').json()['data']['id']
 
-    def __session_shortcut(self,
-                           endpoint: str,
-                           data: dict,
-                           session_type: str = 'GET') -> dict:
-        """ Short for both GET and POST.
+    def __prepare_data(self, data: dict) -> str:
+        """ Makes sure request parameters are correct type & contain API key.
 
-        Will only crash if success is False or if there a 400+ error.
+            :param data: Parameters for API request.
         """
-        def _prepare_data(data: dict) -> dict:
-            """ Check if request data inputed has key and proper format. """
-            if data is None:
-                data = {'key': self.key}
-            elif isinstance(data, dict):
-                data.update({'key': self.key})
-            else:
-                raise ValueError('request session data must be of type dictionary')
-            return json.dumps(data)
+        data = data or {}
+        data.update({'key': self.key})
+        data = json.dumps(data)  # Incase backend is missing this step.
+        return data
 
-        # urljoin bug; .com/ap1/1/ + /test/ != .com/ap1/1/test/ but .com/test/
-        # HOWEVER .com/ap1/1/ + test/ == .com/ap1/1/test/
-        endpoint = endpoint[1:] if endpoint.startswith('/') else endpoint
-        url = urljoin(self.api, endpoint)
-        if data:
-            for key, value in data.items():
-                url = url.format(**{key:value})
-        data = _prepare_data(data)
-        if self.debug:
-            print(url)
-            print(data)
-        try:
-            # TODO: Could use a Request here to shorten code.
-            if session_type == 'GET':
-                response = self.session.get(url, data=data)
-            else:
-                response = self.session.post(url, data=data)
-            if response.json()['success'] == False:
-                # BUG: Need to retry if server fails to create the ILX ID.
-                # if response.json().get('errormsg') == 'could not generate ILX identifier':
-                #     return response.json()
-                raise ValueError(response.text + f' -> STATUS CODE: {response.status_code} @ URL: {response.url}')
-            # response.raise_for_status()
-        # crashes if the server couldn't use it or it never made it.
-        except:
-            raise requests.exceptions.HTTPError(f'{response.text} {response.status_code}')
+    def __check_response(self, resp: Response) -> None:
+        """ Pass, log or break based on response code.
 
-        # response.json() == {'data':{}, 'success':bool}
-        return response.json()['data']
+            200  : LOG   : If req was a duplicate from the API key
+            201  : PASS  : If req was add/updated/removed successfully
+            400+ : BREAK : Your bad
+            500+ : BREAK : Our bad
 
-    def _get(self, endpoint: str, data: dict = None) -> dict:
-        """ Quick GET for SciCrunch. """
-        return self.__session_shortcut(endpoint, data, 'GET')
+            :param resp: Server response from request.
+        """
+        if resp.status_code == 401:
+            raise self.IncorrectAPIKeyError('api_key given is incorrect.')
+        if resp.json().get('errormsg'):
+            raise self.ServerMessage(f"\nERROR CODE: [{resp.status_code}]\nSERVER MESSAGE: [{resp.json()['errormsg']}]")
+        # resp.raise_for_status()
 
-    def _post(self, endpoint: str , data: dict = None) -> dict:
-        """ Quick POST for SciCrunch. """
-        return self.__session_shortcut(endpoint, data, 'POST')
+    def _get(self, endpoint: str, params: dict = None) -> Response:
+        """ Quick GET for InterLex.
+
+            :param str endpoint: tail of endpoint (ie term/add).
+            :param dict params: params/data for API request.
+        """
+        url = self.api / endpoint
+        params = self.__prepare_data(params)
+        resp = self.session.get(url, data=params)
+        self.__check_response(resp)
+        return resp
+
+    def _post(self, endpoint: str, data: dict = None) -> Response:
+        """ Quick POST for InterLex.
+
+            :param str endpoint: tail of endpoint (ie term/add).
+            :param dict data: params/data for API request.
+        """
+        url = self.api / endpoint
+        data = self.__prepare_data(data)
+        resp = self.session.post(url, data=data)
+        self.__check_response(resp)
+        return resp
 
     def boost(self,
-              func: object,
+              func: Callable,
               kwargs_list: List[dict],
-              rate: int = 3,
-              debug: bool = False) -> iter:
-        """ Async boost for function & list of kwarg params for function. """
+              rate: int = 3,) -> iter:
+        """ Async boost for function & list of kwarg params for function.
+
+            :param
+        """
         # Worker
         gin = lambda kwargs: func(**kwargs)
         # Builds futures dynamically
@@ -136,26 +127,34 @@ class InterlexSession:
 
     def get(self,
             endpoints: Union[list, str],
-            data_list: List[dict],) -> List[Tuple[str, dict]]:
-        if isinstance(endpoints, str): endpoints = [endpoints]
-        if len(endpoints) == 1: endpoints = endpoints * len(data_list)
+            data_list: List[dict], ) -> List[Tuple[str, dict]]:
+        if isinstance(endpoints, str):
+            endpoints = [endpoints]
+        if len(endpoints) == 1:
+            endpoints = endpoints * len(data_list)
         if len(endpoints) != len(data_list):
             raise ValueError('Endpoints length must match data_list length.')
+
         # worker
-        gin = lambda endpoint, data: self._get(endpoint, data)
+        def gin(endpoint: str, data: dict) -> dict:
+            return self._get(endpoint, data)
+
         # Builds futures dynamically
-        return Async()(deferred(gin)(endpoint, data)
-                       for endpoint, data in zip(endpoints, data_list))
+        return Async()(deferred(gin)(endpoint, data) for endpoint, data in zip(endpoints, data_list))
 
     def post(self,
              endpoints: Union[list, str],
-             data_list: List[dict],) -> List[Tuple[str, dict]]:
-        if isinstance(endpoints, str): endpoints = [endpoints]
-        if len(endpoints) == 1: endpoints = endpoints * len(data_list)
+             data_list: List[dict], ) -> List[Tuple[str, dict]]:
+        if isinstance(endpoints, str):
+            endpoints = [endpoints]
+        if len(endpoints) == 1:
+            endpoints = endpoints * len(data_list)
         if len(endpoints) != len(data_list):
             raise ValueError('Endpoints length must match data_list length.')
+
         # worker
-        gin = lambda endpoint, data: self._post(endpoint, data)
+        def gin(endpoint: str, data: dict) -> dict:
+            return self._post(endpoint, data)
+
         # Builds futures dynamically
-        return Async()(deferred(gin)(endpoint, data)
-                       for endpoint, data in zip(endpoints, data_list))
+        return Async()(deferred(gin)(endpoint, data) for endpoint, data in zip(endpoints, data_list))

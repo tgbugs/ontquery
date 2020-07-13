@@ -203,48 +203,58 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             out_predicates['comment'] = resp['comment']
 
         return self.QueryResult(
-            query_args = {},
-            iri=resp['iri'],
-            curie=resp['curie'],
+            query_args={},
+            iri='http://uri.interlex.org/base/' + resp['ilx'],
+            curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
             label=resp['label'],
             labels=tuple(),
-            #abbrev=None,  # TODO
-            #acronym=None,  # TODO
+            # abbrev=None,  # TODO
+            # acronym=None,  # TODO
             definition=resp.get('definition', None),
             synonyms=tuple(resp.get('synonyms', tuple())),
-            #deprecated=None,
-            #prefix=None,
-            #category=None,
+            # deprecated=None,
+            # prefix=None,
+            # category=None,
             predicates=out_predicates,
-            #_graph=None,
+            # _graph=None,
             source=self,
         )
 
-    def update_entity(self, ilx_id: str=None, type: str=None, subThingOf: str=None, label: str=None,
-                      definition: str=None, add_synonyms=tuple(), delete_synonyms=tuple(), comment: str=None,
-                      predicates_to_add: dict=None, add_existing_ids: List[dict]=None,
-                      delete_existing_ids: List[dict]=None, predicates_to_delete: dict=None, cid:str=None):
-        """Update existing entity.
+    def update_entity(self,
+                      ilx_id: str = None,
+                      label: str = None,
+                      type: str = None,
+                      definition: str = None,
+                      subThingOf: str = None,
+                      comment: str = None,
+                      add_synonyms: tuple = None,
+                      delete_synonyms: tuple = None,
+                      add_existing_ids: List[dict] = None,
+                      delete_existing_ids: List[dict] = None,
+                      predicates_to_add: dict = None,
+                      predicates_to_delete: dict = None,
+                      cid: str = None) -> object:
+        """ Update existing entity.
 
-        :param List[dict] add_existing_ids: iris and curies to be added to entity.
-        :param List[dict] delete_existing_ids: iris and curies to be deleted from entity.
+            :param add_existing_ids: iris and curies to be added to entity.
+            :param delete_existing_ids: iris and curies to be deleted from entity.
 
-        >>>update_entity(add_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
-        >>>update_entity(delete_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+            >>>update_entity(add_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+            >>>update_entity(delete_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
         """
         resp = self.ilx_cli.update_entity(
-            ilx_id = ilx_id,
-            label = label,
-            type = type,
-            superclass = subThingOf,
-            definition = definition,
-            comment = comment,
-            add_synonyms = add_synonyms,
-            delete_synonyms = delete_synonyms,
-            add_existing_ids = add_existing_ids,
-            delete_existing_ids = delete_existing_ids,
-            cid = cid,
-            # predicates = tresp,
+            ilx_id=ilx_id,
+            label=label,
+            type=type,
+            superclass=subThingOf,
+            definition=definition,
+            comment=comment,
+            add_synonyms=add_synonyms,
+            delete_synonyms=delete_synonyms,
+            add_existing_ids=add_existing_ids,
+            delete_existing_ids=delete_existing_ids,
+            cid=cid,
+            # predicates=tresp,
         )
 
         tresp = None
@@ -258,24 +268,24 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         out_predicates = {}
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
-
-        return self.QueryResult(
-             query_args = {},
-             iri=resp['iri'],
-             curie=resp['curie'],
+        result = self.QueryResult(
+             query_args={},
+             iri='http://uri.interlex.org/base/' + resp['ilx'],
+             curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
              label=resp['label'],
              labels=tuple(),
-             #abbrev=None, # TODO
-             #acronym=None, # TODO
+             # abbrev=None, # TODO
+             # acronym=None, # TODO
              definition=resp['definition'],
              synonyms=tuple([d['literal'] for d in resp['synonyms']]),
-             #deprecated=None,
-             #prefix=None,
-             #category=None,
+             # deprecated=None,
+             # prefix=None,
+             # category=None,
              predicates=out_predicates,
-             #_graph=None,
+             # _graph=None,
              source=self,
         )
+        return result
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
@@ -411,8 +421,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         for resp in resps:
             yield self.QueryResult(
                 query_args = kwargs,
-                iri=resp['iri'],
-                curie=resp['curie'],
+                iri='http://uri.interlex.org/base/' + resp['ilx'],
+                curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
                 label=resp['label'],
                 labels=tuple(),
                 #abbrev=None, # TODO
@@ -445,7 +455,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         def isAbout(g):
             try:
                 ontid, *r1 = g[:self.RDF.type:self.OWL.Ontology]
-            except ValueError:
+            except ValueError as e:
                 raise NoOnt('oops!') from e
 
             try:
