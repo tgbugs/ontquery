@@ -91,11 +91,15 @@ class InterlexSession:
     def _get(self, endpoint: str, params: dict = None) -> Response:
         """ Quick GET for InterLex.
 
-            :param str endpoint: tail of endpoint (ie term/add).
-            :param dict params: params/data for API request.
+        :param str endpoint: tail of endpoint (ie term/add).
+        :param dict params: params/data for API request.
+        :returns: GET server response
+
+        >>>self._get('user/info')
         """
         url = self.api / endpoint
-        params = self.__prepare_data(params)
+        params = self.__prepare_data(params)  # adds api key to params here
+        # noinspection PyTypeChecker
         resp = self.session.get(url, data=params)
         self.__check_response(resp)
         return resp
@@ -103,58 +107,36 @@ class InterlexSession:
     def _post(self, endpoint: str, data: dict = None) -> Response:
         """ Quick POST for InterLex.
 
-            :param str endpoint: tail of endpoint (ie term/add).
-            :param dict data: params/data for API request.
+        :param str endpoint: tail of endpoint (ie term/add).
+        :param dict data: params/data for API request.
+        :returns: POST server response
+
+        >>>self._post('term/add-simplified', data={'label': 'MyLabel', 'type': 'term'})
         """
         url = self.api / endpoint
-        data = self.__prepare_data(data)
+        data = self.__prepare_data(data)  # adds api key to data here
+        # noinspection PyTypeChecker
         resp = self.session.post(url, data=data)
         self.__check_response(resp)
         return resp
 
-    def boost(self,
-              func: Callable,
+    @staticmethod
+    def boost(func: Callable,
               kwargs_list: List[dict],
               rate: int = 3,) -> iter:
-        """ Async boost for function & list of kwarg params for function.
+        """ Async boost for Function/Method & list of kwarg params for Function/Method.
 
-            :param
+        :param func: Function/Method to be asynchronously called.
+        :param kwargs_list: Function/Method perameters for each call.
+        :param rate: Batch size. Default 3
+        :returns: Generator of repsonses from func.
+
+        >>>from ontquery.plugins.services.interlex_client import InterLexClient
+        >>>ilx_cli = InterLexClient(base_url='https://test3.scicrunch.org/api/1/')
+        >>>kwargs_list = [{'label': 'Label 1', 'type': 'term'}, {'label': 'Label 2', 'type': 'term'}]
+        >>>self.boost(ilx_cli.add_entity, kwargs_list)
         """
-        # Worker
+        # Worker #
         gin = lambda kwargs: func(**kwargs)
-        # Builds futures dynamically
+        # Builds futures dynamically #
         return Async(rate=rate)(deferred(gin)(kwargs) for kwargs in kwargs_list)
-
-    def get(self,
-            endpoints: Union[list, str],
-            data_list: List[dict], ) -> List[Tuple[str, dict]]:
-        if isinstance(endpoints, str):
-            endpoints = [endpoints]
-        if len(endpoints) == 1:
-            endpoints = endpoints * len(data_list)
-        if len(endpoints) != len(data_list):
-            raise ValueError('Endpoints length must match data_list length.')
-
-        # worker
-        def gin(endpoint: str, data: dict) -> dict:
-            return self._get(endpoint, data)
-
-        # Builds futures dynamically
-        return Async()(deferred(gin)(endpoint, data) for endpoint, data in zip(endpoints, data_list))
-
-    def post(self,
-             endpoints: Union[list, str],
-             data_list: List[dict], ) -> List[Tuple[str, dict]]:
-        if isinstance(endpoints, str):
-            endpoints = [endpoints]
-        if len(endpoints) == 1:
-            endpoints = endpoints * len(data_list)
-        if len(endpoints) != len(data_list):
-            raise ValueError('Endpoints length must match data_list length.')
-
-        # worker
-        def gin(endpoint: str, data: dict) -> dict:
-            return self._post(endpoint, data)
-
-        # Builds futures dynamically
-        return Async()(deferred(gin)(endpoint, data) for endpoint, data in zip(endpoints, data_list))

@@ -1,9 +1,11 @@
-from typing import List, Dict
+from typing import Union, List, Dict
+
 import rdflib
 import requests
+
 import ontquery as oq
 import ontquery.exceptions as exc
-from ontquery.utils import cullNone, log
+from ontquery.utils import cullNone, log, QueryResult
 from ontquery.services import OntService
 from .interlex_client import InterLexClient
 from .rdflib import rdflibLocal
@@ -69,23 +71,33 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return {}  # TODO
 
     def add_class(self,
-                  subClassOf=None,
-                  label=None,
-                  definition=None,
-                  synonyms=tuple(),
-                  comment=None,
-                  predicates: dict=None):
-        return self.add_entity('term', subClassOf, label, definition, synonyms, comment, predicates)
+                  label: str = None,
+                  definition: str = None,
+                  synonyms: tuple = tuple(),
+                  comment: str = None,
+                  cid: Union[str, int] = None,
+                  subClassOf: str = None,
+                  predicates: dict = None) -> QueryResult:
+        return self.add_entity(
+            type='term',
+            label=label,
+            definition=definition,
+            synonyms=synonyms,
+            comment=comment,
+            cid=cid,
+            subThingOf=subClassOf,
+            predicates=predicates,
+        )
 
     def add_pde(self,
                 label,
-                definition: str=None,
-                synonyms=tuple(),
-                comment: str=None,
-                predicates: dict=None,
-                subThingOf: str=None,
-                existing_ids=None,
-                cid=None):
+                definition: str = None,
+                synonyms: tuple = tuple(),
+                comment: str = None,
+                predicates: dict = None,
+                subThingOf: str = None,
+                cid: Union[str, int] = None,
+                existing_ids: list = None,) -> QueryResult:
         """ add a personal data element """
         return self.add_entity(
             type='pde',
@@ -100,14 +112,14 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         )
 
     def add_cde(self,
-                label,
-                definition: str=None,
-                synonyms=tuple(),
-                comment: str=None,
-                predicates: dict=None,
-                subThingOf: str=None,
-                existing_ids=None,
-                cid=None):
+                label: str,
+                definition: str = None,
+                synonyms: tuple = tuple(),
+                comment: str = None,
+                cid: Union[str, int] = None,
+                predicates: dict = None,
+                subThingOf: str = None,
+                existing_ids: list = None,) -> QueryResult:
         """ add a common data element """
         return self.add_entity(
             type='cde',
@@ -123,13 +135,13 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def add_fde(self,
                 label,
-                definition: str=None,
-                synonyms=tuple(),
-                comment: str=None,
-                predicates: dict=None,
-                subThingOf: str=None,
-                existing_ids=None,
-                cid=None):
+                definition: str = None,
+                synonyms: tuple = tuple(),
+                comment: str = None,
+                cid: Union[str, int] = None,
+                predicates: dict = None,
+                subThingOf: str = None,
+                existing_ids: list = None,) -> QueryResult:
         """ add a federated data element """
         return self.add_entity(
             type='fde',
@@ -145,7 +157,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def add_predicates(self, ilx_curieoriri: str, predicate_objects_dict: dict) -> list:
         tresp = []
-        if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+        if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'):  # FIXME: need formality
             subject = 'http://uri.interlex.org/base/' + ilx_curieoriri
         else:
             subject = ilx_curieoriri
@@ -160,7 +172,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def delete_predicates(self, ilx_curieoriri: str, predicate_objects_dict: dict) -> list:
         tresp = []
-        if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'): # FIXME: need formality
+        if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'):  # FIXME: need formality
             subject = 'http://uri.interlex.org/base/' + ilx_curieoriri
         else:
             subject = ilx_curieoriri
@@ -173,25 +185,61 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 # TODO stick the responding predicates etc in if success
         return tresp
 
-    def get_entity(self, ilx_id: str, iri_curie: bool) -> dict:
-        return self.ilx_cli.get_entity(ilx_id, iri_curie)
+    def get_entity(self, ilx_id: str) -> dict:
+        resp = self.ilx_cli.get_entity(ilx_id)
+        return self.QueryResult(
+            query_args=kwargs,
+            iri='http://uri.interlex.org/base/' + resp['ilx'],
+            curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+            label=resp['label'],
+            labels=tuple(),
+            # abbrev=None, # TODO
+            # acronym=None, # TODO
+            definition=resp['definition'],
+            synonyms=tuple(resp['synonyms']),
+            # deprecated=None,
+            # prefix=None,
+            # category=None,
+            predicates={p: tuple() for p in predicates},  # TODO
+            # _graph=None,
+            source=self,
+        )
 
-    def add_entity(self, type, subThingOf, label, definition: str=None,
-                   synonyms=tuple(), comment: str=None, predicates: dict=None,
-                   existing_ids=None, cid=None):
+    def add_entity(self,
+                   label: str,
+                   type: str,
+                   subThingOf: str,
+                   definition: str = None,
+                   comment: str = None,
+                   cid: Union[str, int] = None,
+                   synonyms: tuple = tuple(),
+                   existing_ids: List[dict] = None,
+                   predicates: dict = None,) -> QueryResult:
+        """ Add InterLex entity
 
+        :param label: Preferred name of entity.
+        :param type: Any of the following: term, TermSet, cde, pde, fde, relationship, annotation.
+        :param cid: Community ID
+        :param definition: Entities official definition.
+        :param comment: A foot note regarding either the interpretation of the data or the data itself
+        :param subThingOf: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
+        :param synonyms: Alternate names of the label.
+        :param existing_ids: Alternate/source ontological iri/curies. Can only be one preferred ID.
+        :param predicates: Anotations or Relationships associated with enitty.
+        :return: requests.Response of insert or query from existing.
+        """
         if self.readonly:
             raise exc.ReadOnlyError('InterLexRemote is in readonly mode.')
 
         resp = self.ilx_cli.add_entity(
-            label = label,
-            type = type,
-            superclass = subThingOf,
-            definition = definition,
-            comment = comment,
-            synonyms = synonyms,
-            existing_ids = existing_ids,
-            cid = cid,
+            label=label,
+            type=type,
+            definition=definition,
+            comment=comment,
+            synonyms=synonyms,
+            cid=cid,
+            superclass=subThingOf,
+            existing_ids=existing_ids,
         )
         out_predicates = {}
 
@@ -202,7 +250,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        return self.QueryResult(
+        return QueryResult(
             query_args={},
             iri='http://uri.interlex.org/base/' + resp['ilx'],
             curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -236,11 +284,20 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                       cid: str = None) -> object:
         """ Update existing entity.
 
-            :param add_existing_ids: iris and curies to be added to entity.
-            :param delete_existing_ids: iris and curies to be deleted from entity.
-
-            >>>update_entity(add_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
-            >>>update_entity(delete_existing_ids=[{'ilx_id':'ilx_1234567', 'iri':'http://abc.org/abc_123', 'curie':'ABC:123'}])
+        :param ilx_id:
+        :param label:
+        :param type:
+        :param definition:
+        :param subThingOf:
+        :param comment:
+        :param add_synonyms:
+        :param delete_synonyms:
+        :param add_existing_ids: iris and curies to be added to entity.
+        :param delete_existing_ids: iris and curies to be deleted from entity.
+        :param predicates_to_add:
+        :param predicates_to_delete:
+        :param cid:
+        :return: QueryResult of entity record
         """
         resp = self.ilx_cli.update_entity(
             ilx_id=ilx_id,
@@ -268,7 +325,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         out_predicates = {}
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
-        result = self.QueryResult(
+        result = QueryResult(
              query_args={},
              iri='http://uri.interlex.org/base/' + resp['ilx'],
              curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -403,9 +460,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates, limit):
         if iri:
-            resps: dict = self.ilx_cli.get_entity(iri, iri_curie=True)
+            resps: dict = self.ilx_cli.get_entity(iri)
         elif curie:
-            resps: dict = self.ilx_cli.get_entity(curie, iri_curie=True)
+            resps: dict = self.ilx_cli.get_entity(curie)
         elif label:
             resps: list = self.ilx_cli.query_elastic(label=label, size=limit)
         elif term:
@@ -419,7 +476,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             resps = [resps]
 
         for resp in resps:
-            yield self.QueryResult(
+            yield QueryResult(
                 query_args = kwargs,
                 iri='http://uri.interlex.org/base/' + resp['ilx'],
                 curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -547,7 +604,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            return self.QueryResult(kwargs, **qrd)
+            return QueryResult(kwargs, **qrd)
 
     def _dev_query_rest(self):
         if True:
@@ -562,7 +619,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 if curie:
                     for qr in out:
                         qr = cullNone(**qr)
-                        yield self.QueryResult(kwargs, #qr._QueryResult__query_args,
+                        yield QueryResult(kwargs, #qr._QueryResult__query_args,
                                                curie=curie,
                                                **{k:v for k, v in qr.items()
                                                   if k != 'curie' })

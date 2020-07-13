@@ -1,15 +1,16 @@
 from copy import deepcopy
-import os
 import json
-import string
+import os
 import random
+import string
 import unittest
+
 import pytest
+
 from ontquery.plugins.services.interlex_client import InterLexClient
 from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
 from .common import skipif_no_net, SKIP_NETWORK, log
-from IPython import embed
 
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'

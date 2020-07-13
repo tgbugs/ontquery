@@ -1,8 +1,7 @@
 from copy import deepcopy
 import json
-from typing import Union, List, Tuple, Any
+from typing import Optional, Union, List, Tuple, Any
 
-from IPython import embed
 from rdflib import URIRef
 from requests import Response
 
@@ -116,7 +115,7 @@ class InterLexClient(InterlexSession):
 
     @staticmethod
     def _check_type(element: Any,
-                     types: Union[Any, List[Any]]) -> Any:
+                    types: Union[Any, List[Any]]) -> Any:
         """ Check if element is an  accepted types provided.
 
         :param element: Field value.
@@ -129,7 +128,7 @@ class InterLexClient(InterlexSession):
 
     @staticmethod
     def _check_value(element: Any,
-                      values: tuple) -> Any:
+                     values: tuple) -> Any:
         """ Check if element is in accepted values provided.
 
         :param element: Field value.
@@ -159,9 +158,9 @@ class InterLexClient(InterlexSession):
             self._check_type(element[key], value)
 
     def _process_field(self,
-                        field: Union[str, int],
-                        accepted_types: tuple,
-                        accepted_values: tuple = None,) -> Union[str, int]:
+                       field: Union[str, int],
+                       accepted_types: tuple,
+                       accepted_values: tuple = None,) -> Union[str, int]:
         """ Check if single field is following guidelines for type and/or value acceptance
 
         :param accepted_types: Review if field is a usable type.
@@ -213,6 +212,7 @@ class InterLexClient(InterlexSession):
         :param passive: Append instead of update record if alt is found.
         """
         # Makes sure merge is never empty
+        clean = lambda s: s.lower().strip()
         on = on or []
         alt = alt or []
         if on is []:
@@ -228,7 +228,7 @@ class InterLexClient(InterlexSession):
             for j, ref_record in enumerate(ref_records):
                 # True if unique keys match
                 on_hit = all([
-                    True if ref_record[key].lower().strip() == record.get(key, '').lower().strip()
+                    True if clean(ref_record[key]) == clean(record.get(key, ''))
                     else False
                     for key in on
                 ])
@@ -241,7 +241,7 @@ class InterLexClient(InterlexSession):
                     break
                 # True if any differences in non-unique keys
                 alt_hit = any([
-                    True if (ref_record[key].lower().strip() != record.get(key, '').lower().strip()) and (not ref_record[key])
+                    True if (clean(ref_record[key]) != clean(record.get(key, ''))) and (not ref_record[key])
                     else False
                     for key in alt
                 ])
@@ -287,7 +287,7 @@ class InterLexClient(InterlexSession):
             corrected_synonyms.append(synonym)
         return corrected_synonyms
 
-    def _process_superclass(self, superclass: str) -> List[dict]:
+    def _process_superclass(self, superclass: str) -> Optional[List[dict]]:
         if not superclass:
             return None
         superclass = self.fix_ilx(superclass)
@@ -308,20 +308,19 @@ class InterLexClient(InterlexSession):
             )
         """
 
-        def fix_existing_ids_preferred(existing_ids: List[dict],
-                                        ranking: list = None) -> List[dict]:
+        def fix_existing_ids_preferred(_existing_ids: List[dict],
+                                       ranking: list = None) -> List[dict]:
             """ Give value 1 to top preferred existing id; 0 otherwise.
 
                 Will using the ranking list to score each existing id curie prefix
                 and will sort top preferred to the top. Top will get preferred = 1,
                 the rest will get 0.
 
-            :param existing_ids: entities existing ids.
+            :param _existing_ids: entities existing ids.
             :param ranking: custom ranking for existing ids. Default: None
             :return: entity existing ids preferred field fixed based on ranking.
             """
             ranked_existing_ids: List[Tuple[int, dict]] = []
-            sorted_ranked_existing_ids: List[Tuple[int, dict]] = []
             preferred_fixed_existing_ids: List[dict] = []
             if not ranking:
                 ranking = [
@@ -356,7 +355,7 @@ class InterLexClient(InterlexSession):
             # prefix to rank mapping
             ranking = {prefix.upper(): ranking.index(prefix) for prefix in ranking}
             # using ranking on curie prefix to get rank
-            for ex_id in existing_ids:
+            for ex_id in _existing_ids:
                 prefix = ex_id['curie'].split(':')[0]
                 rank = ranking[prefix] if ranking.get(prefix) else default_rank
                 ranked_existing_ids.append((rank, ex_id))
@@ -391,20 +390,13 @@ class InterLexClient(InterlexSession):
                       **kwargs) -> List[dict]:
         """ Queries Elastic for term (wild card) or raw query to elastic.
 
-            If you choose to do a label search you need Elasticsearch:
-            > SCICRUNCH_ELASTIC_URL: core elastic search url (no indexes)
-            > SCICRUNCH_ELASTIC_USER: username
-            > SCICRUNCH_ELASTIC_PASSWORD: password
-            within your bashrc. The reason is the API endpoint in SciCrunch cannot
-            be customized at all and it is just for a general search.
-
         :param str term: wild card value to be searched throughout entities.
         :param str label: direct exact matching for label field.
         :param dict body: raw query for elastic where {"query":{?}} is input.
             WARNING, your query value should be lowercase and cleaned. Elastic
             doesn't clean input by default...
             Maybe a nice addition to look into?
-        :returns: list of all possible entity hits in their nested dict format.
+        :return: list of all possible entity hits in their nested dict format.
         :rtype: List[dict]
 
         # Say we want "brain" entity.
@@ -494,8 +486,7 @@ class InterLexClient(InterlexSession):
                    comment: str = None,
                    superclass: str = None,
                    synonyms: list = None,
-                   existing_ids: list = None,
-                   **kwargs,) -> dict:
+                   existing_ids: list = None,) -> dict:
         """ Add Interlex entity into SciCrunch.
 
             Loosely structured ontological data based on the source ontologies for readability.
@@ -697,7 +688,6 @@ class InterLexClient(InterlexSession):
         if existing_entity['existing_ids']:
             existing_entity['existing_ids'] = self._process_existing_ids(existing_entity['existing_ids'])
         resp = self._post(f"term/edit/{existing_entity['id']}", data=existing_entity)
-        # embed()
         # BUG: server response is bad and needs to actually search again to get proper format
         entity = resp.json()['data']
         entity['superclass'] = entity.pop('superclasses')
@@ -762,7 +752,7 @@ class InterLexClient(InterlexSession):
 
         output = self._post('term/add-annotation', data=data).json()['data']
 
-        ### If already exists, we return the actual annotation properly ###
+        # If already exists, we return the actual annotation properly #
         if output.get('errormsg'):
             if 'already exists' in output['errormsg'].lower():
                 term_annotations = self.get_annotation_via_tid(term_data['id'])
@@ -785,7 +775,7 @@ class InterLexClient(InterlexSession):
     def delete_annotation(self,
                           term_ilx_id: str,
                           annotation_type_ilx_id: str,
-                          annotation_value: str) -> dict:
+                          annotation_value: str) -> Optional[dict]:
         """ If annotation doesnt exist, add it
 
         :param term_ilx_id: Term ILX ID
@@ -872,7 +862,7 @@ class InterLexClient(InterlexSession):
             'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
         }
         output = self._post('term/add-relationship', data=data).json()['data']
-        ### If already exists, we return the actual relationship properly ###
+        # If already exists, we return the actual relationship properly #
         if output.get('errormsg'):
             if 'already exists' in output['errormsg'].lower():
                 term_relationships = self.get_relationship_via_tid(
@@ -906,19 +896,13 @@ class InterLexClient(InterlexSession):
         """
         entity1_data = self.get_entity(entity1_ilx)
         if not entity1_data['id']:
-            raise self.EntityDoesNotExistError(
-                'entity1_ilx: ' + entity1_data + ' does not exist'
-            )
+            raise self.EntityDoesNotExistError(f'entity1_ilx: {entity1_data} does not exist')
         relationship_data = self.get_entity(relationship_ilx)
         if not relationship_data['id']:
-            raise self.EntityDoesNotExistError(
-                'relationship_ilx: ' + relationship_ilx + ' does not exist'
-            )
+            raise self.EntityDoesNotExistError(f'relationship_ilx: {relationship_ilx} does not exist')
         entity2_data = self.get_entity(entity2_ilx)
         if not entity2_data['id']:
-            raise self.EntityDoesNotExistError(
-                'entity2_ilx: ' + entity2_data + ' does not exist'
-            )
+            raise self.EntityDoesNotExistError(f'entity2_ilx: {entity2_data} does not exist')
         data = {
             'term1_id': ' ',  # entity1_data['id'],
             'relationship_tid': ' ',  # relationship_data['id'],
