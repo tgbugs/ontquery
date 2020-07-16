@@ -544,40 +544,57 @@ class InterLexClient(InterlexSession):
         # todo: compare if identical; for now test_interlex_client will do
         return entity
 
-    # todo make sure this adds proper anntation
-    # todo make a replace_entity version
-    # def deprecate_entity(self, ilx_id: str) -> dict:
-    #     """ Annotates for deprecation while updating the status on databases.
-    #
-    #     status =  0 :: active
-    #     status = -1 :: hidden
-    #     status = -2 :: deleted
-    #
-    #     Note the point is not to actually delete the entity.
-    #     """
-    #     deprecated_id = 'http://uri.interlex.org/base/ilx_0383241'
-    #     deprecated = self.get_entity(deprecated_id)
-    #     if deprecated['label'] == 'deprecated' and deprecated['type'] == 'annotation':
-    #         pass
-    #     else:
-    #         raise ValueError(
-    #             'Oops! Annotation "deprecated" was move. Please update deprecated')
-    #
-    #     # ADD DEPRECATED ANNOTATION
-    #     annotation = self.add_annotation(
-    #         term_ilx_id=ilx_id,
-    #         annotation_type_ilx_id=deprecated_id,
-    #         annotation_value='True',
-    #     )
-    #     if annotation['value'] != 'True':
-    #         raise ValueError('Deprecation annotation was not added correctly!')
-    #     log.info(annotation)
-    #     # GIVE STATUS -2
-    #     update = self.update_entity(ilx_id=ilx_id, status='-2')
-    #     if update['status'] != '-2':
-    #         raise ValueError('Entity status for deprecation failed!')
-    #     log.info(update)
-    #     return update
+    def deprecate_entity(self, ilx_id: str) -> dict:
+        """ Annotates for deprecation while updating the status on databases.
+
+            status =  0 :: active
+            status = -1 :: hidden
+            status = -2 :: deleted
+
+            Note the point is not to actually delete the entity.
+
+        :param ilx_id: ILX ID of entity to be removed.
+        :return: Deprecated Record of entity.
+        """
+        deprecated_id = 'http://uri.interlex.org/base/ilx_0383241'  # deprecated entity
+        deprecated = self.get_entity(deprecated_id)
+        if (deprecated['label'] is not 'deprecated') or (deprecated['type'] is not 'annotation'):
+            raise ValueError('Oops! Annotation "deprecated" was move. Please update deprecated')
+        # ADD DEPRECATED ANNOTATION
+        annotation = self.add_annotation(
+            term_ilx_id=ilx_id,
+            annotation_type_ilx_id=deprecated_id,
+            annotation_value='True',
+        )
+        if annotation['value'] != 'True':
+            raise ValueError('Deprecation annotation was not added correctly!')
+        log.info(annotation)
+        # GIVE STATUS -2
+        update = self.update_entity(ilx_id=ilx_id, status='-2')
+        if update['status'] != '-2':
+            raise ValueError('Entity status for deprecation failed!')
+        log.info(update)
+        return update
+
+    def replace_entity(self, ilx_id: str, replaced_by_ilx_id: str) -> dict:
+        """ Create a relationship between an entity that is being deprecated and replaced by another entity.
+
+        :param ilx_id: ILX ID of Entity to be replaced.
+        :param replaced_by_ilx_id: ILX ID of new Entity that is now being used.
+        :return: Deprecated Record of entity.
+        """
+        replaced_by_id = 'http://uri.interlex.org/base/ilx_0383242'  # replacedBy entity
+        replaced_by = self.get_entity(deprecated_id)
+        if (replaced_by['label'] is not 'replacedBy') or (replaced_by['type'] is not 'relationship'):
+            raise ValueError('Oops! "Replaced By" was move. Please update ILX for "Replaced By" annotation')
+        # ADD RELATIONSHIP CONNECTION FROM OLD TO NEW ENTITY
+        relationship = self.add_relationship(
+            entity1_ilx=ilx_id,
+            relationship_ilx=replaced_by_id,
+            entity2_ilx=replaced_by_ilx_id,
+        )
+        log.info(relationship)
+        return self.deprecate_entity(ilx_id)
 
     def partial_update(self,
                        curie: str = None,
@@ -616,6 +633,7 @@ class InterLexClient(InterlexSession):
                       comment: str = None,
                       superclass: str = None,
                       cid: str = None,
+                      status: str = None,
                       add_synonyms: Union[List[dict], List[str]] = None,
                       delete_synonyms: Union[List[dict], List[str]] = None,
                       add_existing_ids: List[dict] = None,
@@ -659,6 +677,8 @@ class InterLexClient(InterlexSession):
             existing_entity['superclasses'] = [{'superclass_tid': existing_entity['superclasses'][0]['id']}]
         if cid:
             existing_entity['cid'] = cid
+        if status:
+            existing_entity['status'] = status
         # If a match use old data, else append new synonym
         if add_synonyms:
             existing_entity['synonyms'] = self._merge_records(
