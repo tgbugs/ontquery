@@ -586,7 +586,7 @@ class InterLexClient(InterlexSession):
         replaced_by_id = 'http://uri.interlex.org/base/ilx_0383242'  # replacedBy entity
         replaced_by = self.get_entity(deprecated_id)
         if (replaced_by['label'] is not 'replacedBy') or (replaced_by['type'] is not 'relationship'):
-            raise ValueError('Oops! "Replaced By" was move. Please update ILX for "Replaced By" annotation')
+            raise ValueError('Oops! "replacedBy" was move. Please update ILX for "Replaced By" annotation')
         # ADD RELATIONSHIP CONNECTION FROM OLD TO NEW ENTITY
         relationship = self.add_relationship(
             entity1_ilx=ilx_id,
@@ -647,6 +647,10 @@ class InterLexClient(InterlexSession):
         :param comment: A foot note regarding either the interpretation of the data or the data itself
         :param superclass: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
         :param cid: Community ID.
+        :param status: Entity status.
+            -2 : Withdrawn; entity is no longer searchable and is not visible
+            -1 : Under review; entity is visible
+             0 : No action needed; entity is visible
         :param add_synonyms: Synonyms to add if they don't already exist.
         :param delete_synonyms: Synonyms to delete.
         :param add_existing_ids: Add alternative IRIs if they don't already exist.
