@@ -486,7 +486,8 @@ class InterLexClient(InterlexSession):
                    comment: str = None,
                    superclass: str = None,
                    synonyms: list = None,
-                   existing_ids: list = None,) -> dict:
+                   existing_ids: list = None,
+                   force: bool = False) -> dict:
         """ Add Interlex entity into SciCrunch.
 
             Loosely structured ontological data based on the source ontologies for readability.
@@ -500,6 +501,7 @@ class InterLexClient(InterlexSession):
         :param superclass: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
         :param synonyms: Alternate names of the label.
         :param existing_ids: Alternate/source ontological iri/curies. Can only be one preferred ID.
+        :param force: If entity is different from existing entity. This will add it if you have admin privileges.
         :return: requests.Response of insert or query from existing.
 
         >>>self.add_entity( \
@@ -530,13 +532,13 @@ class InterLexClient(InterlexSession):
             'superclasses': self._process_superclass(superclass),
             'synonyms': self._process_synonyms(synonyms),
             'existing_ids': self._process_existing_ids(existing_ids),
+            'force': force,
         }
         resp = self._post('term/add-simplified', data=deepcopy(entity))
         entity = resp.json()['data']
         if resp.status_code == 200:
             log.warning(f"You already added {entity['label']} with InterLex ID {entity['ilx']}")
         # Backend handles more than one. User doesn't need to know.
-        # todo: will be not needed later
         entity['superclass'] = entity.pop('superclasses')
         if entity['superclass']:
             entity['superclass'] = 'http://uri.interlex.org/base/' + entity['superclass'][0]['ilx']
@@ -558,7 +560,7 @@ class InterLexClient(InterlexSession):
         """
         deprecated_id = 'http://uri.interlex.org/base/ilx_0383241'  # deprecated entity
         deprecated = self.get_entity(deprecated_id)
-        if (deprecated['label'] is not 'deprecated') or (deprecated['type'] is not 'annotation'):
+        if (deprecated['label'] != 'deprecated') or (deprecated['type'] != 'annotation'):
             raise ValueError('Oops! Annotation "deprecated" was move. Please update deprecated')
         # ADD DEPRECATED ANNOTATION
         annotation = self.add_annotation(
@@ -585,7 +587,7 @@ class InterLexClient(InterlexSession):
         """
         replaced_by_id = 'http://uri.interlex.org/base/ilx_0383242'  # replacedBy entity
         replaced_by = self.get_entity(deprecated_id)
-        if (replaced_by['label'] is not 'replacedBy') or (replaced_by['type'] is not 'relationship'):
+        if (replaced_by['label'] != 'replacedBy') or (replaced_by['type'] != 'relationship'):
             raise ValueError('Oops! "replacedBy" was move. Please update ILX for "Replaced By" annotation')
         # ADD RELATIONSHIP CONNECTION FROM OLD TO NEW ENTITY
         relationship = self.add_relationship(

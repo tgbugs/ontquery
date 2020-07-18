@@ -451,8 +451,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             yield from res
 
         else:  # can only get by iri directly and it must be an ilx id
-            if label:
-                raise NotImplementedError('can only query by label on the dev endpoint or with an API key set')
+            # if label:
+            #     raise NotImplementedError('can only query by label on the dev endpoint or with an API key set')
 
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
             if res is not None:
