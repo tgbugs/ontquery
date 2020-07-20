@@ -22,9 +22,10 @@ class _InterLexSharedCache:
 class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     known_inverses = ('', ''),
     defaultEndpoint = 'https://scicrunch.org/api/1/'
+
     def __init__(self, *args, apiEndpoint=defaultEndpoint,
-                 user_curies: dict={'ILX', 'http://uri.interlex.org/base/ilx_'},  # FIXME hardcoded
-                 readonly=False,
+                 user_curies: dict = None,  # FIXME hardcoded
+                 readonly: bool = False,
                  OntId=oq.OntId,
                  **kwargs):
         """ user_curies is a local curie mapping from prefix to a uri
@@ -33,14 +34,14 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         self.OntId = OntId
         self.apiEndpoint = apiEndpoint
 
-        self.user_curies = user_curies
+        self.user_curies = user_curies or {'ILX', 'http://uri.interlex.org/base/ilx_'}
         self.readonly = readonly
 
         self.Graph = rdflib.Graph
         self.RDF = rdflib.RDF
         self.OWL = rdflib.OWL
         self.URIRef = rdflib.URIRef
-        #self.curies = requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
+        # self.curies = requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
         # here we see that the original model for curies doesn't quite hold up
         # we need to accept local curies, but we also have to have them
         # probably best to let the user populate their curies from interlex
@@ -49,7 +50,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         super().__init__(*args, **kwargs)
 
     def setup(self, **kwargs):
-        oq.OntCuries({'ILXTEMP':'http://uri.interlex.org/base/tmp_'})
+        oq.OntCuries({'ILXTEMP': 'http://uri.interlex.org/base/tmp_'})
 
         if self.apiEndpoint is not None:
             try:
@@ -78,6 +79,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                   cid: Union[str, int] = None,
                   subClassOf: str = None,
                   predicates: dict = None) -> QueryResult:
+        """ Add class term entity to InterLex
+            :py: method:`~add_entity` """
         return self.add_entity(
             type='term',
             label=label,
@@ -98,7 +101,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 subThingOf: str = None,
                 cid: Union[str, int] = None,
                 existing_ids: list = None,) -> QueryResult:
-        """ add a personal data element """
+        """ Add a personal data element
+            :py:method:`~add_entity` """
         return self.add_entity(
             type='pde',
             cid=cid,
@@ -111,76 +115,45 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             existing_ids=existing_ids,
         )
 
-    def add_cde(self,
-                label: str,
-                definition: str = None,
-                synonyms: tuple = tuple(),
-                comment: str = None,
-                cid: Union[str, int] = None,
-                predicates: dict = None,
-                subThingOf: str = None,
-                existing_ids: list = None,) -> QueryResult:
-        """ add a common data element """
-        return self.add_entity(
-            type='cde',
-            cid=cid,
-            subThingOf=subThingOf,
-            label=label,
-            definition=definition,
-            synonyms=synonyms,
-            comment=comment,
-            predicates=predicates,
-            existing_ids=existing_ids,
-        )
+    def add_predicates(self, ilx_curieoriri: str, predicates: dict) -> list:
+        """ Add Annotation or Relationship to existing entity.
 
-    def add_fde(self,
-                label,
-                definition: str = None,
-                synonyms: tuple = tuple(),
-                comment: str = None,
-                cid: Union[str, int] = None,
-                predicates: dict = None,
-                subThingOf: str = None,
-                existing_ids: list = None,) -> QueryResult:
-        """ add a federated data element """
-        return self.add_entity(
-            type='fde',
-            cid=cid,
-            subThingOf=subThingOf,
-            label=label,
-            definition=definition,
-            synonyms=synonyms,
-            comment=comment,
-            predicates=predicates,
-            existing_ids=existing_ids,
-        )
-
-    def add_predicates(self, ilx_curieoriri: str, predicate_objects_dict: dict) -> list:
+        :param ilx_curieoriri: InterLex IRI or curie/fragment
+        :param predicates: Either annotations (IRI to text value) of relationships (IRI to IRI)
+        :return: Inserted Annotation or Relationship records.
+        """
         tresp = []
         if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'):  # FIXME: need formality
             subject = 'http://uri.interlex.org/base/' + ilx_curieoriri
         else:
             subject = ilx_curieoriri
-        for predicate, objs in predicate_objects_dict.items():
+        for predicate, objs in predicates.items():
             if not isinstance(objs, list):
                 objs = [objs]
             for object in objs:
-                # server output doesnt include their ILX IDs ... so it's not worth getting
+                # server output doesnt include their ILX IDs so it's not worth collecting
+                self.add_triple(subject, predicate, object)
                 tresp.append(self.add_triple(subject, predicate, object))
                 # TODO stick the responding predicates etc in if success
         return tresp
 
-    def delete_predicates(self, ilx_curieoriri: str, predicate_objects_dict: dict) -> list:
+    def delete_predicates(self, ilx_curieoriri: str, predicates: dict) -> list:
+        """ Add Annotation or Relationship to existing entity.
+
+        :param ilx_curieoriri: InterLex IRI or curie/fragment
+        :param predicates: Either annotations (IRI to text value) of relationships (IRI to IRI)
+        :return: Deleted Annotation or Relationship records.
+        """
         tresp = []
         if not ilx_curieoriri.startswith('http://uri.interlex.org/base/'):  # FIXME: need formality
             subject = 'http://uri.interlex.org/base/' + ilx_curieoriri
         else:
             subject = ilx_curieoriri
-        for predicate, objs in predicate_objects_dict.items():
+        for predicate, objs in predicates.items():
             if not isinstance(objs, list):
                 objs = [objs]
             for object in objs:
-                # server output doesnt include their ILX IDs ... so it's not worth getting
+                # server output doesnt include their ILX IDs so it's not worth collecting
                 tresp.append(self.delete_triple(subject, predicate, object))
                 # TODO stick the responding predicates etc in if success
         return tresp
@@ -212,7 +185,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                    definition: str = None,
                    comment: str = None,
                    cid: Union[str, int] = None,
-                   synonyms: tuple = tuple(),
+                   synonyms: Union[List[dict, str], tuple] = tuple(),
                    existing_ids: List[dict] = None,
                    predicates: dict = None,) -> QueryResult:
         """ Add InterLex entity
@@ -225,8 +198,31 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         :param subThingOf: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
         :param synonyms: Alternate names of the label.
         :param existing_ids: Alternate/source ontological iri/curies. Can only be one preferred ID.
-        :param predicates: Anotations or Relationships associated with enitty.
+        :param predicates: Annotations and/or Relationships to be added.
         :return: requests.Response of insert or query from existing.
+
+        >>> self.add_entity( \
+                label='Brain', \
+                type='term',  # options: term, pde, fde, cde, annotation, or relationship \
+                definition='Official definition for entity.', \
+                comment='Additional casual notes for the next person.', \
+                superclass='ilx_1234567', \
+                synonyms=[{ \
+                    'literal': 'Brains',  # label of synonym \
+                    'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. \
+                }], \
+                existing_ids=[{ \
+                    'iri': 'http://purl.obolibrary.org/obo/UBERON_0000955', \
+                    'curie': 'UBERON:0000955',  # Obeys prefix:id structure. \
+                    'preferred': '1',  # Can be 0 or 1 with a type of either str or int. \
+                }], \
+                predicates={ \
+                    # Annotation \
+                    'http://uri.interlex.org/base/ilx_0101432': 'sample_annotation_value', \
+                    # Relationship \
+                    'http://uri.interlex.org/base/ilx_0101435': 'http://uri.interlex.org/base/ilx_0101434', \
+                }, \
+            )
         """
         if self.readonly:
             raise exc.ReadOnlyError('InterLexRemote is in readonly mode.')
@@ -244,8 +240,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         out_predicates = {}
 
         if predicates:
-            tresp = self.add_predicates(ilx_curieoriri=resp['ilx'], predicate_objects_dict=predicates)
-            resp['annotations'] = tresp # TODO: Creates a record for annotations in term_versions table
+            tresp = self.add_predicates(ilx_curieoriri=resp['ilx'], predicates=predicates)
+            resp['annotations'] = tresp  # TODO: Creates a record for annotations in term_versions table
 
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
@@ -281,23 +277,66 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                       delete_existing_ids: List[dict] = None,
                       predicates_to_add: dict = None,
                       predicates_to_delete: dict = None,
-                      cid: str = None) -> object:
+                      cid: str = None,
+                      status: str = None,) -> object:
         """ Update existing entity.
 
-        :param ilx_id:
-        :param label:
-        :param type:
-        :param definition:
-        :param subThingOf:
-        :param comment:
-        :param add_synonyms:
-        :param delete_synonyms:
-        :param add_existing_ids: iris and curies to be added to entity.
-        :param delete_existing_ids: iris and curies to be deleted from entity.
-        :param predicates_to_add:
-        :param predicates_to_delete:
-        :param cid:
-        :return: QueryResult of entity record
+        :param ilx_id: Interlex IRI, curie, or fragment of entity to update.
+        :param label: Name of entity.
+        :param type: InterLex entities type: term, cde, fde, pde, annotation, or relationship
+        :param definition: Entities official definition.
+        :param comment: A foot note regarding either the interpretation of the data or the data itself
+        :param subThingOf: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
+        :param cid: Community ID.
+        :param status: Entity status.
+            -2 : Withdrawn; entity is no longer searchable and is not visible
+            -1 : Under review; entity is visible
+             0 : No action needed; entity is visible
+        :param add_synonyms: Synonyms to add if they don't already exist.
+        :param delete_synonyms: Synonyms to delete.
+        :param add_existing_ids: Add alternative IRIs if they don't already exist.
+        :param delete_existing_ids: Delete alternative IRIs.
+        :return: Server response that is a nested dictionary format
+
+        >>> self.update_entity( \
+                ilx_id='ilx_0101431', \
+                label='Brain', \
+                type='term',  # options: term, pde, fde, cde, annotation, or relationship \
+                definition='Official definition for entity.', \
+                comment='Additional casual notes for the next person.', \
+                subThingOf='ilx_1234567', \
+                add_synonyms=[{ \
+                    'literal': 'Better Brains',  # label of synonym \
+                    'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. \
+                }], \
+                delete_synonyms=[{ \
+                    'literal': 'Brains',  # label of synonym \
+                    'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. \
+                }], \
+                add_existing_ids=[{ \
+                    'iri': 'http://purl.obolibrary.org/obo/UBERON_0000956', \
+                    'curie': 'UBERON:0000956',  # Obeys prefix:id structure. \
+                    'preferred': '1',  # Can be 0 or 1 with a type of either str or int. \
+                }], \
+                delet_existing_ids=[{ \
+                    'iri': 'http://purl.obolibrary.org/obo/UBERON_0000955', \
+                    'curie': 'UBERON:0000955',  # Obeys prefix:id structure. \
+                }], \
+                predicates_to_add={ \
+                    # Annotation \
+                    'http://uri.interlex.org/base/ilx_0101432': 'sample_annotation_value', \
+                    # Relationship \
+                    'http://uri.interlex.org/base/ilx_0101435': 'http://uri.interlex.org/base/ilx_0101434', \
+                }, \
+                predicates_to_delete={ \
+                    # Annotation \
+                    'http://uri.interlex.org/base/ilx_0101432': 'sample_annotation_value', \
+                    # Relationship \
+                    'http://uri.interlex.org/base/ilx_0101435': 'http://uri.interlex.org/base/ilx_0101434', \
+                }, \
+                cid='504',  # SPARC Community, \
+                status='0',  # remove delete \
+            )
         """
         resp = self.ilx_cli.update_entity(
             ilx_id=ilx_id,
@@ -311,16 +350,17 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             add_existing_ids=add_existing_ids,
             delete_existing_ids=delete_existing_ids,
             cid=cid,
+            status=status,
             # predicates=tresp,
         )
 
-        tresp = None
+        tresp = None  # todo test if tresp is good enough to be put into out_predicates
         if predicates_to_add:
-            trep = self.add_predicates(ilx_curieoriri=resp['ilx'], predicate_objects_dict=predicates_to_add)
+            trep = self.add_predicates(ilx_curieoriri=resp['ilx'], predicates=predicates_to_add)
 
         tresp = None
         if predicates_to_delete:
-            trep = self.delete_predicates(ilx_curieoriri=resp['ilx'], predicate_objects_dict=predicates_to_delete)
+            trep = self.delete_predicates(ilx_curieoriri=resp['ilx'], predicates=predicates_to_delete)
 
         out_predicates = {}
         if 'comment' in resp:  # filtering of missing fields is done in the client
@@ -331,8 +371,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
              curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
              label=resp['label'],
              labels=tuple(),
-             # abbrev=None, # TODO
-             # acronym=None, # TODO
+             # abbrev=None,  # TODO
+             # acronym=None,  # TODO
              definition=resp['definition'],
              synonyms=tuple([d['literal'] for d in resp['synonyms']]),
              # deprecated=None,
@@ -346,7 +386,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def add_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
-            Subject should be an interlex"""
+            Subject should be an interlex """
 
         def filter_ontid(ontid):
             if ontid.startswith('http://'):
@@ -378,7 +418,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def delete_triple(self, subject, predicate, object):
         """ Triple of curied or full iris to add to graph.
-            Subject should be an interlex"""
+            Subject should be an interlex """
 
         def filter_ontid(ontid):
             if ontid.startswith('http://'):
@@ -460,37 +500,36 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates, limit):
         if iri:
-            resps: dict = self.ilx_cli.get_entity(iri)
+            resp: dict = self.ilx_cli.get_entity(iri)
         elif curie:
-            resps: dict = self.ilx_cli.get_entity(curie)
+            resp: dict = self.ilx_cli.get_entity(curie)
         elif label:
-            resps: list = self.ilx_cli.query_elastic(label=label, size=limit)
+            resp: list = self.ilx_cli.query_elastic(label=label, size=limit)
         elif term:
-            resps: list = self.ilx_cli.query_elastic(term=term, size=limit)
+            resp: list = self.ilx_cli.query_elastic(term=term, size=limit)
         else:
             return
 
-        if not resps:
+        if not resp:
             return
-        elif isinstance(resps, dict):
-            resps = [resps]
+        resps = [resp] if isinstance(resp, dict) else resp
 
         for resp in resps:
             yield QueryResult(
-                query_args = kwargs,
+                query_args=kwargs,
                 iri='http://uri.interlex.org/base/' + resp['ilx'],
                 curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
                 label=resp['label'],
                 labels=tuple(),
-                #abbrev=None, # TODO
-                #acronym=None, # TODO
+                # abbrev=None,  # TODO
+                # acronym=None,  # TODO
                 definition=resp['definition'],
                 synonyms=tuple(resp['synonyms']),
-                #deprecated=None,
-                #prefix=None,
-                #category=None,
+                # deprecated=None,
+                # prefix=None,
+                # category=None,
                 predicates={p:tuple() for p in predicates},  # TODO
-                #_graph=None,
+                # _graph=None,
                 source=self,
             )
 

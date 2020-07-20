@@ -88,6 +88,7 @@ class InterLexClient(InterlexSession):
             https://test3.scicrunch.org/api/1/ first for base_url. If mistakes are made on entities,
             a log is created
 
+        :rtype: object
         :param str base_url: complete SciCrunch API base_url.
         :param str key: API key for SciCrunch.
         """
@@ -101,9 +102,9 @@ class InterLexClient(InterlexSession):
         :param str ilx_id: InterLex ID or IRI.
         :return: str
 
-        >>>fix_ilx('http://uri.interlex.org/base/ilx_0101431')
+        >>> fix_ilx('http://uri.interlex.org/base/ilx_0101431')
         ilx_0101431
-        >>>fix_ilx('ILX:0101431')
+        >>> fix_ilx('ILX:0101431')
         ilx_0101431
         """
         if not ilx_id:
@@ -147,9 +148,9 @@ class InterLexClient(InterlexSession):
         :return: Original element
         :raises: MissingKeyError
 
-        >>>self._check_dict({'type':'exact'}, ref={'literal':str})
+        >>> self._check_dict({'type':'exact'}, ref={'literal':str})
         MissingKeyError
-        >>>self._check_dict({'literal':'Brain', 'type':'exact'}, ref={'literal':str})
+        >>> self._check_dict({'literal':'Brain', 'type':'exact'}, ref={'literal':str})
         {'literal':'Brain', 'type':'exact'}
         """
         for key, value in ref.items():
@@ -299,7 +300,7 @@ class InterLexClient(InterlexSession):
         :param List[dict] existing_ids: Alternative IDs for the entity.
         :return: List[dict]
 
-        >>>self._process_existing_ids( \
+        >>> self._process_existing_ids( \
                 existing_ids=[{ \
                     'iri': 'http://uri.interlex.org/base/ilx_1234567', \
                     'curie': 'ILX:1234567',  # Obeys prefix:id structure. \
@@ -400,10 +401,10 @@ class InterLexClient(InterlexSession):
         :rtype: List[dict]
 
         # Say we want "brain" entity.
-        >>>query_elastic(term='brains') # random results
-        >>>query_elastic(label='Brains') # will actually get you brain
+        >>> query_elastic(term='brains') # random results
+        >>> query_elastic(label='Brains') # will actually get you brain
         # Returns [], but this is just to show the format of body field.
-        >>>query_elastic(body={"query": {"match": {'label':'brains'}}})
+        >>> query_elastic(body={"query": {"match": {'label':'brains'}}})
         # Therefore if you are interested in "real" hits use label
         # or custom body field.
         """
@@ -474,7 +475,7 @@ class InterLexClient(InterlexSession):
 
         :param curie: Compressed version of IRI from entity
 
-        >>>self.get_entity_from_curie('UBERON:6000015')
+        >>> self.get_entity_from_curie('UBERON:6000015')
         """
         return self._get(f'term/curie/{curie}').json()['data']
 
@@ -504,7 +505,7 @@ class InterLexClient(InterlexSession):
         :param force: If entity is different from existing entity. This will add it if you have admin privileges.
         :return: requests.Response of insert or query from existing.
 
-        >>>self.add_entity( \
+        >>> self.add_entity( \
                 label='Brain', \
                 type='term',  # options: term, pde, fde, cde, annotation, or relationship \
                 definition='Official definition for entity.', \
@@ -515,9 +516,9 @@ class InterLexClient(InterlexSession):
                     'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. \
                 }], \
                 existing_ids=[{ \
-                    'iri': 'http://uri.interlex.org/base/ilx_1234567', \
-                    'curie': 'ILX:1234567',  # Obeys prefix:id structure. \
-                    'preferred': '0',  # Can be 0 or 1 with a type of either str or int. \
+                    'iri': 'http://purl.obolibrary.org/obo/UBERON_0000955', \
+                    'curie': 'UBERON:0000955',  # Obeys prefix:id structure. \
+                    'preferred': '1',  # Can be 0 or 1 with a type of either str or int. \
                 }], \
             )
         """
@@ -659,13 +660,38 @@ class InterLexClient(InterlexSession):
         :param delete_existing_ids: Delete alternative IRIs.
         :return: Server response that is a nested dictionary format
 
-        # todo add docstring example
+        >>> self.update_entity( \
+                ilx_id='ilx_0101431', \
+                label='Brain', \
+                type='term',  # options: term, pde, fde, cde, annotation, or relationship \
+                definition='Official definition for entity.', \
+                comment='Additional casual notes for the next person.', \
+                superclass='ilx_1234567', \
+                add_synonyms=[{ \
+                    'literal': 'Better Brains',  # label of synonym \
+                    'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. \
+                }], \
+                delete_synonyms=[{ \
+                    'literal': 'Brains',  # label of synonym \
+                    'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. \
+                }], \
+                add_existing_ids=[{ \
+                    'iri': 'http://purl.obolibrary.org/obo/UBERON_0000956', \
+                    'curie': 'UBERON:0000956',  # Obeys prefix:id structure. \
+                    'preferred': '1',  # Can be 0 or 1 with a type of either str or int. \
+                }], \
+                delet_existing_ids=[{ \
+                    'iri': 'http://purl.obolibrary.org/obo/UBERON_0000955', \
+                    'curie': 'UBERON:0000955',  # Obeys prefix:id structure. \
+                }], \
+                cid='504',  # SPARC Community, \
+                status='0',  # remove delete \
+            )
         """
         template_entity_input = {k: v for k, v in locals().copy().items() if k != 'self'}
         if template_entity_input.get('superclass'):
             template_entity_input['superclass'] = self.fix_ilx(template_entity_input['superclass'])
         existing_entity = self.get_entity(ilx_id)
-        # TODO: Need to make a proper ilx_id check error
         if not existing_entity['id']:
             raise self.EntityDoesNotExistError(f'ilx_id provided {ilx_id} does not exist')
         if label:
@@ -748,7 +774,7 @@ class InterLexClient(InterlexSession):
         :param annotation_value: Annotation value
         :return: Annotation Record
 
-         >>>self.add_annotation(**{\
+         >>> self.add_annotation(**{\
             'term_ilx_id': 'ilx_0101431',  # brain ILX ID \
             'annotation_type_ilx_id': 'ilx_0381360',  # hasDbXref ILX ID \
             'annotation_value': 'http://neurolex.org/wiki/birnlex_796'\
