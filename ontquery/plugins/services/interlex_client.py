@@ -457,6 +457,14 @@ class InterLexClient(InterlexSession):
         entities = resp.json()['data']['hits']['hits']  # Not a mistake; elastic nests the hits twice
         if entities:
             entities = [entity['_source'] for entity in entities]
+            if label:
+                exact_entities = []
+                for entity in entities:
+                    if label.strip().lower() == entity['label'].strip().lower():
+                        exact_entities.append(entity)
+                    elif label.strip().lower() in [syn['literal'].strip().lower() for syn in entity['synonyms']]:
+                        exact_entities.append(entity)
+                entities = exact_entities
         return entities
 
     def get_entity(self, ilx_id: str) -> dict:
