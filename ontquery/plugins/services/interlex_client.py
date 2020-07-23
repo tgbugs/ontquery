@@ -387,84 +387,54 @@ class InterLexClient(InterlexSession):
     def query_elastic(self,
                       term: str = None,
                       label: str = None,
-                      body: dict = None,
-                      **kwargs) -> List[dict]:
+                      query: dict = None,
+                      **kwargs) -> Optional[List[dict]]:
         """ Queries Elastic for term (wild card) or raw query to elastic.
 
         :param str term: wild card value to be searched throughout entities.
-        :param str label: direct exact matching for label field.
-        :param dict body: raw query for elastic where {"query":{?}} is input.
-            WARNING, your query value should be lowercase and cleaned. Elastic
-            doesn't clean input by default...
-            Maybe a nice addition to look into?
+        :param str label: direct exact matching for label & synonym fields.
+        :param dict query: raw query for elastic where {"query":{?}} as input.
         :return: list of all possible entity hits in their nested dict format.
-        :rtype: List[dict]
 
         # Say we want "brain" entity.
         >>> query_elastic(term='brains') # random results
         >>> query_elastic(label='Brains') # will actually get you brain
         # Returns [], but this is just to show the format of body field.
-        >>> query_elastic(body={"query": {"match": {'label':'brains'}}})
+        >>> query_elastic(body={"query": {"match": {"label": "brains"}}})
         # Therefore if you are interested in "real" hits use label
         # or custom body field.
         """
-        options = [term, label, body]
-        if not any(options):
-            raise AttributeError('Need to pick an attribute.')
-        if len([o for o in options if o]) > 1:
-            raise AttributeError('Need to pick only one attribute.')
         params = {
             'size': '10',
             'from': '0',
             **kwargs,
         }
-        if label or body:
-            # Favor label over body
+        if label or query:
             if label:
-                # elastic perfers input to be clean
-                label = label.lower().strip()
-                body = {
+                query = {
                     "query": {
                         "bool": {
-                            "should": [
-                                {
-                                    "fuzzy": {
-                                        "label": {
-                                            "value": label,
-                                            "fuzziness": 1
-                                        }
-                                    }
-                                },
-                                {
-                                    "match": {
-                                        "label": {
-                                            "query": label,
-                                            "boost": 100
-                                        }
-                                    }
+                            "must": [{  # exact match
+                                "bool": {
+                                    "should": [  # should == OR
+                                        {"match": {"label": label}},
+                                        {"match": {"synonyms.literal": label}}
+                                    ]
                                 }
-                            ]
+                            }]
                         }
                     }
                 }
-            params['query'] = json.dumps(body['query'])
+            params['query'] = json.dumps(query.get('query', query))  # self return if user gives body of query
         elif term:
             params['term'] = term
         else:
-            raise self.Error('Catches failed for query elastic')
-
+            return
         resp = self._get('term/elastic/search', params=params)
         entities = resp.json()['data']['hits']['hits']  # Not a mistake; elastic nests the hits twice
+        # Also not a mistake; actual metadata is inside _source
         if entities:
             entities = [entity['_source'] for entity in entities]
-            if label:
-                exact_entities = []
-                for entity in entities:
-                    if label.strip().lower() == entity['label'].strip().lower():
-                        exact_entities.append(entity)
-                    elif label.strip().lower() in [syn['literal'].strip().lower() for syn in entity['synonyms']]:
-                        exact_entities.append(entity)
-                entities = exact_entities
         return entities
 
     def get_entity(self, ilx_id: str) -> dict:
