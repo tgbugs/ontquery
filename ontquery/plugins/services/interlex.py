@@ -185,7 +185,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                    definition: str = None,
                    comment: str = None,
                    cid: Union[str, int] = None,
-                   synonyms: Union[List[dict, str], tuple] = tuple(),
+                   synonyms: Union[List[dict], List[str]] = None,
                    existing_ids: List[dict] = None,
                    predicates: dict = None,) -> QueryResult:
         """ Add InterLex entity

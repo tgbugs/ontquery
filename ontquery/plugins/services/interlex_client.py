@@ -409,23 +409,10 @@ class InterLexClient(InterlexSession):
             'from': '0',
             **kwargs,
         }
-        if label or query:
-            if label:
-                query = {
-                    "query": {
-                        "bool": {
-                            "must": [{  # exact match
-                                "bool": {
-                                    "should": [  # should == OR
-                                        {"match": {"label": label}},
-                                        {"match": {"synonyms.literal": label}}
-                                    ]
-                                }
-                            }]
-                        }
-                    }
-                }
+        if query:
             params['query'] = json.dumps(query.get('query', query))  # self return if user gives body of query
+        elif label:
+            params['term'] = label
         elif term:
             params['term'] = term
         else:
@@ -435,6 +422,15 @@ class InterLexClient(InterlexSession):
         # Also not a mistake; actual metadata is inside _source
         if entities:
             entities = [entity['_source'] for entity in entities]
+            # Damn elasticsearch doesn't have a true exact match. We need to double check the output
+            if label:
+                exact_entities = []
+                for entity in entities:
+                    if label.strip().lower() == entity['label'].strip().lower():
+                        exact_entities.append(entity)
+                    elif label.strip().lower() in [syn['literal'].strip().lower() for syn in entity['synonyms']]:
+                        exact_entities.append(entity)
+                entities = exact_entities
         return entities
 
     def get_entity(self, ilx_id: str) -> dict:
@@ -466,7 +462,8 @@ class InterLexClient(InterlexSession):
                    superclass: str = None,
                    synonyms: list = None,
                    existing_ids: list = None,
-                   force: bool = False) -> dict:
+                   force: bool = False,
+                   **kwargs) -> dict:
         """ Add Interlex entity into SciCrunch.
 
             Loosely structured ontological data based on the source ontologies for readability.
@@ -481,6 +478,7 @@ class InterLexClient(InterlexSession):
         :param synonyms: Alternate names of the label.
         :param existing_ids: Alternate/source ontological iri/curies. Can only be one preferred ID.
         :param force: If entity is different from existing entity. This will add it if you have admin privileges.
+        :param kwargs: a net for extra unneeded paramters.
         :return: requests.Response of insert or query from existing.
 
         >>> self.add_entity( \
@@ -514,9 +512,13 @@ class InterLexClient(InterlexSession):
             'force': force,
         }
         resp = self._post('term/add-simplified', data=deepcopy(entity))
-        entity = resp.json()['data']
-        if resp.status_code == 200:
-            log.warning(f"You already added {entity['label']} with InterLex ID {entity['ilx']}")
+        try:
+            entity = resp.json()['data']
+            if resp.status_code == 200:
+                log.warning(f"You already added {entity['label']} with InterLex ID {entity['ilx']}")
+        except:
+            print(resp.text, resp.status_code)
+            return
         # Backend handles more than one. User doesn't need to know.
         entity['superclass'] = entity.pop('superclasses')
         if entity['superclass']:

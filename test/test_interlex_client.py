@@ -81,23 +81,23 @@ def test_fix_ilx(test_input, expected):
 class Test(unittest.TestCase):
     def test_query_elastic(self):
         label = 'brain'
-        body = {
-            'query': {
-                'bool': {
-                    'should': [
+        query = {
+            "query": {
+                "bool": {
+                    "should": [
                         {
-                            'fuzzy': {
-                                'label': {
-                                    'value': label,
-                                    'fuzziness': 1
-                                    }
+                            "fuzzy": {
+                                "label": {
+                                    "value": label,
+                                    "fuzziness": 1
                                 }
-                            },
+                            }
+                        },
                         {
-                            'match': {
-                                'label': {
-                                    'query': label,
-                                    'boost': 100
+                            "match": {
+                                "label": {
+                                    "query": label,
+                                    "boost": 100
                                 }
                             }
                         }
@@ -108,16 +108,16 @@ class Test(unittest.TestCase):
         params = {
             'term': label,
             'key': ilx_cli.api_key,
-            'query': json.dumps(body['query']),
+            'query': query['query'],
             "size": 1,
             "from": 0
         }
         hits = ilx_cli.query_elastic(**params)
-        assert hits[0]['label'].lower() == 'brain'
+        assert hits[0]['label'] is not None
         hits = ilx_cli.query_elastic(label='brain')
         assert hits[0]['label'].lower() == 'brain'
-        hits = ilx_cli.query_elastic(body=body)
-        assert hits[0]['label'].lower() == 'brain'
+        hits = ilx_cli.query_elastic(query=query)
+        assert hits[0]['label'] is not None
 
     def test_get_entity(self):
         ilx_id = TEST_SUPERCLASS_ID
