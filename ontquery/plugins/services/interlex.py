@@ -178,6 +178,26 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             source=self,
         )
 
+    def get_entity_from_curie(self, curie: str, **kwargs) -> dict:
+        resp = self.ilx_cli.get_entity_from_curie(curie)
+        return self.QueryResult(
+            query_args=kwargs,
+            iri='http://uri.interlex.org/base/' + resp['ilx'],
+            curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+            label=resp['label'],
+            labels=tuple(),
+            # abbrev=None, # TODO
+            # acronym=None, # TODO
+            definition=resp['definition'],
+            synonyms=tuple(resp['synonyms']),
+            # deprecated=None,
+            # prefix=None,
+            # category=None,
+            predicates={},  # {p: tuple() for p in predicates},  # TODO
+            # _graph=None,
+            source=self,
+        )
+
     def add_entity(self,
                    label: str,
                    type: str,

@@ -43,58 +43,20 @@ pytest -v test/test_interlex_client.py
 ##### Importing:
 
 ```python
-from interlex_client import InterLexClient
-
+from ontquery.interlex import interlex_client
 ```
 
-##### Setup for **BETA**:
+##### Setup for **TEST**:
 *This Should be used to test if your code works first*
 
 ```python
-ilx_cli = InterLexClient(
-    base_url = "https://beta.scicrunch.org",
-)
+ilx_cli = interlex_client('test3.scicrunch.org')
 ```
 
 ##### Setup for **PRODUCTION**:
 
 ```python
-ilx_cli = InterLexClient(
-    base_url = "https://scicrunch.org",
-)
-```
-
-##### Adding Entity Options:
-
-```python
-added_entity_data = ilx_cli.add_entity(
-    label = '',
-    type = '',
-    definition = '',
-    comment = '',
-    superclass = '',
-    synonyms = [
-        '', # literal
-        # or
-        {
-            'literal':'',
-            'type':'',
-        },
-    ],
-    existing_ids = [
-        {
-            'iri': '',
-            'curie': '',
-        }
-    ],
-    cid = None, # community ID
-    predicates = {
-        # annotation_entity_ilx_id : 'annotation_value',
-        '': '', # annotation
-        # relationship_entity_ilx_id : 'entity2_ilx_id',
-        '': '', # relationship
-    }
-)
+ilx_cli = interlex_client('scicrunch.org')
 ```
 
 ##### Adding Entity Needed:
@@ -119,7 +81,7 @@ added_entity_data = ilx_cli.add_entity(
     synonyms = ['synonym1', {'literal': 'synonym2', 'type': 'hasExactSynonym'}, 'etc'],
     # exisiting IDs are List[dict] with keys iri & curie
     existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
-    cid = None, # community ID
+    cid = 504,  # community ID
     predicates = {
         # annotation_entity_ilx_id : 'annotation_value',
         'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
@@ -129,25 +91,37 @@ added_entity_data = ilx_cli.add_entity(
 )
 ```
 
-##### Adding Annotation (All 3 keys Needed)
+#### Updating Entity Example
 
 ```python
-added_annotation_data = ilx_cli.add_annotation(
-    "term_ilx_id": "",
-    "annotation_type_ilx_id": "",
-    "annotation_value": "",
+updated_entity = update_entity( 
+    ilx_id='ilx_1234567', 
+    label='Brain', 
+    type='term',  # options: term, pde, fde, cde, annotation, or relationship 
+    definition='Official definition for entity.', 
+    comment='Additional casual notes for the next person.', 
+    superclass='ilx_1234567', 
+    add_synonyms=[{ 
+        'literal': 'Better Brains',  # label of synonym 
+        'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. 
+    }], 
+    delete_synonyms=[{ 
+        'literal': 'Brains',  # label of synonym 
+        'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. 
+    }], 
+    add_existing_ids=[{ 
+        'iri': 'http://purl.obolibrary.org/obo/UBERON_0000956', 
+        'curie': 'UBERON:0000956',  # Obeys prefix:id structure. 
+        'preferred': '1',  # Can be 0 or 1 with a type of either str or int. 
+    }], 
+    delet_existing_ids=[{ 
+        'iri': 'http://purl.obolibrary.org/obo/UBERON_0000955', 
+        'curie': 'UBERON:0000955',  # Obeys prefix:id structure. 
+    }], 
+    cid='504',  # SPARC Community, 
+    status='0',  # remove delete 
 )
-```
-
-##### Adding Annotation Example
-
-```python
-added_annotation_data = ilx_cli.add_annotation(
-    "term_ilx_id": "http://uri.interlex.org/base/ilx_0101431", # brain ILX ID
-    "annotation_type_ilx_id": "http://uri.interlex.org/base/tmp_0381624", # hasDbXref ILX ID
-    "annotation_value": "This is a string you should add for value",
-)
-```
+``` 
 
 Both functions add_entity() and add_annotation() will return a dictionary of the populated data
 for the entity or term even if it already existed. If it already exists it will just print a
@@ -221,32 +195,8 @@ fixed.
 }
 ```
 
-##### Example add_annotation output
-
-```json
-{
-    "id": 118785,
-    "tid": 1432,
-    "annotation_tid": 304710,
-    "value": "PMID:12345",
-    "comment": "",
-    "upvote": 0,
-    "downvote": 0,
-    "curator_status": "0",
-    "withdrawn": "0",
-    "term_version": 187,
-    "annotation_term_version": 1,
-    "orig_uid": 0,
-    "orig_time": 1541472726,
-    "annotation_term_label": "PubMed Annotation Source",
-    "annotation_term_ilx": "tmp_0381624",
-    "annotation_term_type": "annotation",
-    "annotation_term_definition": ""
-}
-```
-
 ## Notes
-Dictionay outputs from `add_entity` and `add_annotation` will not always have string type for the values.
+Dictionay outputs from `add_entity` and `update_entity` will not always have string type for the values.
 That does not matter for the api endpoints, but just in case this data is used somewhere else, this should be noted.
 
 ## Author

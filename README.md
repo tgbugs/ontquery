@@ -77,29 +77,48 @@ To access InterLex programatically you can set `SCICRUNCH_API_KEY` or
 you can set `INTERLEX_API_KEY` either will work, but `INTERLEX_API_KEY`
 has priority if both are set.
 
+##### Importing:
+
 ```python
-import ontquery as oq
-import os
-InterLexRemote = oq.plugin.get('InterLex')
+from ontquery.interlex import interlex_client
+```
 
-ilx_cli = InterLexRemote(
-    # When ready, should be changed to 'https://scicrunch.org/api/1/' for production (default)
-    apiEndpoint = 'https://beta.scicrunch.org/api/1/',
+##### Setup for **TEST**:
+*This Should be used to test if your code works first*
+
+```python
+ilx_cli = interlex_client('test3.scicrunch.org')
+```
+
+##### Setup for **PRODUCTION**:
+
+```python
+ilx_cli = interlex_client('scicrunch.org')
+```
+
+##### Adding Entity Needed:
+
+```python
+added_entity_data = ilx_cli.add_entity(
+    label = '',
+    type = '', # term, fde, cde, pde, relationship, annotation
 )
-ilx_cli.setup()
+```
 
-# NEEDS: label, type, subThingOf
-response = ilx_cli.add_entity(
+#### Adding Entity Example
+
+```python
+added_entity_data = ilx_cli.add_entity(
     label = 'Label of entity you wish to create',
     type = 'A type that should be one of the following: term, relationship, annotation, cde, fde, pde',
     # subThingOf can take either iri or curie form of ID
     subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # superclass or subClassOf ILX ID
     definition = 'Entities definition',
     comment = 'A comment to help understand entity',
-    synonyms = ['synonym1', 'synonym2', 'etc'],
+    synonyms = ['synonym1', {'literal': 'synonym2', 'type': 'hasExactSynonym'}, 'etc'],
     # exisiting IDs are List[dict] with keys iri & curie
     existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
-    cid = None, # community ID
+    cid = 504,  # community ID
     predicates = {
         # annotation_entity_ilx_id : 'annotation_value',
         'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
@@ -107,53 +126,37 @@ response = ilx_cli.add_entity(
         'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
     }
 )
+```
 
-# NEEDS: label, type
-response = ilx_cli.add_pde(
-    label = 'Label of entity you wish to create',
-    definition = 'Entities definition',
-    comment = 'A comment to help understand entity',
-    synonyms = ['synonym1', 'synonym2', 'etc'],
-    predicates = {
-        # annotation_entity_ilx_id : 'annotation_value',
-        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345', # annotation
-        # relationship_entity_ilx_id : 'entity2_ilx_id',
-        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001', # relationship
-    }
-)
+#### Updating Entity Example
 
-# NEEDS: ilx_id
-response = ilx_cli.update_entity(
-    label = 'New Label', # Should be avoided unless there is a typo
-    type = 'term', # Just in case intended type wasn't created
-    ilx_id = 'TMP:0101431', # entity "brain" ilx_id example
-    definition = 'update!',
-    comment = 'update!',
-    # Optional by needed long term for usability
-    subThingOf = 'http://uri.interlex.org/base/ilx_0108124', # ILX ID for Organ
-    synonyms = ['Encephalon', {'literal': 'Cerebro', 'type': 'hasExactSynonym'}],
-    add_existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
-    delete_existing_ids = [{'iri':'https://example.org/example_1', 'curie':'EXAMPLE:1'}],
-    cid = None, # community ID
-    predicates_to_add = {
-        # Annotation
-        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12346',
-        # Relationship
-        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100000',
-    },
-    # Need to be exact or they will be ignored
-    predicates_to_delete = {
-        # Annotation
-        'http://uri.interlex.org/base/tmp_0381624': 'PMID:12345',
-        # Relationship
-        'http://uri.interlex.org/base/ilx_0112772': 'http://uri.interlex.org/base/ilx_0100001',
-    },
+```python
+updated_entity = update_entity( 
+    ilx_id='ilx_1234567', 
+    label='Brain', 
+    type='term',  # options: term, pde, fde, cde, annotation, or relationship 
+    definition='Official definition for entity.', 
+    comment='Additional casual notes for the next person.', 
+    superclass='ilx_1234567', 
+    add_synonyms=[{ 
+        'literal': 'Better Brains',  # label of synonym 
+        'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. 
+    }], 
+    delete_synonyms=[{ 
+        'literal': 'Brains',  # label of synonym 
+        'type': 'obo:hasExactSynonym',  # Often predicate defined in ref ontology. 
+    }], 
+    add_existing_ids=[{ 
+        'iri': 'http://purl.obolibrary.org/obo/UBERON_0000956', 
+        'curie': 'UBERON:0000956',  # Obeys prefix:id structure. 
+        'preferred': '1',  # Can be 0 or 1 with a type of either str or int. 
+    }], 
+    delet_existing_ids=[{ 
+        'iri': 'http://purl.obolibrary.org/obo/UBERON_0000955', 
+        'curie': 'UBERON:0000955',  # Obeys prefix:id structure. 
+    }], 
+    cid='504',  # SPARC Community, 
+    status='0',  # remove delete 
 )
-
-# NEEDS: Only needs label, type is auto to the type in its name (i.e pde, cde, and fde)
-# SAME INPUTS AS add_entity, without the type parameter.
-response = ilx_cli.add_pde(...)
-response = ilx_cli.add_cde(...)
-response = ilx_cli.add_fde(...)
-)
+```
 ```
