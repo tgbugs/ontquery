@@ -32,12 +32,12 @@ class InterlexSession:
                  status_forcelist: tuple = (400, 500, 502, 504),):
         """ Initialize Session with SciCrunch Server.
 
-            :param str key: API key for SciCrunch [should work for test hosts].
-            :param str host: Base url for hosting server (can take localhost:8080). Default: 'test3.scicrunch.org'
-            :param auth: user, password for authentication. Default: ('', '')
-            :param int retries: Number of API retries if code is in status_forcelist. Default: 3
-            :param backoff_factor: Delay until next retry in seconds. default (1.0 seconds)
-            :param status_forcelist: Status codes that will trigger a retry.
+        :param str key: API key for SciCrunch [should work for test hosts].
+        :param str host: Base url for hosting server (can take localhost:8080). Default: 'test3.scicrunch.org'
+        :param auth: user, password for authentication. Default: ('', '')
+        :param int retries: Number of API retries if code is in status_forcelist. Default: 3
+        :param backoff_factor: Delay until next retry in seconds. default (1.0 seconds)
+        :param status_forcelist: Status codes that will trigger a retry.
         """
         self.key = key
         # Setup API url #
@@ -65,7 +65,7 @@ class InterlexSession:
     def __prepare_data(self, data: dict) -> str:
         """ Makes sure request parameters are correct type & contain API key.
 
-            :param data: Parameters for API request.
+        :param data: Parameters for API request.
         """
         data = data or {}
         data.update({'key': self.key})
@@ -80,7 +80,7 @@ class InterlexSession:
             400+ : BREAK : Your bad
             500+ : BREAK : Our bad
 
-            :param resp: Server response from request.
+        :param resp: Server response from request.
         """
         if resp.status_code == 401:
             raise self.IncorrectAPIKeyError('api_key given is incorrect.')

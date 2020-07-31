@@ -158,7 +158,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 # TODO stick the responding predicates etc in if success
         return tresp
 
-    def get_entity(self, ilx_id: str) -> dict:
+    def get_entity(self, ilx_id: str, **kwargs) -> dict:
         resp = self.ilx_cli.get_entity(ilx_id)
         return self.QueryResult(
             query_args=kwargs,
@@ -173,7 +173,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             # deprecated=None,
             # prefix=None,
             # category=None,
-            predicates={p: tuple() for p in predicates},  # TODO
+            predicates={},  # {p: tuple() for p in predicates},  # TODO
             # _graph=None,
             source=self,
         )
