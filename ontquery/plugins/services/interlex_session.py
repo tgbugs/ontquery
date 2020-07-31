@@ -49,16 +49,16 @@ class InterlexSession:
         self.session = requests.Session()
         self.session.auth = auth  # legacy; InterLex no longer needs this.
         self.session.headers.update({'Content-type': 'application/json'})
-        retry = Retry(
-            total=retries,
-            read=retries,
-            connect=retries,
-            backoff_factor=backoff_factor,
-            status_forcelist=status_forcelist,
-        )
-        adapter = HTTPAdapter(max_retries=retry)
-        self.session.mount('http://', adapter)
-        self.session.mount('https://', adapter)
+        # retry = Retry(
+        #     total=retries,
+        #     read=retries,
+        #     connect=retries,
+        #     backoff_factor=backoff_factor,
+        #     status_forcelist=status_forcelist,
+        # )
+        # adapter = HTTPAdapter(max_retries=retry)
+        # self.session.mount('http://', adapter)
+        # self.session.mount('https://', adapter)
         # Validate API key & get User ID #
         self.user_id = self._get('user/info').json()['data']['id']
 
@@ -123,12 +123,14 @@ class InterlexSession:
     @staticmethod
     def boost(func: Callable,
               kwargs_list: List[dict],
-              rate: int = 3,) -> iter:
+              batch_size: int = 3,
+              rate: int = None) -> iter:
         """ Async boost for Function/Method & list of kwarg params for Function/Method.
 
         :param func: Function/Method to be asynchronously called.
         :param kwargs_list: Function/Method perameters for each call.
-        :param rate: Batch size. Default 3
+        :param batch_size: Batch size. Default 3
+        :param rate: Inner batch size. Auto set to max possible.
         :returns: Generator of repsonses from func.
 
         >>>from ontquery.plugins.services.interlex_client import InterLexClient
@@ -136,7 +138,15 @@ class InterlexSession:
         >>>kwargs_list = [{'label': 'Label 1', 'type': 'term'}, {'label': 'Label 2', 'type': 'term'}]
         >>>self.boost(ilx_cli.add_entity, kwargs_list)
         """
+        # InterLex specific batch size range #
+        if batch_size > 20:
+            batch_size = 20  # trust me; this is MAX. Anymore freaks out the php workers.
+        if batch_size < 3:
+            batch_size = 3  # Any less than 3 and async isn't worth it.
         # Worker #
         gin = lambda kwargs: func(**kwargs)
         # Builds futures dynamically #
-        return Async(rate=rate)(deferred(gin)(kwargs) for kwargs in kwargs_list)
+        results = []
+        for step in range(0, len(kwargs_list), batch_size):
+            results += Async(rate=rate)(deferred(gin)(kwargs) for kwargs in kwargs_list[step:step+batch_size])
+        return results

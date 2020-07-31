@@ -512,13 +512,9 @@ class InterLexClient(InterlexSession):
             'force': force,
         }
         resp = self._post('term/add-simplified', data=deepcopy(entity))
-        try:
-            entity = resp.json()['data']
-            if resp.status_code == 200:
-                log.warning(f"You already added {entity['label']} with InterLex ID {entity['ilx']}")
-        except:
-            print(resp.text, resp.status_code)
-            return
+        entity = resp.json()['data']
+        if resp.status_code == 200:
+            log.warning(f"You already added {entity['label']} with InterLex ID {entity['ilx']}")
         # Backend handles more than one. User doesn't need to know.
         entity['superclass'] = entity.pop('superclasses')
         if entity['superclass']:
