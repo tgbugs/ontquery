@@ -663,7 +663,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            return QueryResult(kwargs, **qrd)
+            return self.QueryResult(kwargs, **qrd)
 
     def _dev_query_rest(self):
         if True:
@@ -678,7 +678,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 if curie:
                     for qr in out:
                         qr = cullNone(**qr)
-                        yield QueryResult(kwargs, #qr._QueryResult__query_args,
+                        yield self.QueryResult(kwargs, #qr._QueryResult__query_args,
                                                curie=curie,
                                                **{k:v for k, v in qr.items()
                                                   if k != 'curie' })
