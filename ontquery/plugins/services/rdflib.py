@@ -130,7 +130,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
                 c = pn
-                if c in out:
+                if c in out and o not in out[c]:
                     if not isinstance(out[c], tuple):
                         out[c] = out.pop(c), o
                     else:
