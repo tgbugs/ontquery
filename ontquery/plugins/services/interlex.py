@@ -266,7 +266,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        return QueryResult(
+        return self.QueryResult(
             query_args={},
             iri='http://uri.interlex.org/base/' + resp['ilx'],
             curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -385,7 +385,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         out_predicates = {}
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
-        result = QueryResult(
+        result = self.QueryResult(
              query_args={},
              iri='http://uri.interlex.org/base/' + resp['ilx'],
              curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -535,7 +535,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         resps = [resp] if isinstance(resp, dict) else resp
 
         for resp in resps:
-            yield QueryResult(
+            yield self.QueryResult(
                 query_args=kwargs,
                 iri='http://uri.interlex.org/base/' + resp['ilx'],
                 curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
