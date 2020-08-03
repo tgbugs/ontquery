@@ -50,8 +50,7 @@ if RELEASE:
 services_require = ['orthauth>=0.0.13',
                     'pyontutils>=0.1.23',
                     'rdflib>=5.0.0',
-                    'requests',
-                    'yarl',]
+                    'requests',]
 tests_require = ['pytest'] + services_require
 try:
     setup(

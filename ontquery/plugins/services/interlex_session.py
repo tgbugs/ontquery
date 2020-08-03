@@ -1,3 +1,5 @@
+import os
+import re
 import json
 from typing import Callable, Union, Dict, List, Tuple
 
@@ -5,7 +7,6 @@ import requests
 from requests import Response
 from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
-from yarl import URL
 
 from pyontutils.utils import Async, deferred
 
@@ -41,10 +42,17 @@ class InterlexSession:
         """
         self.key = key
         # Setup API url #
-        self.api = URL(host)
-        if not self.api.is_absolute():
-            self.api = URL.build(scheme=scheme, host=host)
-        self.api = self.api.with_path('api/1')
+        if not re.match('^https?://', host):
+            api = scheme + '://' + host
+        else:
+            api = host
+
+        api = api.strip().rstrip()
+        if not api.endswith('api/1') and not api.endswith('api/1/'):
+            api = os.path.join(api, 'api/1')
+
+        self.api = api
+
         # Setup Retries #
         self.session = requests.Session()
         self.session.auth = auth  # legacy; InterLex no longer needs this.
@@ -85,7 +93,10 @@ class InterlexSession:
         if resp.status_code == 401:
             raise self.IncorrectAPIKeyError('api_key given is incorrect.')
         if resp.json().get('errormsg'):
-            raise self.ServerMessage(f"\nERROR CODE: [{resp.status_code}]\nSERVER MESSAGE: [{resp.json()['errormsg']}]")
+            msg = (f"\nERROR CODE: [{resp.status_code}]\n"
+                   f"SERVER MESSAGE: [{resp.json()['errormsg']}]\n"
+                   f"for url {resp.url}")
+            raise self.ServerMessage(msg)
         # resp.raise_for_status()
 
     def _get(self, endpoint: str, params: dict = None) -> Response:
@@ -97,7 +108,7 @@ class InterlexSession:
 
         >>>self._get('user/info')
         """
-        url = self.api / endpoint
+        url = os.path.join(self.api, endpoint)
         params = self.__prepare_data(params)  # adds api key to params here
         # noinspection PyTypeChecker
         resp = self.session.get(url, data=params)
@@ -113,7 +124,7 @@ class InterlexSession:
 
         >>>self._post('term/add-simplified', data={'label': 'MyLabel', 'type': 'term'})
         """
-        url = self.api / endpoint
+        url = os.path.join(self.api, endpoint)
         data = self.__prepare_data(data)  # adds api key to data here
         # noinspection PyTypeChecker
         resp = self.session.post(url, data=data)
