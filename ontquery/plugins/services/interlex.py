@@ -26,6 +26,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def __init__(self, *args, apiEndpoint=defaultEndpoint,
                  user_curies: dict = None,  # FIXME hardcoded
                  readonly: bool = False,
+                 api_first: bool = False,
                  OntId=oq.OntId,
                  **kwargs):
         """ user_curies is a local curie mapping from prefix to a uri
@@ -33,6 +34,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         self.OntId = OntId
         self.apiEndpoint = apiEndpoint
+        self.api_first = api_first
 
         self.user_curies = user_curies or {'ILX', 'http://uri.interlex.org/base/ilx_'}
         self.readonly = readonly
@@ -499,6 +501,12 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 yield res
 
         elif hasattr(self, 'ilx_cli'):
+            if not self.api_first and (iri or curie):
+                res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+                if res is not None:
+                    yield res
+                    return
+
             res = self._scicrunch_api_query(
                 kwargs=kwargs,
                 iri=iri,
@@ -511,18 +519,26 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             yield from res
 
         else:  # can only get by iri directly and it must be an ilx id
-            # if label:
-            #     raise NotImplementedError('can only query by label on the dev endpoint or with an API key set')
-
             res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
             if res is not None:
                 yield res
 
     def _scicrunch_api_query(self, kwargs, iri, curie, label, term, predicates, limit):
+        resp = None
         if iri:
-            resp: dict = self.ilx_cli.get_entity(iri)
-        elif curie:
-            resp: dict = self.ilx_cli.get_entity(curie)
+            try:
+                resp: dict = self.ilx_cli.get_entity(iri)
+            except:
+                pass
+
+        if resp is None and curie:
+            resp: dict = self.ilx_cli.get_entity_from_curie(curie)
+            if resp['id'] is None:  # FIXME should error before we have to check this
+                # sometimes a remote curie does not match ours
+                resp: dict = self.ilx_cli.get_entity_from_curie(self.OntId(iri).curie)
+                if resp['id'] is None:
+                    return
+
         elif label:
             resp: list = self.ilx_cli.query_elastic(label=label, size=limit)
         elif term:
@@ -532,13 +548,30 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         if not resp:
             return
+
         resps = [resp] if isinstance(resp, dict) else resp
 
+        # FIXME this is really a temp hack until we can get the
+        # next version of the alt resolver up and running with
+        # since iirc it can resolve curies
         for resp in resps:
+            _ilx = 'http://uri.interlex.org/base/' + resp['ilx']
+            if iri is None:
+                _iri = _ilx
+            else:
+                _iri = iri
+
+            if curie is None:
+                _curie = resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:')
+            else:
+                _curie = curie
+
+            # TODO if predicates is not None then need calls to get annotations and relations
+            predicates = self._proc_api(resp)
             yield self.QueryResult(
                 query_args=kwargs,
-                iri='http://uri.interlex.org/base/' + resp['ilx'],
-                curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+                iri=_iri,
+                curie=_curie,
                 label=resp['label'],
                 labels=tuple(),
                 # abbrev=None,  # TODO
@@ -548,10 +581,51 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 # deprecated=None,
                 # prefix=None,
                 # category=None,
-                predicates={p:tuple() for p in predicates},  # TODO
+                predicates=predicates,
                 # _graph=None,
+                _blob=resp,
                 source=self,
             )
+
+    def _proc_api(self, resp):
+        preferred, existing, = self._proc_existing(resp)
+        ilx_id = 'http://uri.interlex.org/base/' + resp['ilx']
+        predicates = {
+            'ilxr:type': self.OntId('ilx.type:' + resp['type']),
+            'ilxtr:hasExistingId': existing,
+            'ilxtr:hasIlxId': self.OntId(ilx_id),
+            }
+        if preferred:  # FIXME this should never happen but can ... thanks mysql
+            predicates['TEMP:preferredId'] = preferred
+
+        sub_thing_of = self._proc_sto(resp)
+        predicates.update(sub_thing_of)
+        return predicates
+
+    def _proc_existing(self, resp):
+        preferred, existing = None, tuple()
+        for blob_id in resp['existing_ids']:
+            i = self.OntId(blob_id['iri'])
+            existing += i,
+            if blob_id['preferred'] == '1':
+                preferred = i
+
+        return preferred, existing
+
+    def _proc_sto(self, resp):
+        if resp['type'] == 'term':
+            p = 'rdfs:subClassOf'
+        elif resp['type'] in ('annotation', 'relationship'):
+            p = 'rdfs:subPropertyOf'
+        else:
+            raise NotImplementedError(f'how to sub thing of {resp["type"]}?')
+
+        out = {p:tuple()}
+        for blob_id in resp['superclasses']:
+            i = self.OntId(blob_id['ilx'].replace('ilx_', 'ILX:'))
+            out[p] += i,
+
+        return out
 
     def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
