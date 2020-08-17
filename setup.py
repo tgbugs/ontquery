@@ -47,8 +47,8 @@ if RELEASE:
         if status_code:
             raise OSError(f'scigraph-codegen failed with status {status_code}')
 
-services_require = ['orthauth>=0.0.13',
-                    'pyontutils>=0.1.23',
+services_require = ['orthauth>=0.0.14',
+                    'pyontutils>=0.1.25',
                     'rdflib>=5.0.0',
                     'requests',]
 tests_require = ['pytest'] + services_require
@@ -80,7 +80,10 @@ try:
         tests_require=tests_require,
         install_requires=[
         ],
-        extras_require={'dev': ['pyontutils>=0.1.5', 'pytest-cov', 'wheel',],
+        extras_require={'dev': ['pyontutils>=0.1.5',
+                                'pytest-cov',
+                                'wheel',
+                                ],
                         'services': services_require,
                         'test': tests_require},
         entry_points={

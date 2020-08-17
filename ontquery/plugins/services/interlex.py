@@ -57,7 +57,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if self.apiEndpoint is not None:
             try:
                 self.ilx_cli = InterLexClient(base_url=self.apiEndpoint)
-            except InterLexClient.NoApiKeyError:
+            except exc.NoApiKeyError:
                 if not self.readonly:
                     # expect attribute errors for ilx_cli
                     log.warning('You have not set an API key for the SciCrunch API! '

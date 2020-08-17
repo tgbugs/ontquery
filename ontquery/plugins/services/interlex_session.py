@@ -1,7 +1,7 @@
 import os
 import re
 import json
-from typing import Callable, Union, Dict, List, Tuple
+from typing import Callable, List, Tuple
 
 import requests
 from requests import Response
@@ -9,6 +9,8 @@ from requests.adapters import HTTPAdapter
 from requests.packages.urllib3.util.retry import Retry
 
 from pyontutils.utils import Async, deferred
+
+from ontquery import exceptions as exc
 
 
 class InterlexSession:
@@ -75,6 +77,9 @@ class InterlexSession:
 
         :param data: Parameters for API request.
         """
+        if self.key is None:
+            raise exc.NoApiKeyError
+
         data = data or {}
         data.update({'key': self.key})
         data = json.dumps(data)  # Incase backend is missing this step.
