@@ -101,8 +101,13 @@ class InterlexSession:
             msg = (f"\nERROR CODE: [{resp.status_code}]\n"
                    f"SERVER MESSAGE: [{resp.json()['errormsg']}]\n"
                    f"for url {resp.url}")
-            raise self.ServerMessage(msg)
-        # resp.raise_for_status()
+            try:
+                raise self.ServerMessage(msg)
+            except self.ServerMessage as e:
+                try:
+                    resp.raise_for_status()
+                except Exception as e2:
+                    raise e2 from e
 
     def _get(self, endpoint: str, params: dict = None) -> Response:
         """ Quick GET for InterLex.

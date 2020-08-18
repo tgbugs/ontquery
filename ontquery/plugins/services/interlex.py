@@ -161,7 +161,12 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return tresp
 
     def get_entity(self, ilx_id: str, **kwargs) -> dict:
-        resp = self.ilx_cli.get_entity(ilx_id)
+        try:
+            resp = self.ilx_cli.get_entity(ilx_id)
+        except requests.exceptions.HTTPError as e:
+            log.debug(e)
+            return
+
         return self.QueryResult(
             query_args=kwargs,
             iri='http://uri.interlex.org/base/' + resp['ilx'],
@@ -181,7 +186,12 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         )
 
     def get_entity_from_curie(self, curie: str, **kwargs) -> dict:
-        resp = self.ilx_cli.get_entity_from_curie(curie)
+        try:
+            resp = self.ilx_cli.get_entity_from_curie(curie)
+        except requests.exceptions.HTTPError as e:
+            log.debug(e)
+            return
+
         return self.QueryResult(
             query_args=kwargs,
             iri='http://uri.interlex.org/base/' + resp['ilx'],
@@ -532,10 +542,18 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 pass
 
         if resp is None and curie:
-            resp: dict = self.ilx_cli.get_entity_from_curie(curie)
-            if resp['id'] is None:  # FIXME should error before we have to check this
+            try:
+                resp: dict = self.ilx_cli.get_entity_from_curie(curie)
+            except requests.exceptions.HTTPError as e:
+                resp = None
+
+            if resp is None or resp['id'] is None:  # FIXME should error before we have to check this
                 # sometimes a remote curie does not match ours
-                resp: dict = self.ilx_cli.get_entity_from_curie(self.OntId(iri).curie)
+                try:
+                    resp: dict = self.ilx_cli.get_entity_from_curie(self.OntId(iri).curie)
+                except requests.exceptions.HTTPError as e:
+                    return
+
                 if resp['id'] is None:
                     return
 

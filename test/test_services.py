@@ -76,6 +76,9 @@ class ServiceBase:
         """ additional check to make sure that all curies are normalized on the way in """
         t = self.OntTerm('RO:0000087')
 
+    def test_curie_404(self):
+        t = self.OntTerm('TEMP:curie/does/not/exist')
+
 
 class _TestIlx(ServiceBase):
     remote = oq.plugin.get('InterLex')()
