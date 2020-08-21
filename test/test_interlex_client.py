@@ -11,7 +11,7 @@ from ontquery.plugins.services.interlex_client import InterLexClient
 from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
 from .common import skipif_no_net, SKIP_NETWORK, log
-
+from IPython import embed
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
 TEST_PREFIX = 'tmp'  # sigh
@@ -355,12 +355,13 @@ class Test(unittest.TestCase):
             'type': type,
             'comment': comment,
             'superclass': superclass,
-            'add_synonyms': ['original_synonym', 'test', synonym],
+            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
             # should delete new synonym before it was even added to avoid endless synonyms
             'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
         }
 
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
+        # embed()
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
         assert updated_entity_data['type'] == type
