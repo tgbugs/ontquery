@@ -290,7 +290,7 @@ class Test(unittest.TestCase):
         }
         added_entity_data = ilx_cli.add_entity(**deepcopy(entity))
         partially_updated_entity = ilx_cli.partial_update(
-            curie='ILX:'+added_entity_data['ilx'].split('_')[-1],
+            curie=TEST_PREFIX.upper()+':'+added_entity_data['ilx'].split('_')[-1],
             definition='new',
             comment='new',
             synonyms=[
@@ -313,7 +313,7 @@ class Test(unittest.TestCase):
         }
         added_entity_data = ilx_cli.add_entity(**entity.copy())
         partially_updated_entity = ilx_cli.partial_update(
-            curie='ILX:'+added_entity_data['ilx'].split('_')[-1],
+            curie=TEST_PREFIX.upper()+':'+added_entity_data['ilx'].split('_')[-1],
             definition='new',
             comment='new',
             synonyms=[
