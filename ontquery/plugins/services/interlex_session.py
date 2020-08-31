@@ -83,7 +83,7 @@ class InterlexSession:
         :param resp: Server response from request.
         """
         if resp.status_code == 401:
-            raise self.IncorrectAPIKeyError('api_key given is incorrect.')
+            raise self.IncorrectAPIKeyError(f'api_key given is incorrect for url {resp.url}')
         if resp.json().get('errormsg'):
             raise self.ServerMessage(f"\nERROR CODE: [{resp.status_code}]\nSERVER MESSAGE: [{resp.json()['errormsg']}]")
         # resp.raise_for_status()
@@ -139,14 +139,16 @@ class InterlexSession:
         >>>self.boost(ilx_cli.add_entity, kwargs_list)
         """
         # InterLex specific batch size range #
-        if batch_size > 20:
-            batch_size = 20  # trust me; this is MAX. Anymore freaks out the php workers.
-        if batch_size < 3:
-            batch_size = 3  # Any less than 3 and async isn't worth it.
+        # if batch_size > 20:
+        #     batch_size = 20  # trust me; this is MAX. Anymore freaks out the php workers.
+        if batch_size < 2:
+            batch_size = 2  # Any less than 3 and async isn't worth it.
+        print('batch size ->', batch_size)
         # Worker #
         gin = lambda kwargs: func(**kwargs)
         # Builds futures dynamically #
         results = []
         for step in range(0, len(kwargs_list), batch_size):
+            print('Step ->', step)
             results += Async(rate=rate)(deferred(gin)(kwargs) for kwargs in kwargs_list[step:step+batch_size])
         return results

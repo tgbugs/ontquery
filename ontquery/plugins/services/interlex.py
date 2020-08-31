@@ -132,7 +132,6 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 objs = [objs]
             for object in objs:
                 # server output doesnt include their ILX IDs so it's not worth collecting
-                self.add_triple(subject, predicate, object)
                 tresp.append(self.add_triple(subject, predicate, object))
                 # TODO stick the responding predicates etc in if success
         return tresp
@@ -207,7 +206,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                    cid: Union[str, int] = None,
                    synonyms: Union[List[dict], List[str]] = None,
                    existing_ids: List[dict] = None,
-                   predicates: dict = None,) -> QueryResult:
+                   predicates: dict = None,
+                   **kwargs,) -> QueryResult:
         """ Add InterLex entity
 
         :param label: Preferred name of entity.
@@ -266,7 +266,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
 
-        return QueryResult(
+        return self.QueryResult(
             query_args={},
             iri='http://uri.interlex.org/base/' + resp['ilx'],
             curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -385,7 +385,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         out_predicates = {}
         if 'comment' in resp:  # filtering of missing fields is done in the client
             out_predicates['comment'] = resp['comment']
-        result = QueryResult(
+        result = self.QueryResult(
              query_args={},
              iri='http://uri.interlex.org/base/' + resp['ilx'],
              curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
@@ -535,7 +535,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         resps = [resp] if isinstance(resp, dict) else resp
 
         for resp in resps:
-            yield QueryResult(
+            yield self.QueryResult(
                 query_args=kwargs,
                 iri='http://uri.interlex.org/base/' + resp['ilx'],
                 curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),

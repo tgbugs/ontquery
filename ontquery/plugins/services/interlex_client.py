@@ -591,7 +591,10 @@ class InterLexClient(InterlexSession):
         :param synonyms: Alternate names of the label.
         :param existing_ids: Alternate/source ontological iri/curies. Can only be one preferred ID.
         """
-        entity = self.get_entity_from_curie(curie)
+        if any([True if curie.lower().startswith(prefix) else False for prefix in ['tmp_', 'tmp:', 'ilx_', 'ilx:']]):
+            entity = self.get_entity(curie)
+        else:
+            entity = self.get_entity_from_curie(curie)
         if entity['ilx'] is None:
             raise ValueError(f'curie [{curie}] does not exist yet in InterLex.')
         response = self.update_entity(
