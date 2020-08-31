@@ -11,7 +11,7 @@ from ontquery.plugins.services.interlex_client import InterLexClient
 from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
 from .common import skipif_no_net, SKIP_NETWORK, log
-from IPython import embed
+
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
 TEST_PREFIX = 'tmp'  # sigh
@@ -361,7 +361,6 @@ class Test(unittest.TestCase):
         }
 
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-        # embed()
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
         assert updated_entity_data['type'] == type
