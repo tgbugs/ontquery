@@ -58,14 +58,14 @@ class ServiceBase:
 
     def test_definition(self):
         t1 = self.OntTerm('BIRNLEX:796')
-        assert t1.definition is not None
+        assert not t1.validated or t1.definition is not None
 
     def test_synonyms(self):
         t1 = self.OntTerm('BIRNLEX:796')
-        if not t1.synonyms:  # No syns in SciGraph
+        if not t1.validated or not t1.synonyms:  # No syns in SciGraph
             t1 = self.OntTerm('BIRNLEX:798')
 
-        assert len(t1.synonyms)
+        assert not t1.validated or len(t1.synonyms)
 
     def test_cache(self):
         t1 = self.OntTerm('BIRNLEX:796')
@@ -75,6 +75,9 @@ class ServiceBase:
     def test_curie_consistency(self):
         """ additional check to make sure that all curies are normalized on the way in """
         t = self.OntTerm('RO:0000087')
+
+    def test_curie_404(self):
+        t = self.OntTerm('TEMP:curie/does/not/exist')
 
 
 class _TestIlx(ServiceBase):

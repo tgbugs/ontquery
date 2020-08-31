@@ -8,6 +8,7 @@ from requests import Response
 from . import deco
 from .interlex_session import InterlexSession
 from ontquery.utils import log
+from ontquery import exceptions as exc
 
 
 @deco.interlex_api_key
@@ -52,8 +53,7 @@ class InterLexClient(InterlexSession):
     class NoTypeError(Error):
         """New Entities need a type given."""
 
-    class NoApiKeyError(Error):
-        """ No api key has been set """
+    NoApiKeyError = exc.NoApiKeyError
 
     class MissingKeyError(Error):
         """Missing dict key for scicrunch entity for API endpoint used."""

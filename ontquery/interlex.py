@@ -1,8 +1,5 @@
 # TEST InterLex endpoints
-from ontquery.terms import OntTerm
-from yarl import URL
 import ontquery as oq
-import os
 
 
 def interlex_client(host: str = 'test3.scicrunch.org', scheme: str = 'https') -> object:
@@ -16,10 +13,8 @@ def interlex_client(host: str = 'test3.scicrunch.org', scheme: str = 'https') ->
     :return: InterlexClient
     """
     InterLexRemote = oq.plugin.get('InterLex')
-    api = URL(host)
-    if not api.is_absolute():
-        api = URL.build(scheme=scheme, host=host)
-    api = api.with_path('api/1')
+    api = f'{scheme}://{host}/api/1'
     ilx_cli = InterLexRemote(apiEndpoint=api)
-    ilx_cli.setup(instrumented=OntTerm)
+    ilx_cli.setup(instrumented=oq.OntTerm)
+    ilx_cli.OntTerm.query_init(ilx_cli)
     return ilx_cli

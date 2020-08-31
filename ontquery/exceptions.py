@@ -24,3 +24,7 @@ class ShouldNotHappenError(OntQueryError):
 
 class FetchingError(OntQueryError):
     """ A really good looking error you've got there! """
+
+
+class NoApiKeyError(OntQueryError):
+    """ No api key has been set """

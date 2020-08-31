@@ -155,6 +155,7 @@ class QueryResult:
                  type=None,
                  types=tuple(),
                  _graph=None,
+                 _blob=None,  # FIXME unify graph/blob under progenitor ?
                  source=None,
     ):
         self.__query_args = query_args  # for debug
@@ -170,6 +171,7 @@ class QueryResult:
                          type=type,
                          types=types,
                          _graph=_graph,
+                         _blob=_blob,
                          source=source).items():
             # this must return the empty values for all keys
             # so that users don't have to worry about hasattring
