@@ -14,6 +14,7 @@ from .common import skipif_no_net, SKIP_NETWORK, log
 
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
+API_BASE = f'http://{os.environ.get("LOCAL_IP")}:8080/api/1/'  # for core debugging
 TEST_PREFIX = 'tmp'  # sigh
 TEST_TERM_ID = f'{TEST_PREFIX}_0738406'
 TEST_TERM2_ID = f'{TEST_PREFIX}_0738409'
@@ -43,6 +44,8 @@ skipif_no_api_key = pytest.mark.skipif(NO_API_KEY, reason='no api key')
 def id_generator(size=6, chars=string.ascii_uppercase + string.digits):
     return ''.join(random.choice(chars) for _ in range(size))
 
+def rando_str():
+    return 'test_' + id_generator(size=12)
 
 @skipif_no_net
 @skipif_no_auth
@@ -79,6 +82,7 @@ def test_fix_ilx(test_input, expected):
 @skipif_no_auth
 @skipif_no_api_key
 class Test(unittest.TestCase):
+
     def test_query_elastic(self):
         label = 'brain'
         query = {
@@ -282,8 +286,6 @@ class Test(unittest.TestCase):
         assert added_entity_data['type'] == entity['type']
 
     def test_partial_update(self):
-        def rando_str():
-            return 'test_' + id_generator(size=12)
         entity = {
             'label': rando_str(),
             'type': 'term',
@@ -330,16 +332,16 @@ class Test(unittest.TestCase):
         assert partially_updated_entity['definition'] == 'original'
 
     def test_update_entity(self):
-
-        def rando_str():
-            return 'test_' + id_generator(size=12)
-
         entity = {
             'label': rando_str(),
             'type': 'term',  # broken at the moment NEEDS PDE HARDCODED
             'synonyms': 'original_synonym',
         }
         added_entity_data = ilx_cli.add_entity(**entity.copy())
+
+        # Check if None doesnt replace existing data
+        # updated_entity_data = ilx_cli.update_entity(ilx_id=added_entity_data['ilx'])
+        # assert updated_entity_data['synonyms'][0]['literal'] == 'original_synonym'
 
         label = 'troy_test_term'
         type = 'fde'
@@ -349,7 +351,7 @@ class Test(unittest.TestCase):
         synonym = rando_str()
 
         update_entity_data = {
-            'ilx_id': TEST_TERM_ID,
+            'ilx_id': added_entity_data['ilx'],
             'label': label,
             'definition': definition,
             'type': type,
@@ -370,6 +372,18 @@ class Test(unittest.TestCase):
         assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
         # test if dupclicates weren't created
         assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+
+    def test_empty_update(self):
+        entity = {
+            'label': rando_str(),
+            'type': 'term',  # broken at the moment NEEDS PDE HARDCODED
+            'synonyms': 'original_synonym',
+        }
+        added_entity_data = ilx_cli.add_entity(**entity.copy())
+        empty_update = ilx_cli.update_entity(added_entity_data['ilx'])
+        assert empty_update['synonyms'][0]['literal'] == entity['synonyms']
+        empty_update = ilx_cli.update_entity(added_entity_data['ilx'], definition='update!')
+        assert empty_update['synonyms'][0]['literal'] == entity['synonyms']
 
     def test_annotation(self):
         annotation_value = 'test_' + id_generator()
@@ -521,6 +535,14 @@ class Test(unittest.TestCase):
         assert complete_empty_check == []
         assert empty_check == complex_syn
         assert empty_check_rev == complex_syn
+        # Duplicate Check
+        duplicate_check = ilx_cli._merge_records(
+            ref_records=deepcopy(complex_syn),
+            records=deepcopy(complex_syn) + deepcopy(complex_syn),
+            on=['literal'],
+            alt=['type'],
+        )
+        assert duplicate_check == complex_syn
         # ON CHECK #
         on_check_neutral = ilx_cli._merge_records(
             ref_records=deepcopy(complex_syn),
@@ -601,3 +623,41 @@ class Test(unittest.TestCase):
         assert neutral == complex_syn_wt
         assert neutral_alt == complex_syn_wt
         assert removed == []
+        # Duplicate Check
+        # duplicate_check = ilx_cli._remove_records(
+        #     ref_records=deepcopy(complex_syn),
+        #     records=deepcopy(complex_syn) + deepcopy(complex_syn),
+        #     on=['literal', 'type'],
+        # )
+        # assert duplicate_check == []
+        duplicate_check = ilx_cli._remove_records(
+            ref_records=deepcopy(complex_syn) + deepcopy(complex_syn),
+            records=deepcopy(complex_syn),
+            on=['literal', 'type'],
+        )
+        assert duplicate_check == []
+
+    def test_remove_duplicate(self):        
+        complex_syn = [{'literal': 'alt label', 'type': ''}]
+        complex_syn_wt = [{'literal': 'alt label', 'type': 'exact'}]
+        complex_syn_wt2 = [{'literal': 'alt label 2', 'type': 'exact'}]
+        exact = ilx_cli._remove_duplicate_records(
+            records = [],
+            on = ['literal', 'type'],
+        )
+        assert exact == []
+        exact = ilx_cli._remove_duplicate_records(
+            records = complex_syn + complex_syn,
+            on = ['literal', 'type'],
+        )
+        assert exact == complex_syn
+        exact = ilx_cli._remove_duplicate_records(
+            records = complex_syn + complex_syn_wt,
+            on = ['literal', 'type'],
+        )
+        assert exact == complex_syn + complex_syn_wt
+        exact = ilx_cli._remove_duplicate_records(
+            records = complex_syn_wt2 + complex_syn,
+            on = ['literal', 'type'],
+        )
+        assert exact == complex_syn_wt2 + complex_syn

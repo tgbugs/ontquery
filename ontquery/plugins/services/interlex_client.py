@@ -205,7 +205,7 @@ class InterLexClient(InterlexSession):
                        passive: bool = False,) -> List[dict]:
         """ Merge records
             "on" specified fields.
-            "alt" updare record if ref record is missing data.
+            "alt" update record if ref record is missing data.
             "passive" append instead of update on "alt" version.
 
         :param on: Exact composite key value check.
@@ -262,6 +262,19 @@ class InterLexClient(InterlexSession):
             records.pop(i)
         return ref_records + records
 
+    @staticmethod
+    def _remove_duplicate_records(records: List[dict],
+                                  on: Union[List[str], str],) -> List[dict]:
+        unique_records = []
+        visited = {}
+        for record in records:
+            value_set = tuple((on_item, record[on_item]) for on_item in on)
+            if visited.get(value_set):
+                continue
+            unique_records.append(record)
+            visited[value_set] = True
+        return unique_records
+
     def _process_synonyms(self, synonyms: Union[List[dict], List[str]]) -> List[dict]:
         """ Make sure synonyms match indented input.
 
@@ -286,6 +299,7 @@ class InterLexClient(InterlexSession):
             else:
                 self._check_type(synonym, (str, dict))
             corrected_synonyms.append(synonym)
+        corrected_synonyms = self._remove_duplicate_records(corrected_synonyms, on=['literal', 'type'])
         return corrected_synonyms
 
     def _process_superclass(self, superclass: str) -> Optional[List[dict]]:
@@ -321,6 +335,7 @@ class InterLexClient(InterlexSession):
             :param ranking: custom ranking for existing ids. Default: None
             :return: entity existing ids preferred field fixed based on ranking.
             """
+            _existing_ids = self._remove_duplicate_records(_existing_ids, on=['curie', 'iri'])
             ranked_existing_ids: List[Tuple[int, dict]] = []
             preferred_fixed_existing_ids: List[dict] = []
             if not ranking:
@@ -370,6 +385,7 @@ class InterLexClient(InterlexSession):
                 else:
                     ex_id['preferred'] = 0
                 preferred_fixed_existing_ids.append(ex_id)
+            preferred_fixed_existing_ids = self._remove_duplicate_records(preferred_fixed_existing_ids, on=['curie', 'iri'])
             return preferred_fixed_existing_ids
 
         corrected_existing_ids = []
@@ -439,7 +455,7 @@ class InterLexClient(InterlexSession):
         :param str ilx_id: ILX ID of current Entity.
         """
         ilx_id = self.fix_ilx(ilx_id)
-        resp = self._get(f"ilx/search/identifier/{ilx_id}")
+        resp = self._get(f"term/ilx/{ilx_id}")
         entity = resp.json()['data']
         return entity
 
@@ -511,6 +527,7 @@ class InterLexClient(InterlexSession):
             'existing_ids': self._process_existing_ids(existing_ids),
             'force': force,
         }
+        entity['batch-elastic'] = 'true'
         resp = self._post('term/add-simplified', data=deepcopy(entity))
         entity = resp.json()['data']
         if resp.status_code == 200:
@@ -622,24 +639,24 @@ class InterLexClient(InterlexSession):
                       delete_existing_ids: List[dict] = None, ) -> dict:
         """ Updates pre-existing entity as long as the api_key is from the account that created it.
 
-        :param ilx_id: Interlex IRI, curie, or fragment of entity to update.
-        :param label: Name of entity.
-        :param type: InterLex entities type: term, cde, fde, pde, annotation, or relationship
-        :param definition: Entities official definition.
-        :param comment: A foot note regarding either the interpretation of the data or the data itself
-        :param superclass: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
-        :param cid: Community ID.
-        :param status: Entity status.
-            -2 : Withdrawn; entity is no longer searchable and is not visible
-            -1 : Under review; entity is visible
-             0 : No action needed; entity is visible
-        :param add_synonyms: Synonyms to add if they don't already exist.
-        :param delete_synonyms: Synonyms to delete.
-        :param add_existing_ids: Add alternative IRIs if they don't already exist.
-        :param delete_existing_ids: Delete alternative IRIs.
-        :return: Server response that is a nested dictionary format
+            :param ilx_id: Interlex IRI, curie, or fragment of entity to update.
+            :param label: Name of entity.
+            :param type: InterLex entities type: term, cde, fde, pde, annotation, or relationship
+            :param definition: Entities official definition.
+            :param comment: A foot note regarding either the interpretation of the data or the data itself
+            :param superclass: The ilx_id of the parent of this entity. Example: Organ is a superclass to Brain
+            :param cid: Community ID.
+            :param status: Entity status.
+                -2 : Withdrawn; entity is no longer searchable and is not visible
+                -1 : Under review; entity is visible
+                0 : No action needed; entity is visible
+            :param add_synonyms: Synonyms to add if they don't already exist.
+            :param delete_synonyms: Synonyms to delete.
+            :param add_existing_ids: Add alternative IRIs if they don't already exist.
+            :param delete_existing_ids: Delete alternative IRIs.
+            :return: Server response that is a nested dictionary format
 
-        >>> self.update_entity( \
+            >>> self.update_entity( \
                 ilx_id='ilx_0101431', \
                 label='Brain', \
                 type='term',  # options: term, pde, fde, cde, annotation, or relationship \
@@ -667,12 +684,16 @@ class InterLexClient(InterlexSession):
                 status='0',  # remove delete \
             )
         """
+        ilx_id = self.fix_ilx(ilx_id)
         template_entity_input = {k: v for k, v in locals().copy().items() if k != 'self'}
         if template_entity_input.get('superclass'):
             template_entity_input['superclass'] = self.fix_ilx(template_entity_input['superclass'])
-        existing_entity = self.get_entity(ilx_id)
-        if not existing_entity['id']:
-            raise self.EntityDoesNotExistError(f'ilx_id provided {ilx_id} does not exist')
+        if add_synonyms or delete_synonyms or add_existing_ids or delete_existing_ids or superclass:
+            existing_entity = self.get_entity(ilx_id)
+            if not existing_entity['id']:
+                raise self.EntityDoesNotExistError(f'ilx_id provided {ilx_id} does not exist')
+        else:
+            existing_entity = {'ilx': ilx_id}
         if label:
             existing_entity['label'] = label
         if type:
@@ -684,41 +705,52 @@ class InterLexClient(InterlexSession):
         if superclass:
             existing_entity['superclasses'] = self._process_superclass(superclass)
         # BUG: superclass needs id as superclass_tid
-        elif existing_entity['superclasses']:
+        elif existing_entity.get('superclasses'):
             existing_entity['superclasses'] = [{'superclass_tid': existing_entity['superclasses'][0]['id']}]
         if cid:
             existing_entity['cid'] = cid
         if status:
             existing_entity['status'] = status
-        # If a match use old data, else append new synonym
+        # Clean duplicates in these entities. 
+        # API does not have the same filters as Interface so this step is needed.
+        # TODO duplicate annotation php to syn and exids so we can remove this if possible
+        existing_entity['synonyms'] = self._remove_duplicate_records(
+            existing_entity.get('synonyms', []), 
+            on=['literal', 'type'],
+        )
+        existing_entity['existing_ids'] = self._remove_duplicate_records(
+            existing_entity.get('existing_ids', []), 
+            on=['curie', 'iri'],
+        )
         if add_synonyms:
             existing_entity['synonyms'] = self._merge_records(
-                ref_records=existing_entity['synonyms'],
+                ref_records=existing_entity.get('synonyms', []),
                 records=self._process_synonyms(add_synonyms),
                 on=['literal'],
                 alt=['type']
             )
         if delete_synonyms:
             existing_entity['synonyms'] = self._remove_records(
-                ref_records=existing_entity['synonyms'],
+                ref_records=existing_entity.get('synonyms', []),
                 records=self._process_synonyms(delete_synonyms),
                 on=['literal', 'type'],
             )
         if add_existing_ids:
             existing_entity['existing_ids'] = self._merge_records(
-                ref_records=existing_entity['existing_ids'],
+                ref_records=existing_entity.get('existing_ids', []),
                 records=self._process_existing_ids(add_existing_ids),
                 on=['curie', 'iri'],
             )
         if delete_existing_ids:
             existing_entity['existing_ids'] = self._merge_records(
-                ref_records=existing_entity['existing_ids'],
+                ref_records=existing_entity.get('existing_ids', []),
                 records=self._process_existing_ids(add_existing_ids),
                 on=['curie', 'iri'],
             )
         if existing_entity['existing_ids']:
             existing_entity['existing_ids'] = self._process_existing_ids(existing_entity['existing_ids'])
-        resp = self._post(f"term/edit/{existing_entity['id']}", data=existing_entity)
+        existing_entity['batch-elastic'] = 'true'
+        resp = self._post(f"term/edit/{existing_entity['ilx']}", data=existing_entity)
         # BUG: server response is bad and needs to actually search again to get proper format
         entity = resp.json()['data']
         entity['superclass'] = entity.pop('superclasses')
