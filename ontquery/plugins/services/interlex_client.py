@@ -812,7 +812,7 @@ class InterLexClient(InterlexSession):
             'annotation_term_version': anno_data['version'],
             'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
         }
-
+        data['batch-elastic'] = 'true'
         output = self._post('term/add-annotation', data=data).json()['data']
 
         # If already exists, we return the actual annotation properly #
@@ -924,6 +924,7 @@ class InterLexClient(InterlexSession):
             'relationship_term_version': relationship_data['version'],
             'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
         }
+        data['batch-elastic'] = 'true'
         output = self._post('term/add-relationship', data=data).json()['data']
         # If already exists, we return the actual relationship properly #
         if output.get('errormsg'):
