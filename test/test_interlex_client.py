@@ -8,13 +8,14 @@ import unittest
 import pytest
 
 from ontquery.plugins.services.interlex_client import InterLexClient
+from ontquery.plugins.services.interlex_session import InterlexSession
 from ontquery.plugins.services.interlex import InterLexRemote
 import ontquery as oq
 from .common import skipif_no_net, SKIP_NETWORK, log
 
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
-# API_BASE = f'http://{os.environ.get("LOCAL_IP")}:8080/api/1/'  # for core debugging
+API_BASE = f'http://{os.environ.get("LOCAL_IP")}:8080/api/1/'  # for core debugging
 TEST_PREFIX = 'tmp'  # sigh
 TEST_TERM_ID = f'{TEST_PREFIX}_0738406'
 TEST_TERM2_ID = f'{TEST_PREFIX}_0738409'
@@ -160,28 +161,24 @@ class Test(unittest.TestCase):
         }
 
         added_anno_data = ilx_cli.add_annotation(**annotation.copy())
-        assert added_anno_data['id'] is not False
         assert added_anno_data['tid'] is not False
         assert added_anno_data['annotation_tid'] is not False
         assert added_anno_data['value'] == annotation['annotation_value']
 
         # MAKING SURE DUPLICATE STILL RETURNS SAME INFO
         added_anno_data = ilx_cli.add_annotation(**annotation.copy())
-        assert added_anno_data['id'] is not False
         assert added_anno_data['tid'] is not False
         assert added_anno_data['annotation_tid'] is not False
         assert added_anno_data['value'] == annotation['annotation_value']
 
         bad_anno = annotation.copy()
         bad_anno['term_ilx_id'] = 'ilx_rgb'
-        with pytest.raises(ilx_cli.EntityDoesNotExistError,
-                           match=r"term_ilx_id: ilx_rgb does not exist",):
+        with pytest.raises(ilx_cli.ServerMessage , match=r"tid given does not exist."):
             ilx_cli.add_annotation(**bad_anno)
 
         bad_anno = annotation.copy()
-        bad_anno['annotation_type_ilx_id'] = 'ilx_rgb'
-        with pytest.raises(ilx_cli.EntityDoesNotExistError,
-                           match=r"annotation_type_ilx_id: ilx_rgb does not exist",):
+        bad_anno['annotation_type_ilx_id'] = 'ilx_rgb2'
+        with pytest.raises(ilx_cli.ServerMessage , match=r"annotation_tid given does not exist."):
             ilx_cli.add_annotation(**bad_anno)
 
     def test_add_entity(self):
@@ -404,32 +401,32 @@ class Test(unittest.TestCase):
 
     def test_relationship(self):
         random_label = 'my_test' + id_generator()
-        entity_resp = ilx_cli.add_entity(**{
-            'label': random_label,
-            'type': 'term',
-        })
-
-        entity1_ilx = entity_resp['ilx']
-        relationship_ilx = TEST_RELATIONSHIP_ID # is part of ILX ID
-        entity2_ilx = TEST_TERM_ID #1,2-Dibromo chemical ILX ID
-
-        relationship_resp = ilx_cli.add_relationship(**{
-            'entity1_ilx': entity1_ilx,
-            'relationship_ilx': relationship_ilx,
-            'entity2_ilx': entity2_ilx,
-        })
-
-        assert relationship_resp['term1_id'] == ilx_cli.get_entity(entity1_ilx)['id']
-        assert relationship_resp['relationship_tid'] == ilx_cli.get_entity(relationship_ilx)['id']
-        assert relationship_resp['term2_id'] == ilx_cli.get_entity(entity2_ilx)['id']
-
-        relationship_resp = ilx_cli.delete_relationship(**{
-            'entity1_ilx': entity_resp['ilx'], # (R)N6 chemical ILX ID
-            'relationship_ilx': relationship_ilx,
-            'entity2_ilx': entity2_ilx,
-        })
-
-        # If there is a response than it means it worked.
+        entity_resp = ilx_cli.add_entity(**{'label': random_label, 'type': 'term',})
+        relationship = {'entity1_ilx': entity_resp['ilx'],
+                        'relationship_ilx': TEST_RELATIONSHIP_ID,  # "is part of" ILX ID
+                        'entity2_ilx': TEST_TERM_ID}  # "1,2-Dibromo chemical" ILX ID
+        # Add relationship row
+        relationship_resp = ilx_cli.add_relationship(**relationship)
+        assert relationship_resp['term1_id'] == relationship['entity1_ilx']
+        assert relationship_resp['relationship_tid'] == relationship['relationship_ilx']
+        assert relationship_resp['term2_id'] == relationship['entity2_ilx']
+        # Bad term 1 ID
+        bad_rela = relationship.copy()
+        bad_rela['entity1_ilx'] = 'ilx_term1'
+        with pytest.raises(ilx_cli.ServerMessage , match=r"term1_id given does not exist."):
+            ilx_cli.add_relationship(**bad_rela)
+        # Bad relationship ID
+        bad_rela = relationship.copy()
+        bad_rela['relationship_ilx'] = 'ilx_rela'
+        with pytest.raises(ilx_cli.ServerMessage , match=r"relationship_tid given does not exist."):
+            ilx_cli.add_relationship(**bad_rela)
+        # Bad term 2 ID
+        bad_rela = relationship.copy()
+        bad_rela['entity2_ilx'] = 'ilx_term2'
+        with pytest.raises(ilx_cli.ServerMessage , match=r"term2_id given does not exist."):
+            ilx_cli.add_relationship(**bad_rela)
+        # Delete relationship row :: If there is a response than it means it worked.
+        relationship_resp = ilx_cli.delete_relationship(**relationship)
         assert relationship_resp['term1_id'] == ' '
         assert relationship_resp['relationship_tid'] == ' '
         assert relationship_resp['term2_id'] == ' '

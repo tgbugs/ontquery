@@ -96,16 +96,16 @@ class InterLexClient(InterlexSession):
         InterlexSession.__init__(self, key=key, host=base_url)
 
     @staticmethod
-    def fix_ilx(ilx_id: str) -> str:
+    def fix_ilx(ilx_id: str, fragment:bool = False) -> str:
         """ Convert InterLex ID or IRI to its fragment alternative (ie ilx_#)
 
-        :param str ilx_id: InterLex ID or IRI.
-        :return: str
+            :param str ilx_id: InterLex ID or IRI.
+            :return: str
 
-        >>> fix_ilx('http://uri.interlex.org/base/ilx_0101431')
-        ilx_0101431
-        >>> fix_ilx('ILX:0101431')
-        ilx_0101431
+            >>> fix_ilx('http://uri.interlex.org/base/ilx_0101431')
+            ilx_0101431
+            >>> fix_ilx('ILX:0101431')
+            ilx_0101431
         """
         if not ilx_id:
             raise ValueError(f'ILX ID cannot be None!')
@@ -114,14 +114,19 @@ class InterLexClient(InterlexSession):
             raise ValueError(f"Provided ID {ilx_id} could not be determined as InterLex ID.")
         return ilx_id.replace('ILX:', 'ilx_').replace('TMP:', 'tmp_')
 
+    def get_ilx_fragment(self, ilx_id):
+        iri = self.fix_ilx(ilx_id)
+        ilx_fragment = iri.rsplit('/', 1)[-1]
+        return ilx_fragment
+
     @staticmethod
     def _check_type(element: Any,
                     types: Union[Any, List[Any]]) -> Any:
         """ Check if element is an  accepted types provided.
 
-        :param element: Field value.
-        :param types: Usable types
-        :return: Original element
+            :param element: Field value.
+            :param types: Usable types
+            :return: Original element
         """
         if not isinstance(element, types):
             TypeError(f"Element {element} needs to be of type {types}")
@@ -132,9 +137,9 @@ class InterLexClient(InterlexSession):
                      values: tuple) -> Any:
         """ Check if element is in accepted values provided.
 
-        :param element: Field value.
-        :param values: Hardcoded values SciCrunch expects.
-        :return: Original element
+            :param element: Field value.
+            :param values: Hardcoded values SciCrunch expects.
+            :return: Original element
         """
         if element not in values:
             ValueError(f"Element {element} needs to be a value from {values}")
@@ -772,68 +777,40 @@ class InterLexClient(InterlexSession):
     def add_annotation(self,
                        term_ilx_id: str,
                        annotation_type_ilx_id: str,
-                       annotation_value: str) -> dict:
+                       annotation_value: str,
+                       real_server_resp: bool = False) -> dict:
         """ Adding an annotation value to a prexisting entity
 
-            An annotation exists as 3 different parts:
+            An annotation exists as 3 different parts ([1] -> [2] -> [3]):
                 1. entity with type term, TermSet, cde, fde, or pde
                 2. entity with type annotation
                 3. string value of the annotation
 
-        :param term_ilx_id: Term ILX ID
-        :param annotation_type_ilx_id: Annototation ILX ID
-        :param annotation_value: Annotation value
-        :return: Annotation Record
+            :param term_ilx_id: Term ILX ID
+            :param annotation_type_ilx_id: Annototation ILX ID
+            :param annotation_value: Annotation value
+            :param real_server_resp: Will return term IDs and versions, not InterLex IDs. 
+            :return: Annotation Record
 
-         >>> self.add_annotation(**{\
-            'term_ilx_id': 'ilx_0101431',  # brain ILX ID \
-            'annotation_type_ilx_id': 'ilx_0381360',  # hasDbXref ILX ID \
-            'annotation_value': 'http://neurolex.org/wiki/birnlex_796'\
-        }
+            >>> self.add_annotation(
+                    term_ilx_id='ilx_0101431',  # brain ILX ID
+                    annotation_type_ilx_id='ilx_0381360',  # hasDbXref ILX ID
+                    annotation_value='http://neurolex.org/wiki/birnlex_796'  # any string value
+                )
         """
-
-        term_data = self.get_entity(term_ilx_id)
-        if not term_data['id']:
-            raise self.EntityDoesNotExistError(
-                'term_ilx_id: ' + term_ilx_id + ' does not exist'
-            )
-        anno_data = self.get_entity(annotation_type_ilx_id)
-        if not anno_data['id']:
-            raise self.EntityDoesNotExistError(
-                'annotation_type_ilx_id: ' + annotation_type_ilx_id
-                + ' does not exist'
-            )
-
-        data = {
-            'tid': term_data['id'],
-            'annotation_tid': anno_data['id'],
-            'value': annotation_value,
-            'term_version': term_data['version'],
-            'annotation_term_version': anno_data['version'],
-            'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
-        }
-        data['batch-elastic'] = 'true'
-        output = self._post('term/add-annotation', data=data).json()['data']
-
-        # If already exists, we return the actual annotation properly #
-        if output.get('errormsg'):
-            if 'already exists' in output['errormsg'].lower():
-                term_annotations = self.get_annotation_via_tid(term_data['id'])
-                for term_annotation in term_annotations:
-                    if str(term_annotation['annotation_tid']) == str(anno_data['id']):
-                        if term_annotation['value'] == data['value']:
-                            log.warning(
-                                'Annotation: [' + term_data['label']
-                                + ' -> ' + anno_data['label']
-                                + ' -> ' + data['value'] + '], already exists.'
-                            )
-                            return term_annotation
-
-                raise self.AlreadyExistsError(output)
-
-            raise self.Error(output)
-
-        return output
+        tid = self.get_ilx_fragment(term_ilx_id)
+        annotation_tid = self.get_ilx_fragment(annotation_type_ilx_id)
+        data = {'tid': tid,
+                'annotation_tid': annotation_tid,
+                'value': annotation_value}
+        resp = self._post('term/add-annotation', data={**data, **{'batch-elastic': 'true'}})
+        if resp.status_code == 200:
+            log.warning(f"Annotation: "
+                        f"[{data['tid']}] -> [{data['annotation_tid']}] -> [{data['value']}]"
+                        f"has already been added")
+        if real_server_resp:
+            data = resp.json()['data']
+        return data
 
     def delete_annotation(self,
                           term_ilx_id: str,
@@ -841,10 +818,10 @@ class InterLexClient(InterlexSession):
                           annotation_value: str) -> Optional[dict]:
         """ If annotation doesnt exist, add it
 
-        :param term_ilx_id: Term ILX ID
-        :param annotation_type_ilx_id: Annototation ILX ID
-        :param annotation_value: Annotation value
-        :return: Empty Annotation Record
+            :param term_ilx_id: Term ILX ID
+            :param annotation_type_ilx_id: Annototation ILX ID
+            :param annotation_value: Annotation value
+            :return: Empty Annotation Record
         """
         term_data = self.get_entity(term_ilx_id)
         if not term_data['id']:
@@ -891,7 +868,8 @@ class InterLexClient(InterlexSession):
     def add_relationship(self,
                          entity1_ilx: str,
                          relationship_ilx: str,
-                         entity2_ilx: str) -> dict:
+                         entity2_ilx: str,
+                         real_server_resp: bool = False) -> dict:
         """ Adds relationship connection in Interlex
 
         A relationship exists as 3 different parts:
@@ -900,51 +878,20 @@ class InterLexClient(InterlexSession):
                 -> Has its' own meta data, so no value needed
             3. entity with type term, cde, fde, or pde
         """
-        entity1_data = self.get_entity(entity1_ilx)
-        if not entity1_data['id']:
-            raise self.EntityDoesNotExistError(
-                'entity1_ilx: ' + entity1_ilx + ' does not exist'
-            )
-        relationship_data = self.get_entity(relationship_ilx)
-        if not relationship_data['id']:
-            raise self.EntityDoesNotExistError(
-                'relationship_ilx: ' + relationship_ilx + ' does not exist'
-            )
-        entity2_data = self.get_entity(entity2_ilx)
-        if not entity2_data['id']:
-            raise self.EntityDoesNotExistError(
-                'entity2_ilx: ' + entity2_ilx + ' does not exist'
-            )
-        data = {
-            'term1_id': entity1_data['id'],
-            'relationship_tid': relationship_data['id'],
-            'term2_id': entity2_data['id'],
-            'term1_version': entity1_data['version'],
-            'term2_version': entity2_data['version'],
-            'relationship_term_version': relationship_data['version'],
-            'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
-        }
-        data['batch-elastic'] = 'true'
-        output = self._post('term/add-relationship', data=data).json()['data']
-        # If already exists, we return the actual relationship properly #
-        if output.get('errormsg'):
-            if 'already exists' in output['errormsg'].lower():
-                term_relationships = self.get_relationship_via_tid(
-                    entity1_data['id'])
-                for term_relationship in term_relationships:
-                    if str(term_relationship['term2_id']) == str(entity2_data['id']):
-                        if term_relationship['relationship_tid'] == relationship_data['id']:
-                            log.warning(
-                                'relationship: ['
-                                + entity1_data['label'] + ' -> '
-                                + relationship_data['label']
-                                + ' -> ' + entity2_data['label']
-                                + '], already exists.'
-                            )
-                            return term_relationship
-                exit(output)
-            exit(output)
-        return output
+        entity1_ilx = self.get_ilx_fragment(entity1_ilx)
+        relationship_ilx = self.get_ilx_fragment(relationship_ilx)
+        entity2_ilx = self.get_ilx_fragment(entity2_ilx)
+        data = {'term1_id': entity1_ilx,
+                'relationship_tid': relationship_ilx,
+                'term2_id': entity2_ilx}
+        resp = self._post('term/add-relationship', data={**data, **{'batch-elastic': 'true'}})
+        if resp.status_code == 200:
+            log.warning(f"Relationship: "
+                        f"[{data['term1_id']}] -> [{data['relationship_tid']}] -> [{data['term2_id']}]"
+                        f"has already been added")
+        if real_server_resp:
+            data = resp.json()['data']
+        return data
 
     def delete_relationship(self,
                             entity1_ilx: str,

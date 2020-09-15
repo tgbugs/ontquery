@@ -97,17 +97,18 @@ class InterlexSession:
         """
         if resp.status_code == 401:
             raise self.IncorrectAPIKeyError(f'api_key given is incorrect for url {resp.url}')
+        # request crashed :: proper server response first 
         if resp.json().get('errormsg'):
-            msg = (f"\nERROR CODE: [{resp.status_code}]\n"
-                   f"SERVER MESSAGE: [{resp.json()['errormsg']}]\n"
-                   f"for url {resp.url}")
-            try:
-                raise self.ServerMessage(msg)
-            except self.ServerMessage as e:
-                try:
-                    resp.raise_for_status()
-                except Exception as e2:
-                    raise e2 from e
+            raise self.ServerMessage(resp.json()['errormsg'])
+        # request crashed :: server lacked response so we created our own
+        if resp.status_code >= 400:
+            msg = (f"\nERROR CODE: [{resp.status_code}]"
+                   f"\nSERVER RESPONSE: [{resp.txt}]"
+                   f"\nURL: {resp.url}")
+            raise self.ServerMessage(msg)  
+        if resp.status_code >= 500:
+            raise self.ServerMessage(f'\nERROR CODE: [{resp.status_code}]'
+                                     f'\nIf this keeps happening please email tsincomb@ucsd.edu to help fix the issue.')         
 
     def _get(self, endpoint: str, params: dict = None) -> Response:
         """ Quick GET for InterLex.
@@ -136,7 +137,6 @@ class InterlexSession:
         """
         url = os.path.join(self.api, endpoint)
         data = self.__prepare_data(data)  # adds api key to data here
-        # noinspection PyTypeChecker
         resp = self.session.post(url, data=data)
         self.__check_response(resp)
         return resp
