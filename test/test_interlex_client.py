@@ -15,7 +15,7 @@ from .common import skipif_no_net, SKIP_NETWORK, log
 
 
 API_BASE = 'https://test3.scicrunch.org/api/1/'
-API_BASE = f'http://{os.environ.get("LOCAL_IP")}:8080/api/1/'  # for core debugging
+# API_BASE = f'http://{os.environ.get("LOCAL_IP")}:8080/api/1/'  # for core debugging
 TEST_PREFIX = 'tmp'  # sigh
 TEST_TERM_ID = f'{TEST_PREFIX}_0738406'
 TEST_TERM2_ID = f'{TEST_PREFIX}_0738409'
