@@ -886,9 +886,9 @@ class InterLexClient(InterlexSession):
                 'term2_id': entity2_ilx}
         resp = self._post('term/add-relationship', data={**data, **{'batch-elastic': 'true'}})
         if resp.status_code == 200:
-            log.warning(f"Relationship: "
-                        f"[{data['term1_id']}] -> [{data['relationship_tid']}] -> [{data['term2_id']}]"
-                        f"has already been added")
+            log.warning(f"Relationship:"
+                        f" [{data['term1_id']}] -> [{data['relationship_tid']}] -> [{data['term2_id']}]"
+                        f" has already been added")
         if real_server_resp:
             data = resp.json()['data']
         return data

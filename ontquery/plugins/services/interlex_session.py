@@ -160,8 +160,8 @@ class InterlexSession:
         >>>self.boost(ilx_cli.add_entity, kwargs_list)
         """
         # InterLex specific batch size range #
-        if batch_size > 20:
-            batch_size = 20  # trust me; this is MAX. Anymore freaks out the php workers.
+        if batch_size > 100:
+            batch_size = 100  # trust me; this is MAX. Anymore freaks out the php workers.
         if batch_size < 3:
             batch_size = 3  # Any less than 3 and async isn't worth it.
         # Worker #
