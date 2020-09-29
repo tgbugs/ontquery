@@ -308,7 +308,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                       add_existing_ids: List[dict] = None,
                       delete_existing_ids: List[dict] = None,
                       predicates_to_add: dict = None,
-                      predicates_to_delete: dict = None,
+                      predicates_to_withdraw: dict = None,
                       cid: str = None,
                       status: str = None,) -> object:
         """ Update existing entity.
@@ -360,7 +360,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                     # Relationship \
                     'http://uri.interlex.org/base/ilx_0101435': 'http://uri.interlex.org/base/ilx_0101434', \
                 }, \
-                predicates_to_delete={ \
+                predicates_to_withdraw={ \
                     # Annotation \
                     'http://uri.interlex.org/base/ilx_0101432': 'sample_annotation_value', \
                     # Relationship \
@@ -391,8 +391,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             trep = self.add_predicates(ilx_curieoriri=resp['ilx'], predicates=predicates_to_add)
 
         tresp = None
-        if predicates_to_delete:
-            trep = self.delete_predicates(ilx_curieoriri=resp['ilx'], predicates=predicates_to_delete)
+        if predicates_to_withdraw:
+            trep = self.delete_predicates(ilx_curieoriri=resp['ilx'], predicates=predicates_to_withdraw)
 
         out_predicates = {}
         if 'comment' in resp:  # filtering of missing fields is done in the client
@@ -467,9 +467,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         p = self.OntId(predicate)
         o = self._get_type(object)
         if type(o) == str:
-            func = self.ilx_cli.delete_annotation
+            func = self.ilx_cli.withdraw_annotation
         elif type(o) == self.OntId:
-            func = self.ilx_cli.delete_relationship
+            func = self.ilx_cli.withdraw_relationship
             o = filter_ontid(o)
         else:
             raise TypeError(f'what are you giving me?! {object!r}')

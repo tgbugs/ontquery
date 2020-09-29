@@ -96,15 +96,15 @@ class InterLexClient(InterlexSession):
         InterlexSession.__init__(self, key=key, host=base_url)
 
     @staticmethod
-    def fix_ilx(ilx_id: str, fragment:bool = False) -> str:
+    def get_ilx_fragment(ilx_id: str, fragment:bool = False) -> str:
         """ Convert InterLex ID or IRI to its fragment alternative (ie ilx_#)
 
             :param str ilx_id: InterLex ID or IRI.
             :return: str
 
-            >>> fix_ilx('http://uri.interlex.org/base/ilx_0101431')
+            >>> get_ilx_fragment('http://uri.interlex.org/base/ilx_0101431')
             ilx_0101431
-            >>> fix_ilx('ILX:0101431')
+            >>> get_ilx_fragment('ILX:0101431')
             ilx_0101431
         """
         if not ilx_id:
@@ -114,10 +114,18 @@ class InterLexClient(InterlexSession):
             raise ValueError(f"Provided ID {ilx_id} could not be determined as InterLex ID.")
         return ilx_id.replace('ILX:', 'ilx_').replace('TMP:', 'tmp_')
 
-    def get_ilx_fragment(self, ilx_id):
-        iri = self.fix_ilx(ilx_id)
-        ilx_fragment = iri.rsplit('/', 1)[-1]
-        return ilx_fragment
+    def get_ilx_iri(self, ilx_id: str) -> str:
+        """
+        Makes Sure InterLex ID is in it's proper IRI form.
+
+        Args:
+            ilx_id (str): InterLex fragment, IRI, curie
+
+        Returns:
+            str: InterLex IRI
+        """
+        fragment = self.get_ilx_fragment(ilx_id)
+        return f'http://uri.interlex.org/base/{fragment}'
 
     @staticmethod
     def _check_type(element: Any,
@@ -310,7 +318,7 @@ class InterLexClient(InterlexSession):
     def _process_superclass(self, superclass: str) -> Optional[List[dict]]:
         if not superclass:
             return None
-        superclass = self.fix_ilx(superclass)
+        superclass = self.get_ilx_fragment(superclass)
         return [{'ilx': superclass}]
 
     def _process_existing_ids(self, existing_ids: List[dict]) -> List[dict]:
@@ -459,7 +467,7 @@ class InterLexClient(InterlexSession):
 
         :param str ilx_id: ILX ID of current Entity.
         """
-        ilx_id = self.fix_ilx(ilx_id)
+        ilx_id = self.get_ilx_fragment(ilx_id)
         resp = self._get(f"term/ilx/{ilx_id}")
         entity = resp.json()['data']
         return entity
@@ -689,10 +697,10 @@ class InterLexClient(InterlexSession):
                 status='0',  # remove delete \
             )
         """
-        ilx_id = self.fix_ilx(ilx_id)
+        ilx_id = self.get_ilx_fragment(ilx_id)
         template_entity_input = {k: v for k, v in locals().copy().items() if k != 'self'}
         if template_entity_input.get('superclass'):
-            template_entity_input['superclass'] = self.fix_ilx(template_entity_input['superclass'])
+            template_entity_input['superclass'] = self.get_ilx_fragment(template_entity_input['superclass'])
         if add_synonyms or delete_synonyms or add_existing_ids or delete_existing_ids or superclass:
             existing_entity = self.get_entity(ilx_id)
             if not existing_entity['id']:
@@ -812,10 +820,10 @@ class InterLexClient(InterlexSession):
             data = resp.json()['data']
         return data
 
-    def delete_annotation(self,
-                          term_ilx_id: str,
-                          annotation_type_ilx_id: str,
-                          annotation_value: str) -> Optional[dict]:
+    def withdraw_annotation(self,
+                        term_ilx_id: str,
+                        annotation_type_ilx_id: str,
+                        annotation_value: str) -> Optional[dict]:
         """ If annotation doesnt exist, add it
 
             :param term_ilx_id: Term ILX ID
@@ -846,11 +854,12 @@ class InterLexClient(InterlexSession):
             log.warning('Annotation you wanted to delete does not exist')
             return None
         data = {
-            'tid': ' ',  # for delete
-            'annotation_tid': ' ',  # for delete
-            'value': ' ',  # for delete
-            'term_version': ' ',
-            'annotation_term_version': ' ',
+            'tid': term_data['id'],  # for delete
+            'annotation_tid': anno_data['id'],  # for delete
+            'value': annotation_value,  # for delete
+            'term_version': term_data['version'],
+            'annotation_term_version': anno_data['version'],
+            'withdrawn': '1',
         }
         output = self._post(f"term/edit-annotation/{annotation_id}", data=data).json()['data']
         return output
@@ -893,7 +902,7 @@ class InterLexClient(InterlexSession):
             data = resp.json()['data']
         return data
 
-    def delete_relationship(self,
+    def withdraw_relationship(self,
                             entity1_ilx: str,
                             relationship_ilx: str,
                             entity2_ilx: str) -> dict:
@@ -915,13 +924,14 @@ class InterLexClient(InterlexSession):
         if not entity2_data['id']:
             raise self.EntityDoesNotExistError(f'entity2_ilx: {entity2_data} does not exist')
         data = {
-            'term1_id': ' ',  # entity1_data['id'],
-            'relationship_tid': ' ',  # relationship_data['id'],
-            'term2_id': ' ',  # entity2_data['id'],
+            'term1_id': entity1_data['id'],  # entity1_data['id'],
+            'relationship_tid': relationship_data['id'],  # relationship_data['id'],
+            'term2_id': entity2_data['id'],  # entity2_data['id'],
             'term1_version': entity1_data['version'],
             'term2_version': entity2_data['version'],
             'relationship_term_version': relationship_data['version'],
-            'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
+            'withdrawn': '1',
+            # 'orig_uid': self.user_id,  # BUG: php lacks orig_uid update
         }
         entity_relationships = self.get_relationship_via_tid(entity1_data['id'])
         # TODO: parse through entity_relationships to see if we have a match; else print warning and return None
