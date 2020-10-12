@@ -110,9 +110,9 @@ class InterLexClient(InterlexSession):
         if not ilx_id:
             raise ValueError(f'ILX ID cannot be None!')
         ilx_id = ilx_id.rsplit('/', 1)[-1]
-        if ilx_id[:4] not in ['TMP:', 'tmp_', 'ILX:', 'ilx_']:
+        if ilx_id[:3].lower() not in ['tmp', 'ilx', 'pde', 'cde']:
             raise ValueError(f"Provided ID {ilx_id} could not be determined as InterLex ID.")
-        return ilx_id.replace('ILX:', 'ilx_').replace('TMP:', 'tmp_')
+        return ilx_id.replace(':', '_').lower()
 
     def get_ilx_iri(self, ilx_id: str) -> str:
         """
@@ -541,7 +541,7 @@ class InterLexClient(InterlexSession):
             'force': force,
         }
         entity['batch-elastic'] = 'true'
-        resp = self._post('term/add-simplified', data=deepcopy(entity))
+        resp = self._post('term/add', data=deepcopy(entity))
         entity = resp.json()['data']
         if resp.status_code == 200:
             log.warning(f"You already added {entity['label']} with InterLex ID {entity['ilx']}")
@@ -703,6 +703,7 @@ class InterLexClient(InterlexSession):
             template_entity_input['superclass'] = self.get_ilx_fragment(template_entity_input['superclass'])
         if add_synonyms or delete_synonyms or add_existing_ids or delete_existing_ids or superclass:
             existing_entity = self.get_entity(ilx_id)
+            existing_entity.pop('curie')
             if not existing_entity['id']:
                 raise self.EntityDoesNotExistError(f'ilx_id provided {ilx_id} does not exist')
         else:

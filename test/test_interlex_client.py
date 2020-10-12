@@ -370,6 +370,45 @@ class Test(unittest.TestCase):
         # test if dupclicates weren't created
         assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
 
+    def test_pde(self):
+        entity = {
+            'label': rando_str(),
+            'type': 'pde',  # broken at the moment NEEDS PDE HARDCODED
+            'synonyms': 'original_synonym',
+        }
+        added_entity_data = ilx_cli.add_entity(**entity.copy())
+
+        label = 'troy_test_term'
+        superclass = 'ilx_0101434'
+        definition = rando_str()
+        comment = rando_str()
+        synonym = rando_str()
+
+        update_entity_data = {
+            'ilx_id': added_entity_data['ilx'],
+            'label': label,
+            'definition': definition,
+            'comment': comment,
+            'superclass': superclass,
+            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
+            # should delete new synonym before it was even added to avoid endless synonyms
+            'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
+        }
+        updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
+        
+        assert updated_entity_data['label'] == label
+        assert updated_entity_data['definition'] == definition
+        assert updated_entity_data['type'] == 'pde'
+        assert updated_entity_data['comment'] == comment
+        assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
+        # test if random synonym was added
+        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
+        # test if dupclicates weren't created
+        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+        assert updated_entity_data['ilx'].startswith('pde_')
+        assert updated_entity_data['existing_ids'][0]['curie'].startswith('PDE:')
+        assert updated_entity_data['existing_ids'][0]['iri'].rsplit('/', 1)[-1].startswith('pde_')
+
     def test_empty_update(self):
         entity = {
             'label': rando_str(),
@@ -395,7 +434,6 @@ class Test(unittest.TestCase):
             'annotation_type_ilx_id': TEST_ANNOTATION_ID,  # spont firing ILX ID
             'annotation_value': annotation_value,
         })
-        print(resp)
         # If there is a response than it means it worked. If you try this again it will 404 if my net doesnt catch it
         assert resp['withdrawn'] == '1'
 
