@@ -394,8 +394,9 @@ class Test(unittest.TestCase):
             # should delete new synonym before it was even added to avoid endless synonyms
             'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
         }
+
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-        
+
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
         assert updated_entity_data['type'] == 'pde'
@@ -408,7 +409,47 @@ class Test(unittest.TestCase):
         assert updated_entity_data['ilx'].startswith('pde_')
         assert updated_entity_data['existing_ids'][0]['curie'].startswith('PDE:')
         assert updated_entity_data['existing_ids'][0]['iri'].rsplit('/', 1)[-1].startswith('pde_')
+    
+    def test_cde(self):
+        entity = {
+            'label': rando_str(),
+            'type': 'cde',  # broken at the moment NEEDS PDE HARDCODED
+            'synonyms': 'original_synonym',
+        }
+        added_entity_data = ilx_cli.add_entity(**entity.copy())
 
+        label = 'troy_test_term'
+        superclass = 'ilx_0101434'
+        definition = rando_str()
+        comment = rando_str()
+        synonym = rando_str()
+
+        update_entity_data = {
+            'ilx_id': added_entity_data['ilx'],
+            'label': label,
+            'definition': definition,
+            'comment': comment,
+            'superclass': superclass,
+            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
+            # should delete new synonym before it was even added to avoid endless synonyms
+            'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
+        }
+
+        updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
+        
+        assert updated_entity_data['label'] == label
+        assert updated_entity_data['definition'] == definition
+        assert updated_entity_data['type'] == 'cde'
+        assert updated_entity_data['comment'] == comment
+        assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
+        # test if random synonym was added
+        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
+        # test if dupclicates weren't created
+        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+        assert updated_entity_data['ilx'].startswith('cde_')
+        assert updated_entity_data['existing_ids'][0]['curie'].startswith('CDE:')
+        assert updated_entity_data['existing_ids'][0]['iri'].rsplit('/', 1)[-1].startswith('cde_')
+    
     def test_empty_update(self):
         entity = {
             'label': rando_str(),
