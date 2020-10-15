@@ -378,6 +378,8 @@ class InterLexClient(InterlexSession):
                     'MESH',
                     'NCIM',
                     'ILX',
+                    'PDE',
+                    'CDE',
                 ]
             # will always be larger than last index :)
             default_rank = len(ranking)
