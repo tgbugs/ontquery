@@ -341,7 +341,7 @@ class Test(unittest.TestCase):
         # assert updated_entity_data['synonyms'][0]['literal'] == 'original_synonym'
 
         label = 'troy_test_term'
-        type = 'fde'
+        type = 'term'
         superclass = added_entity_data['ilx']
         definition = rando_str()
         comment = rando_str()
