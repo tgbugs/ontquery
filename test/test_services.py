@@ -172,9 +172,13 @@ class TestRdflib(ServiceBase, unittest.TestCase):
 
 @skipif_no_net
 class TestGitHub(ServiceBase, unittest.TestCase):
-    remote = oq.plugin.get('GitHub')('SciCrunch', 'NIF-Ontology',
-                                     'ttl/bridge/uberon-bridge.ttl',
-                                     'ttl/NIF-GrossAnatomy.ttl', branch='dev')
+
+    @classmethod
+    def setUpClass(cls):
+        cls.remote = oq.plugin.get('GitHub')(
+            'SciCrunch', 'NIF-Ontology',
+            'ttl/bridge/uberon-bridge.ttl',
+            'ttl/NIF-GrossAnatomy.ttl', branch='dev')
 
     def test_ontid(self):
         t = self.OntTerm(OntId('BIRNLEX:796'))
