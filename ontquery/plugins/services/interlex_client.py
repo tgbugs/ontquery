@@ -542,7 +542,7 @@ class InterLexClient(InterlexSession):
             'existing_ids': self._process_existing_ids(existing_ids),
             'force': force,
         }
-        entity['batch-elastic'] = 'true'
+        #entity['batch-elastic'] = 'true'
         resp = self._post('term/add', data=deepcopy(entity))
         entity = resp.json()['data']
         if resp.status_code == 200:
@@ -765,7 +765,7 @@ class InterLexClient(InterlexSession):
             )
         if existing_entity['existing_ids']:
             existing_entity['existing_ids'] = self._process_existing_ids(existing_entity['existing_ids'])
-        existing_entity['batch-elastic'] = 'true'
+        # existing_entity['batch-elastic'] = 'true'
         resp = self._post(f"term/edit/{existing_entity['ilx']}", data=existing_entity)
         # BUG: server response is bad and needs to actually search again to get proper format
         entity = resp.json()['data']
@@ -896,13 +896,15 @@ class InterLexClient(InterlexSession):
         data = {'term1_id': entity1_ilx,
                 'relationship_tid': relationship_ilx,
                 'term2_id': entity2_ilx}
-        resp = self._post('term/add-relationship', data={**data, **{'batch-elastic': 'true'}})
+        # resp = self._post('term/add-relationship', data={**data, **{'batch-elastic': 'true'}})
+        resp = self._post('term/add-relationship', data=data)
+
         if resp.status_code == 200:
             log.warning(f"Relationship:"
                         f" [{data['term1_id']}] -> [{data['relationship_tid']}] -> [{data['term2_id']}]"
                         f" has already been added")
-        if real_server_resp:
-            data = resp.json()['data']
+        # if real_server_resp:
+        data = resp.json()['data']
         return data
 
     def withdraw_relationship(self,
@@ -946,7 +948,8 @@ class InterLexClient(InterlexSession):
                         relationship_id = relationship['id']
                         break
         if not relationship_id:
-            log.warning('Annotation you wanted to delete does not exist')
+            log.warning('Relationship you wanted to delete does not exist')
             return {}
-        output = self._post(f'term/edit-relationship/{relationship_id}', data=data).json()['data']
+        output = self._post(f'term/edit-relationship/{relationship_id}', 
+                            data={**data, **{'batch-elastic': 'true'}}).json()['data']
         return output
