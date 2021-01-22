@@ -36,7 +36,7 @@ class InterlexSession:
         """ Initialize Session with SciCrunch Server.
 
         :param str key: API key for SciCrunch [should work for test hosts].
-        :param str host: Base url for hosting server (can take localhost:8080). Default: 'test3.scicrunch.org'
+        :param str host: Base url for hosting server (can take localhost:8080). Default: 'test3.scicrunch.org'         
         :param auth: user, password for authentication. Default: ('', '')
         :param int retries: Number of API retries if code is in status_forcelist. Default: 3
         :param backoff_factor: Delay until next retry in seconds. default (1.0 seconds)

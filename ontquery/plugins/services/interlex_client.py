@@ -595,7 +595,7 @@ class InterLexClient(InterlexSession):
         :return: Deprecated Record of entity.
         """
         replaced_by_id = 'http://uri.interlex.org/base/ilx_0383242'  # replacedBy entity
-        replaced_by = self.get_entity(deprecated_id)
+        replaced_by = self.get_entity(replaced_by_id)
         if (replaced_by['label'] != 'replacedBy') or (replaced_by['type'] != 'relationship'):
             raise ValueError('Oops! "replacedBy" was move. Please update ILX for "Replaced By" annotation')
         # ADD RELATIONSHIP CONNECTION FROM OLD TO NEW ENTITY
@@ -606,6 +606,60 @@ class InterLexClient(InterlexSession):
         )
         log.info(relationship)
         return self.deprecate_entity(ilx_id)
+
+    def merge_entity(self, from_ilx_id: str, to_ilx_id: str) -> dict:
+        entity = self.get_entity(to_ilx_id)
+        deprecated_entity = self.get_entity(from_ilx_id)
+        # 1 to 1 FIELDS
+        for field in ['definition', 'comment']:
+            if not entity[field]:
+                entity[field] = deprecated_entity[field]
+        # todo add old superclass to annotations
+        if not entity['superclasses'] and deprecated_entity['superclasses']:
+            entity['superclasses'] = [{'superclass_tid': deprecated_entity['superclasses'][0]['id']}]
+        # todo add old label as synonym if different
+        # SYNONYM
+        entity['synonyms'] = self._merge_records(
+            ref_records=entity.get('synonyms', []),
+            records=[{'literal':d['literal'], 'type':d['type']} 
+                      for d in deprecated_entity.get('synonyms', [])
+                      if d['literal'].lower().strip() != entity['label'].lower().strip()],
+            on=['literal'],
+            alt=['type'],
+        )        
+        # EXISTING ID
+        entity['existing_ids'] += [
+            {'iri': d['iri'], 'curie': d['curie'], 'preferred':d['preferred']}
+            for d in deprecated_entity.get('existing_ids', [])
+            if not d['iri'].startswith('http://uri.interlex.org/base/')
+        ]
+        # RELATIONSHIP
+        for relationship in deprecated_entity['relationships']:
+            if str(relationship['withdrawn']) != '0':
+                continue
+            if from_ilx_id == relationship['term1_ilx']:
+                entity1_ilx = to_ilx_id
+                entity2_ilx = relationship['term2_ilx']
+            else:
+                entity1_ilx = relationship['term1_ilx']
+                entity2_ilx = to_ilx_id
+            self.add_relationship(entity1_ilx, relationship['relationship_term_ilx'], entity2_ilx)
+        # # ANNOTATION
+        for annotation in deprecated_entity['annotations']:
+            if str(annotation['withdrawn']) != '0': 
+                continue
+            self.add_annotation(to_ilx_id, annotation['annotation_term_ilx'], annotation['value'])
+        # ReplaceBy relationship connection
+        self.replace_entity(from_ilx_id, to_ilx_id)
+        # POST
+        resp = self._post(f"term/edit/{entity['ilx']}", data=entity)
+        # BUG: server response is bad and needs to actually search again to get proper format
+        entity = resp.json()['data']
+        entity['superclass'] = entity.pop('superclasses')
+        if entity['superclass']:
+            entity['superclass'] = 'http://uri.interlex.org/base/' + entity['superclass'][0]['ilx']
+        # todo add a sanity check here
+        return entity
 
     def partial_update(self,
                        curie: str = None,

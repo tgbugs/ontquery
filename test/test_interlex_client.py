@@ -363,7 +363,6 @@ class Test(unittest.TestCase):
         }
         start_time = time.time()
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-        print(updated_entity_data)
         print("--- %s seconds ---" % (time.time() - start_time))
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
@@ -374,6 +373,67 @@ class Test(unittest.TestCase):
         assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
         # test if dupclicates weren't created
         assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+
+    def test_merge_entity(self):
+        random_label = 'test_' + id_generator(size=12)
+        ex1 = '0'+id_generator(size=12)
+        ex2 = '1'+id_generator(size=12)
+        # TODO: commented out key/vals can be used for services test later
+        old_entity = {
+            'label': random_label,
+            'type': 'pde',
+            'definition': 'Part of the central nervous system',
+            'comment': 'Cannot live without it',
+            'superclass': 'http://uri.interlex.org/base/'+TEST_SUPERCLASS_ID,  # ILX ID for Organ
+            'synonyms': ['Encephalon', {'literal': 'Cerebro', 'type': 'exact'}],
+            'existing_ids': [
+                {
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex1,
+                    'curie': 'BIRNLEX:'+ex1,
+                    'preferred': '0',
+                },
+            ]
+        }
+        new_entity = {
+            'label': random_label,
+            'type': 'pde',
+            'definition': 'Maybe part of the central nervous system',
+            'comment': 'Maybe I cannot live without it',
+            'synonyms': ['Encephalon2', {'literal': 'Cerebro2', 'type': 'exact'}],
+            'existing_ids': [
+                {
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex2,
+                    'curie': 'BIRNLEX:'+ex2,
+                },
+            ]
+        }
+        old_entity_ilx = ilx_cli.add_entity(**old_entity)['ilx']
+        new_entity_ilx = ilx_cli.add_entity(**new_entity)['ilx']
+        relationship_term_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'relationship',})
+        entity2_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship = {'entity1_ilx': old_entity_ilx,
+                        'relationship_ilx': relationship_term_resp['ilx'],  # "is part of" ILX ID
+                        'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
+        relationship_resp = ilx_cli.add_relationship(**relationship)
+        entity2_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship = {'entity1_ilx': new_entity_ilx,
+                        'relationship_ilx': relationship_term_resp['ilx'],  # "is part of" ILX ID
+                        'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
+        relationship_resp = ilx_cli.add_relationship(**relationship)
+        resp = ilx_cli.add_annotation(**{
+            'term_ilx_id': old_entity_ilx,  # brain ILX ID
+            'annotation_type_ilx_id': TEST_ANNOTATION_ID,  # spont firing ILX ID
+            'annotation_value': 'test_' + id_generator(),
+        })
+        resp = ilx_cli.add_annotation(**{
+            'term_ilx_id': new_entity_ilx,  # brain ILX ID
+            'annotation_type_ilx_id': TEST_ANNOTATION_ID,  # spont firing ILX ID
+            'annotation_value': 'test_' + id_generator(),
+        })
+        merge_entity = ilx_cli.merge_entity(from_ilx_id=old_entity_ilx, to_ilx_id=new_entity_ilx)
+        assert merge_entity['label'] == new_entity['label']
+        assert merge_entity['ilx'] == new_entity_ilx
+
 
     def test_pde(self):
         entity = {
@@ -484,16 +544,15 @@ class Test(unittest.TestCase):
         assert resp['withdrawn'] == '1'
 
     def test_relationship(self):
-        random_label = 'my_test' + id_generator()
-        entity1_resp = ilx_cli.add_entity(**{'label': random_label, 'type': 'term',})
-        relationship_resp = ilx_cli.add_entity(**{'label': random_label, 'type': 'term',})
-        entity2_resp = ilx_cli.add_entity(**{'label': random_label, 'type': 'term',})
+        # random_label = 'my_test' + id_generator()
+        entity1_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'relationship',})
+        entity2_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
         relationship = {'entity1_ilx': entity1_resp['ilx'],
                         'relationship_ilx': relationship_resp['ilx'],  # "is part of" ILX ID
                         'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
         # Add relationship row
         relationship_resp = ilx_cli.add_relationship(**relationship)
-        print(relationship_resp)
         assert relationship_resp['term1_ilx'] == relationship['entity1_ilx']
         assert relationship_resp['relationship_term_ilx'] == relationship['relationship_ilx']
         assert relationship_resp['term2_ilx'] == relationship['entity2_ilx']
