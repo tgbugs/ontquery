@@ -775,6 +775,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
         """ Retrieve additional metadata for the current term. If None is provided
             as the first argument the query runs against all predicates defined for
             each service. """
+        # FIXME the difference in return type between single_out and multi out is a nightmare
         asTerm = asTerm or asPreferred
         single_out = not predicates and predicate is not None
         if predicate is None:
