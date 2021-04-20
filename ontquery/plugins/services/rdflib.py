@@ -24,6 +24,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                                            rdflib.URIRef(self.OntId('oboInOwl:hasSynonym')),
                                            rdflib.URIRef(self.OntId('oboInOwl:hasExactSynonym')),
                                            rdflib.URIRef(self.OntId('oboInOwl:hasNarroSynonym')),
+                                           rdflib.URIRef(self.OntId('ilx.anno.hasExactSynonym:')),
+                                           rdflib.URIRef(self.OntId('ilx.anno.hasNarrowSynonym:')),
                                   ),
                                   'definition': (
                                       rdflib.URIRef(self.OntId('definition:')),
@@ -37,10 +39,16 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                            #rdflib.OWL.disjointWith:'disjointWith',
                            #NIFRID.definingCitation:'definingCitation',
 
+                           # doesn't quite work since we don't have the annotation model sorted right now
+                           #rdflib.URIRef(self.OntId('ilx.anno.hasBroadSynonym:')): 'synonyms',
+                           #rdflib.URIRef(self.OntId('ilx.anno.hasRelatedSynonym:')): 'synonyms',
+                           #rdflib.URIRef(self.OntId('oboInOwl:hasBroadSynonym')): 'synonyms',
+                           #rdflib.URIRef(self.OntId('oboInOwl:hasRelatedSynonym')): 'synonyms',
+
                            rdflib.URIRef(self.OntId('NIFRID:synonym')): 'synonyms',
                            rdflib.URIRef(self.OntId('oboInOwl:hasSynonym')): 'synonyms',
                            rdflib.URIRef(self.OntId('oboInOwl:hasExactSynonym')): 'synonyms',
-                           rdflib.URIRef(self.OntId('oboInOwl:hasNarroSynonym')): 'synonyms',
+                           rdflib.URIRef(self.OntId('oboInOwl:hasNarrowSynonym')): 'synonyms',
 
                            rdflib.URIRef(self.OntId('definition:')): 'definition',
                            rdflib.URIRef(self.OntId('skos:definition')): 'definition',
@@ -81,6 +89,12 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             else:
                 out['predicates'][c] += o,
 
+        predicates = tuple(rdflib.URIRef(p.iri)
+                           # FIXME tricky here because we don't actually know the type
+                           # of the predicate, it is a good bet that it will be an OntId
+                           # of some extraction, but beyond that? who knows
+                           if isinstance(p, self.OntId) else
+                           p for p in predicates)
         out = {'predicates':{}}
         identifier = self.OntId(curie=curie, iri=iri)
         gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
@@ -214,6 +228,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 if object is None:
                     continue
 
+                # note that the predicate key is skipped because it is usually
+                # only meaningful for querying via by_ident
                 if keyword in self.predicate_mapping:
                     predicates = self.predicate_mapping[keyword]
                     for predicate in predicates:
