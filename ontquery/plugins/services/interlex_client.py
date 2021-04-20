@@ -96,7 +96,7 @@ class InterLexClient(InterlexSession):
         InterlexSession.__init__(self, key=key, host=base_url)
 
     @staticmethod
-    def get_ilx_fragment(ilx_id: str, fragment:bool = False) -> str:
+    def get_ilx_fragment(ilx_id: str, fragment: bool = False) -> str:
         """ Convert InterLex ID or IRI to its fragment alternative (ie ilx_#)
 
             :param str ilx_id: InterLex ID or IRI.
@@ -377,9 +377,10 @@ class InterLexClient(InterlexSession):
                     'OEN',
                     'MESH',
                     'NCIM',
-                    'ILX',
-                    'PDE',
-                    'CDE',
+                    'ILX.SET',
+                    'ILX.PDE',
+                    'ILX.CDE'
+                    # 'ILX',
                 ]
             # will always be larger than last index :)
             default_rank = len(ranking)
@@ -607,7 +608,7 @@ class InterLexClient(InterlexSession):
         log.info(relationship)
         return self.deprecate_entity(ilx_id)
 
-    def merge_entity(self, from_ilx_id: str, to_ilx_id: str) -> dict:
+    def merge_and_replace_entity(self, from_ilx_id: str, to_ilx_id: str) -> dict:
         entity = self.get_entity(to_ilx_id)
         deprecated_entity = self.get_entity(from_ilx_id)
         # 1 to 1 FIELDS
@@ -760,6 +761,7 @@ class InterLexClient(InterlexSession):
         if add_synonyms or delete_synonyms or add_existing_ids or delete_existing_ids or superclass:
             existing_entity = self.get_entity(ilx_id)
             existing_entity.pop('curie')
+            existing_entity.pop('annotations')
             if not existing_entity['id']:
                 raise self.EntityDoesNotExistError(f'ilx_id provided {ilx_id} does not exist')
         else:
