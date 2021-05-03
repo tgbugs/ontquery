@@ -379,7 +379,8 @@ class InterLexClient(InterlexSession):
                     'NCIM',
                     'ILX.SET',
                     'ILX.PDE',
-                    'ILX.CDE'
+                    'ILX.CDE',
+                    'npokb',
                     # 'ILX',
                 ]
             # will always be larger than last index :)
@@ -813,6 +814,7 @@ class InterLexClient(InterlexSession):
                 records=self._process_existing_ids(add_existing_ids),
                 on=['curie', 'iri'],
             )
+        print(existing_entity)
         if delete_existing_ids:
             existing_entity['existing_ids'] = self._merge_records(
                 ref_records=existing_entity.get('existing_ids', []),
