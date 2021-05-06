@@ -333,10 +333,23 @@ class Test(unittest.TestCase):
         assert partially_updated_entity['definition'] == 'original'
 
     def test_update_entity(self):
+        ex_id=rando_str()
+        npokb_id=rando_str()
         entity = {
             'label': rando_str(),
             'type': 'term',  # broken at the moment NEEDS PDE HARDCODED
             'synonyms': 'original_synonym',
+            'existing_ids': [
+                {
+                    'curie': f'fake:{ex_id}',
+                    'iri': f'http://fake.org/{ex_id}',
+                    'preferred': '1'
+                },
+                {
+                    'curie': f'npokb:{npokb_id}',
+                    'iri': f'http://npokb.org/{npokb_id}',
+                },
+            ]
         }
         start_time = time.time()
         added_entity_data = ilx_cli.add_entity(**entity.copy())
@@ -360,12 +373,17 @@ class Test(unittest.TestCase):
             'type': type,
             'comment': comment,
             'superclass': superclass,
-            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
+            'add_synonyms': ['test', synonym, 'test'],
             # should delete new synonym before it was even added to avoid endless synonyms
-            'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
+            'delete_synonyms': [{'literal': 'original_synonym', 'type': None}],
+            'delete_existing_ids': [{
+                'curie': f'fake:{ex_id}',
+                'iri': f'http://fake.org/{ex_id}',
+            }],
         }
         start_time = time.time()
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
+        print("==>", updated_entity_data['existing_ids'])
         print("--- %s seconds ---" % (time.time() - start_time))
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
@@ -373,9 +391,12 @@ class Test(unittest.TestCase):
         assert updated_entity_data['comment'] == comment
         assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
         # test if random synonym was added
-        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
+        assert synonym in [d['literal'] for d in updated_entity_data['synonyms']]
+        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+        assert 'original_synonym' not in [d['literal'] for d in updated_entity_data['synonyms']]
         # test if dupclicates weren't created
         assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+        assert 'npokb' == [ex['curie'].split(':')[0] for ex in updated_entity_data['existing_ids'] if int(ex['preferred']) == 1][0]
 
     def test_merge_and_replace_entity(self):
         random_label = 'test_' + id_generator(size=12)

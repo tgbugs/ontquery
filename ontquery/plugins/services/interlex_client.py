@@ -386,7 +386,7 @@ class InterLexClient(InterlexSession):
             # will always be larger than last index :)
             default_rank = len(ranking)
             # prefix to rank mapping
-            ranking = {prefix.upper(): ranking.index(prefix) for prefix in ranking}
+            ranking = {prefix: ranking.index(prefix) for prefix in ranking}
             # using ranking on curie prefix to get rank
             for ex_id in _existing_ids:
                 prefix = ex_id['curie'].split(':')[0]
@@ -795,6 +795,13 @@ class InterLexClient(InterlexSession):
             existing_entity.get('existing_ids', []), 
             on=['curie', 'iri'],
         )
+        # delete is before add to give a sudo update functionality
+        if delete_synonyms:
+            existing_entity['synonyms'] = self._remove_records(
+                ref_records=existing_entity.get('synonyms', []),
+                records=self._process_synonyms(delete_synonyms),
+                on=['literal', 'type'],
+            )
         if add_synonyms:
             existing_entity['synonyms'] = self._merge_records(
                 ref_records=existing_entity.get('synonyms', []),
@@ -802,20 +809,13 @@ class InterLexClient(InterlexSession):
                 on=['literal'],
                 alt=['type']
             )
-        if delete_synonyms:
-            existing_entity['synonyms'] = self._remove_records(
-                ref_records=existing_entity.get('synonyms', []),
-                records=self._process_synonyms(delete_synonyms),
-                on=['literal', 'type'],
-            )
-        if add_existing_ids:
-            existing_entity['existing_ids'] = self._merge_records(
+        if delete_existing_ids:
+            existing_entity['existing_ids'] = self._remove_records(
                 ref_records=existing_entity.get('existing_ids', []),
-                records=self._process_existing_ids(add_existing_ids),
+                records=self._process_existing_ids(delete_existing_ids),
                 on=['curie', 'iri'],
             )
-        print(existing_entity)
-        if delete_existing_ids:
+        if add_existing_ids:
             existing_entity['existing_ids'] = self._merge_records(
                 ref_records=existing_entity.get('existing_ids', []),
                 records=self._process_existing_ids(add_existing_ids),
