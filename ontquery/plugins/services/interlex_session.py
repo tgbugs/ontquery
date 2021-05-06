@@ -79,7 +79,7 @@ class InterlexSession:
         """
         if self.key is None:
             raise exc.NoApiKeyError
-
+        
         data = data or {}
         data.update({'key': self.key})
         data = json.dumps(data)  # Incase backend is missing this step.
@@ -97,18 +97,23 @@ class InterlexSession:
         """
         if resp.status_code == 401:
             raise self.IncorrectAPIKeyError(f'api_key given is incorrect for url {resp.url}')
-        # request crashed :: proper server response first 
-        if resp.json().get('errormsg'):
-            raise self.ServerMessage(resp.json()['errormsg'])
-        # request crashed :: server lacked response so we created our own
-        if resp.status_code >= 400:
-            msg = (f"\nERROR CODE: [{resp.status_code}]"
-                   f"\nSERVER RESPONSE: [{resp.txt}]"
-                   f"\nURL: {resp.url}")
-            raise self.ServerMessage(msg)  
-        if resp.status_code >= 500:
-            raise self.ServerMessage(f'\nERROR CODE: [{resp.status_code}]'
-                                     f'\nIf this keeps happening please email tsincomb@ucsd.edu to help fix the issue.')         
+        resp.text
+        # request crashed :: proper server response first
+        try:
+            if resp.json().get('errormsg'):
+                raise self.ServerMessage(resp.json()['errormsg'])
+            # request crashed :: server lacked response so we created our own
+            if resp.status_code >= 400:
+                msg = (f"\nERROR CODE: [{resp.status_code}]"
+                    f"\nSERVER RESPONSE: [{resp.txt}]"
+                    f"\nURL: {resp.url}")
+                raise self.ServerMessage(msg)
+            if resp.status_code >= 500:
+                raise self.ServerMessage(f'\nERROR CODE: [{resp.status_code}]'
+                                        f'\nIf this keeps happening please email tsincomb@ucsd.edu to help fix the issue.')
+        except Exception as error:
+            print(error.args)
+            raise self.ServerMessage(resp.text)
 
     def _get(self, endpoint: str, params: dict = None) -> Response:
         """ Quick GET for InterLex.
@@ -160,8 +165,8 @@ class InterlexSession:
         >>>self.boost(ilx_cli.add_entity, kwargs_list)
         """
         # InterLex specific batch size range #
-        if batch_size > 100:
-            batch_size = 100  # trust me; this is MAX. Anymore freaks out the php workers.
+        if batch_size > 25:
+            batch_size = 25  # trust me; this is MAX. Anymore freaks out the php workers.
         if batch_size < 3:
             batch_size = 3  # Any less than 3 and async isn't worth it.
         # Worker #
@@ -169,6 +174,6 @@ class InterlexSession:
         # Builds futures dynamically #
         results = []
         for step in range(0, len(kwargs_list), batch_size):
-            print('Step ->', step)  # So you can restart from last step. 
+            print('Step ->', step)  # So you can restart from last step.
             results += Async(rate=rate)(deferred(gin)(kwargs) for kwargs in kwargs_list[step:step+batch_size])
         return results

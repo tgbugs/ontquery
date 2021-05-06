@@ -3,6 +3,7 @@ import json
 import os
 import random
 import string
+import time
 import unittest
 
 import pytest
@@ -131,6 +132,7 @@ class Test(unittest.TestCase):
 
     def test_add_annotation(self):
         random_label = 'test_' + id_generator(size=12)
+        ex1 = '0'+id_generator()
         entity = {
             'label': random_label,
             'type': 'annotation',  # broken at the moment NEEDS PDE HARDCODED
@@ -147,8 +149,8 @@ class Test(unittest.TestCase):
             ],
             'existing_ids': [
                 {
-                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_796',
-                    'curie': 'BIRNLEX:796',
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex1,
+                    'curie': 'BIRNLEX:'+ex1,
                 },
             ],
         }
@@ -182,12 +184,16 @@ class Test(unittest.TestCase):
             ilx_cli.add_annotation(**bad_anno)
 
     def test_add_entity(self):
+        """
+        pde type won't work on test3 since it was never fixed.
+        """
         random_label = 'test_' + id_generator(size=12)
-
+        ex1 = '0'+id_generator()
+        ex2 = '0'+id_generator()
         # TODO: commented out key/vals can be used for services test later
         entity = {
             'label': random_label,
-            'type': 'term',
+            'type': 'cde',
             'definition': 'Part of the central nervous system',
             'comment': 'Cannot live without it',
             # 'subThingOf': 'http://uri.interlex.org/base/ilx_0108124',  # ILX ID for Organ
@@ -195,13 +201,13 @@ class Test(unittest.TestCase):
             'synonyms': ['Encephalon', {'literal': 'Cerebro', 'type': 'exact'}],
             'existing_ids': [
                 {
-                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_796',
-                    'curie': 'BIRNLEX:796',
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex1,
+                    'curie': 'BIRNLEX:'+ex1,
                     'preferred': '0',
                 },
                 {
-                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_797',
-                    'curie': 'BIRNLEX:797',
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex2,
+                    'curie': 'BIRNLEX:'+ex2,
                 },
             ]
             # 'predicates': {
@@ -209,7 +215,6 @@ class Test(unittest.TestCase):
             # }
         }
         added_entity_data = ilx_cli.add_entity(**deepcopy(entity))
-
         assert added_entity_data['label'] == entity['label']
         assert added_entity_data['type'] == entity['type']
         assert added_entity_data['definition'] == entity['definition']
@@ -218,6 +223,10 @@ class Test(unittest.TestCase):
         assert added_entity_data['superclass'] == entity['superclass']
         assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
         assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]['literal']
+
+        # Duplicate existing ids check
+        # todo add test with new entity for existing id duplicate check
+        entity.pop('existing_ids')
 
         # ### ALREADY EXISTS TEST
         added_entity_data = ilx_cli.add_entity(**deepcopy(entity))
@@ -272,7 +281,6 @@ class Test(unittest.TestCase):
             'type': 'term',  # broken at the moment NEEDS PDE HARDCODED
         }
         added_entity_data = ilx_cli.add_entity(**entity.copy())
-
         assert added_entity_data['label'] == entity['label']
         assert added_entity_data['type'] == entity['type']
 
@@ -287,6 +295,7 @@ class Test(unittest.TestCase):
             'label': rando_str(),
             'type': 'term',
         }
+        ex1 = '0'+id_generator()
         added_entity_data = ilx_cli.add_entity(**deepcopy(entity))
         partially_updated_entity = ilx_cli.partial_update(
             curie=TEST_PREFIX.upper()+':'+added_entity_data['ilx'].split('_')[-1],
@@ -298,9 +307,9 @@ class Test(unittest.TestCase):
                 {'literal': 'new3', 'type': 'obo:hasExactSynonym'}
             ],
             existing_ids=[{
-                'iri': 'http://fake.org/123',
-                'curie': 'FAKE:123',
-                'preferred': '0'
+                'iri': 'http://fake.org/'+ex1,
+                'curie': 'FAKE:'+ex1,
+                'preferred': '1'
             }],
         )
         assert partially_updated_entity['definition'] == 'new'
@@ -320,21 +329,31 @@ class Test(unittest.TestCase):
                 {'literal': 'new2'},
                 {'literal': 'new3', 'type': 'obo:hasExactSynonym'}
             ],
-            existing_ids=[{
-                'iri': 'http://fake.org/123',
-                'curie': 'FAKE:123',
-                'preferred': '0'
-            }],
         )
         assert partially_updated_entity['definition'] == 'original'
 
     def test_update_entity(self):
+        ex_id=rando_str()
+        npokb_id=rando_str()
         entity = {
             'label': rando_str(),
             'type': 'term',  # broken at the moment NEEDS PDE HARDCODED
             'synonyms': 'original_synonym',
+            'existing_ids': [
+                {
+                    'curie': f'fake:{ex_id}',
+                    'iri': f'http://fake.org/{ex_id}',
+                    'preferred': '1'
+                },
+                {
+                    'curie': f'npokb:{npokb_id}',
+                    'iri': f'http://npokb.org/{npokb_id}',
+                },
+            ]
         }
+        start_time = time.time()
         added_entity_data = ilx_cli.add_entity(**entity.copy())
+        print("--- %s seconds ---" % (time.time() - start_time))
 
         # Check if None doesnt replace existing data
         # updated_entity_data = ilx_cli.update_entity(ilx_id=added_entity_data['ilx'])
@@ -354,21 +373,92 @@ class Test(unittest.TestCase):
             'type': type,
             'comment': comment,
             'superclass': superclass,
-            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
+            'add_synonyms': ['test', synonym, 'test'],
             # should delete new synonym before it was even added to avoid endless synonyms
-            'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
+            'delete_synonyms': [{'literal': 'original_synonym', 'type': None}],
+            'delete_existing_ids': [{
+                'curie': f'fake:{ex_id}',
+                'iri': f'http://fake.org/{ex_id}',
+            }],
         }
-
+        start_time = time.time()
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
+        print("==>", updated_entity_data['existing_ids'])
+        print("--- %s seconds ---" % (time.time() - start_time))
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
         assert updated_entity_data['type'] == type
         assert updated_entity_data['comment'] == comment
         assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
         # test if random synonym was added
-        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
+        assert synonym in [d['literal'] for d in updated_entity_data['synonyms']]
+        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+        assert 'original_synonym' not in [d['literal'] for d in updated_entity_data['synonyms']]
         # test if dupclicates weren't created
         assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
+        assert 'npokb' == [ex['curie'].split(':')[0] for ex in updated_entity_data['existing_ids'] if int(ex['preferred']) == 1][0]
+
+    def test_merge_and_replace_entity(self):
+        random_label = 'test_' + id_generator(size=12)
+        ex1 = '0'+id_generator(size=12)
+        ex2 = '1'+id_generator(size=12)
+        # TODO: commented out key/vals can be used for services test later
+        old_entity = {
+            'label': random_label,
+            'type': 'term',
+            'definition': 'Part of the central nervous system',
+            'comment': 'Cannot live without it',
+            'superclass': 'http://uri.interlex.org/base/'+TEST_SUPERCLASS_ID,  # ILX ID for Organ
+            'synonyms': ['Encephalon', {'literal': 'Cerebro', 'type': 'exact'}],
+            'existing_ids': [
+                {
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex1,
+                    'curie': 'BIRNLEX:'+ex1,
+                    'preferred': '0',
+                },
+            ]
+        }
+        new_entity = {
+            'label': random_label,
+            'type': 'term',
+            'definition': 'Maybe part of the central nervous system',
+            'comment': 'Maybe I cannot live without it',
+            'synonyms': ['Encephalon2', {'literal': 'Cerebro2', 'type': 'exact'}],
+            'existing_ids': [
+                {
+                    'iri': 'http://uri.neuinfo.org/nif/nifstd/birnlex_'+ex2,
+                    'curie': 'BIRNLEX:'+ex2,
+                    'preferred': '0',
+                },
+            ]
+        }
+        old_entity_ilx = ilx_cli.add_entity(**old_entity)['ilx']
+        new_entity_ilx = ilx_cli.add_entity(**new_entity)['ilx']
+        relationship_term_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'relationship',})
+        entity2_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship = {'entity1_ilx': old_entity_ilx,
+                        'relationship_ilx': relationship_term_resp['ilx'],  # "is part of" ILX ID
+                        'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
+        relationship_resp = ilx_cli.add_relationship(**relationship)
+        entity2_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship = {'entity1_ilx': new_entity_ilx,
+                        'relationship_ilx': relationship_term_resp['ilx'],  # "is part of" ILX ID
+                        'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
+        relationship_resp = ilx_cli.add_relationship(**relationship)
+        resp = ilx_cli.add_annotation(**{
+            'term_ilx_id': old_entity_ilx,  # brain ILX ID
+            'annotation_type_ilx_id': TEST_ANNOTATION_ID,  # spont firing ILX ID
+            'annotation_value': 'test_' + id_generator(),
+        })
+        resp = ilx_cli.add_annotation(**{
+            'term_ilx_id': new_entity_ilx,  # brain ILX ID
+            'annotation_type_ilx_id': TEST_ANNOTATION_ID,  # spont firing ILX ID
+            'annotation_value': 'test_' + id_generator(),
+        })
+        merged_entity = ilx_cli.merge_and_replace_entity(from_ilx_id=old_entity_ilx, to_ilx_id=new_entity_ilx)
+        assert merged_entity['label'] == new_entity['label']
+        assert merged_entity['ilx'] == new_entity_ilx
+
 
     def test_pde(self):
         entity = {
@@ -479,16 +569,20 @@ class Test(unittest.TestCase):
         assert resp['withdrawn'] == '1'
 
     def test_relationship(self):
-        random_label = 'my_test' + id_generator()
-        entity_resp = ilx_cli.add_entity(**{'label': random_label, 'type': 'term',})
-        relationship = {'entity1_ilx': entity_resp['ilx'],
-                        'relationship_ilx': TEST_RELATIONSHIP_ID,  # "is part of" ILX ID
-                        'entity2_ilx': TEST_TERM_ID}  # "1,2-Dibromo chemical" ILX ID
+        # random_label = 'my_test' + id_generator()
+        entity1_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'relationship',})
+        entity2_resp = ilx_cli.add_entity(**{'label': 'my_test'+id_generator(), 'type': 'term',})
+        relationship = {'entity1_ilx': entity1_resp['ilx'],
+                        'relationship_ilx': relationship_resp['ilx'],  # "is part of" ILX ID
+                        'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
         # Add relationship row
         relationship_resp = ilx_cli.add_relationship(**relationship)
-        assert relationship_resp['term1_id'] == relationship['entity1_ilx']
-        assert relationship_resp['relationship_tid'] == relationship['relationship_ilx']
-        assert relationship_resp['term2_id'] == relationship['entity2_ilx']
+        print(relationship_resp)
+        print(entity1_resp)
+        assert relationship_resp['term1_ilx'] == relationship['entity1_ilx']
+        assert relationship_resp['relationship_term_ilx'] == relationship['relationship_ilx']
+        assert relationship_resp['term2_ilx'] == relationship['entity2_ilx']
         # Bad term 1 ID
         bad_rela = relationship.copy()
         bad_rela['entity1_ilx'] = 'ilx_term1'
@@ -530,7 +624,6 @@ class Test(unittest.TestCase):
         added_entity_data = ilx_cli.get_entity(ilxremote_resp['curie'])
         added_annotation = ilx_cli.get_annotation_via_tid(added_entity_data['id'])[0]
         added_relationship = ilx_cli.get_relationship_via_tid(added_entity_data['id'])[0]
-
         assert ilxremote_resp['label'] == entity['label']
         # assert ilxremote_resp['type'] == entity['type']
         assert ilxremote_resp['definition'] == entity['definition']

@@ -96,7 +96,7 @@ class InterLexClient(InterlexSession):
         InterlexSession.__init__(self, key=key, host=base_url)
 
     @staticmethod
-    def get_ilx_fragment(ilx_id: str, fragment:bool = False) -> str:
+    def get_ilx_fragment(ilx_id: str, fragment: bool = False) -> str:
         """ Convert InterLex ID or IRI to its fragment alternative (ie ilx_#)
 
             :param str ilx_id: InterLex ID or IRI.
@@ -377,14 +377,16 @@ class InterLexClient(InterlexSession):
                     'OEN',
                     'MESH',
                     'NCIM',
-                    'ILX',
-                    'PDE',
-                    'CDE',
+                    'ILX.SET',
+                    'ILX.PDE',
+                    'ILX.CDE',
+                    'npokb',
+                    # 'ILX',
                 ]
             # will always be larger than last index :)
             default_rank = len(ranking)
             # prefix to rank mapping
-            ranking = {prefix.upper(): ranking.index(prefix) for prefix in ranking}
+            ranking = {prefix: ranking.index(prefix) for prefix in ranking}
             # using ranking on curie prefix to get rank
             for ex_id in _existing_ids:
                 prefix = ex_id['curie'].split(':')[0]
@@ -542,7 +544,7 @@ class InterLexClient(InterlexSession):
             'existing_ids': self._process_existing_ids(existing_ids),
             'force': force,
         }
-        entity['batch-elastic'] = 'true'
+        #entity['batch-elastic'] = 'true'
         resp = self._post('term/add', data=deepcopy(entity))
         entity = resp.json()['data']
         if resp.status_code == 200:
@@ -595,7 +597,7 @@ class InterLexClient(InterlexSession):
         :return: Deprecated Record of entity.
         """
         replaced_by_id = 'http://uri.interlex.org/base/ilx_0383242'  # replacedBy entity
-        replaced_by = self.get_entity(deprecated_id)
+        replaced_by = self.get_entity(replaced_by_id)
         if (replaced_by['label'] != 'replacedBy') or (replaced_by['type'] != 'relationship'):
             raise ValueError('Oops! "replacedBy" was move. Please update ILX for "Replaced By" annotation')
         # ADD RELATIONSHIP CONNECTION FROM OLD TO NEW ENTITY
@@ -606,6 +608,60 @@ class InterLexClient(InterlexSession):
         )
         log.info(relationship)
         return self.deprecate_entity(ilx_id)
+
+    def merge_and_replace_entity(self, from_ilx_id: str, to_ilx_id: str) -> dict:
+        entity = self.get_entity(to_ilx_id)
+        deprecated_entity = self.get_entity(from_ilx_id)
+        # 1 to 1 FIELDS
+        for field in ['definition', 'comment']:
+            if not entity[field]:
+                entity[field] = deprecated_entity[field]
+        # todo add old superclass to annotations
+        if not entity['superclasses'] and deprecated_entity['superclasses']:
+            entity['superclasses'] = [{'superclass_tid': deprecated_entity['superclasses'][0]['id']}]
+        # todo add old label as synonym if different
+        # SYNONYM
+        entity['synonyms'] = self._merge_records(
+            ref_records=entity.get('synonyms', []),
+            records=[{'literal':d['literal'], 'type':d['type']} 
+                      for d in deprecated_entity.get('synonyms', [])
+                      if d['literal'].lower().strip() != entity['label'].lower().strip()],
+            on=['literal'],
+            alt=['type'],
+        )        
+        # EXISTING ID
+        entity['existing_ids'] += [
+            {'iri': d['iri'], 'curie': d['curie'], 'preferred':d['preferred']}
+            for d in deprecated_entity.get('existing_ids', [])
+            if not d['iri'].startswith('http://uri.interlex.org/base/')
+        ]
+        # RELATIONSHIP
+        for relationship in deprecated_entity['relationships']:
+            if str(relationship['withdrawn']) != '0':
+                continue
+            if from_ilx_id == relationship['term1_ilx']:
+                entity1_ilx = to_ilx_id
+                entity2_ilx = relationship['term2_ilx']
+            else:
+                entity1_ilx = relationship['term1_ilx']
+                entity2_ilx = to_ilx_id
+            self.add_relationship(entity1_ilx, relationship['relationship_term_ilx'], entity2_ilx)
+        # # ANNOTATION
+        for annotation in deprecated_entity['annotations']:
+            if str(annotation['withdrawn']) != '0': 
+                continue
+            self.add_annotation(to_ilx_id, annotation['annotation_term_ilx'], annotation['value'])
+        # ReplaceBy relationship connection
+        self.replace_entity(from_ilx_id, to_ilx_id)
+        # POST
+        resp = self._post(f"term/edit/{entity['ilx']}", data=entity)
+        # BUG: server response is bad and needs to actually search again to get proper format
+        entity = resp.json()['data']
+        entity['superclass'] = entity.pop('superclasses')
+        if entity['superclass']:
+            entity['superclass'] = 'http://uri.interlex.org/base/' + entity['superclass'][0]['ilx']
+        # todo add a sanity check here
+        return entity
 
     def partial_update(self,
                        curie: str = None,
@@ -706,6 +762,7 @@ class InterLexClient(InterlexSession):
         if add_synonyms or delete_synonyms or add_existing_ids or delete_existing_ids or superclass:
             existing_entity = self.get_entity(ilx_id)
             existing_entity.pop('curie')
+            existing_entity.pop('annotations')
             if not existing_entity['id']:
                 raise self.EntityDoesNotExistError(f'ilx_id provided {ilx_id} does not exist')
         else:
@@ -738,6 +795,13 @@ class InterLexClient(InterlexSession):
             existing_entity.get('existing_ids', []), 
             on=['curie', 'iri'],
         )
+        # delete is before add to give a sudo update functionality
+        if delete_synonyms:
+            existing_entity['synonyms'] = self._remove_records(
+                ref_records=existing_entity.get('synonyms', []),
+                records=self._process_synonyms(delete_synonyms),
+                on=['literal', 'type'],
+            )
         if add_synonyms:
             existing_entity['synonyms'] = self._merge_records(
                 ref_records=existing_entity.get('synonyms', []),
@@ -745,11 +809,11 @@ class InterLexClient(InterlexSession):
                 on=['literal'],
                 alt=['type']
             )
-        if delete_synonyms:
-            existing_entity['synonyms'] = self._remove_records(
-                ref_records=existing_entity.get('synonyms', []),
-                records=self._process_synonyms(delete_synonyms),
-                on=['literal', 'type'],
+        if delete_existing_ids:
+            existing_entity['existing_ids'] = self._remove_records(
+                ref_records=existing_entity.get('existing_ids', []),
+                records=self._process_existing_ids(delete_existing_ids),
+                on=['curie', 'iri'],
             )
         if add_existing_ids:
             existing_entity['existing_ids'] = self._merge_records(
@@ -757,15 +821,9 @@ class InterLexClient(InterlexSession):
                 records=self._process_existing_ids(add_existing_ids),
                 on=['curie', 'iri'],
             )
-        if delete_existing_ids:
-            existing_entity['existing_ids'] = self._merge_records(
-                ref_records=existing_entity.get('existing_ids', []),
-                records=self._process_existing_ids(add_existing_ids),
-                on=['curie', 'iri'],
-            )
         if existing_entity['existing_ids']:
             existing_entity['existing_ids'] = self._process_existing_ids(existing_entity['existing_ids'])
-        existing_entity['batch-elastic'] = 'true'
+        # existing_entity['batch-elastic'] = 'true'
         resp = self._post(f"term/edit/{existing_entity['ilx']}", data=existing_entity)
         # BUG: server response is bad and needs to actually search again to get proper format
         entity = resp.json()['data']
@@ -896,13 +954,15 @@ class InterLexClient(InterlexSession):
         data = {'term1_id': entity1_ilx,
                 'relationship_tid': relationship_ilx,
                 'term2_id': entity2_ilx}
-        resp = self._post('term/add-relationship', data={**data, **{'batch-elastic': 'true'}})
+        # resp = self._post('term/add-relationship', data={**data, **{'batch-elastic': 'true'}})
+        resp = self._post('term/add-relationship', data=data)
+
         if resp.status_code == 200:
             log.warning(f"Relationship:"
                         f" [{data['term1_id']}] -> [{data['relationship_tid']}] -> [{data['term2_id']}]"
                         f" has already been added")
-        if real_server_resp:
-            data = resp.json()['data']
+        # if real_server_resp:
+        data = resp.json()['data']
         return data
 
     def withdraw_relationship(self,
@@ -946,7 +1006,8 @@ class InterLexClient(InterlexSession):
                         relationship_id = relationship['id']
                         break
         if not relationship_id:
-            log.warning('Annotation you wanted to delete does not exist')
+            log.warning('Relationship you wanted to delete does not exist')
             return {}
-        output = self._post(f'term/edit-relationship/{relationship_id}', data=data).json()['data']
+        output = self._post(f'term/edit-relationship/{relationship_id}', 
+                            data={**data, **{'batch-elastic': 'true'}}).json()['data']
         return output

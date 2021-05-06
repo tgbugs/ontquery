@@ -36,9 +36,12 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         self.apiEndpoint = apiEndpoint
         self.api_first = api_first
 
+        # TODO : TROY : should move this to a global change since this is fluid 
         self.user_curies = user_curies or {'ILX': 'http://uri.interlex.org/base/ilx_',
                                            #'CDE': 'http://uri.interlex.org/base/cde_', # currently used internall -> ILX.CDE
-                                           'ILX.CDE': 'http://uri.interlex.org/base/cde_',}
+                                           'ILX.CDE': 'http://uri.interlex.org/base/cde_',
+                                           'ILX.SET': 'http://uri.interlex.org/base/set_',
+                                           'ILX.PDE': 'http://uri.interlex.org/base/set_',}
         self.readonly = readonly
 
         self.Graph = rdflib.Graph
@@ -55,7 +58,15 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     @staticmethod
     def _fix_fragment(fragment):
-        return fragment.replace('ilx_', 'ILX:').replace('tmp_', 'TMP:').replace('cde_', 'ILX.CDE:')
+        # TODO : TROY : should move this to a global change since this is fluid 
+        return (
+            fragment
+            .replace('ilx_', 'ILX:')
+            .replace('tmp_', 'TMP:')
+            .replace('cde_', 'ILX.CDE:')
+            .replace('set_', 'ILX.SET:')
+            .replace('pde_', 'ILX.PDE:')
+        )
 
     def setup(self, **kwargs):
         oq.OntCuries({'TMP': 'http://uri.interlex.org/base/tmp_'})
@@ -458,6 +469,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         """ Triple of curied or full iris to add to graph.
             Subject should be an interlex """
 
+        # TODO : TROY : should move this to a global change since this is fluid 
         def filter_ontid(ontid):
             if ontid.startswith('http://'):
                 pass
@@ -465,6 +477,10 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 ontid = 'tmp_' + ontid.suffix
             elif ontid.prefix == 'ILX.CDE':
                 ontid = 'cde_' + ontid.suffix
+            elif ontid.prefix == 'ILX.SET':
+                ontid = 'set_' + ontid.suffix
+            elif ontid.prefix == 'ILX.PDE':
+                ontid = 'pde_' + ontid.suffix
             else:
                 ontid = 'ilx_' + ontid.suffix
             return ontid
