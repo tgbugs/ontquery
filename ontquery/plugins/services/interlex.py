@@ -36,7 +36,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         self.apiEndpoint = apiEndpoint
         self.api_first = api_first
 
-        self.user_curies = user_curies or {'ILX', 'http://uri.interlex.org/base/ilx_'}
+        self.user_curies = user_curies or {'ILX': 'http://uri.interlex.org/base/ilx_',
+                                           #'CDE': 'http://uri.interlex.org/base/cde_', # currently used internall -> ILX.CDE
+                                           'ILX.CDE': 'http://uri.interlex.org/base/cde_',}
         self.readonly = readonly
 
         self.Graph = rdflib.Graph
@@ -51,8 +53,12 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         # FIXME can't do this at the moment because interlex itself calls this --- WHOOPS
         super().__init__(*args, **kwargs)
 
+    @staticmethod
+    def _fix_fragment(fragment):
+        return fragment.replace('ilx_', 'ILX:').replace('tmp_', 'TMP:').replace('cde_', 'ILX.CDE:')
+
     def setup(self, **kwargs):
-        oq.OntCuries({'ILXTEMP': 'http://uri.interlex.org/base/tmp_'})
+        oq.OntCuries({'TMP': 'http://uri.interlex.org/base/tmp_'})
 
         if self.apiEndpoint is not None:
             try:
@@ -169,7 +175,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return self.QueryResult(
             query_args=kwargs,
             iri='http://uri.interlex.org/base/' + resp['ilx'],
-            curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+            curie=self._fix_fragment(resp['ilx']),
             label=resp['label'],
             labels=tuple(),
             # abbrev=None, # TODO
@@ -194,7 +200,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return self.QueryResult(
             query_args=kwargs,
             iri='http://uri.interlex.org/base/' + resp['ilx'],
-            curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+            curie=self._fix_fragment(resp['ilx']),
             label=resp['label'],
             labels=tuple(),
             # abbrev=None, # TODO
@@ -281,7 +287,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return self.QueryResult(
             query_args={},
             iri='http://uri.interlex.org/base/' + resp['ilx'],
-            curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+            curie=self._fix_fragment(resp['ilx']),
             label=resp['label'],
             labels=tuple(),
             # abbrev=None,  # TODO
@@ -400,7 +406,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         result = self.QueryResult(
              query_args={},
              iri='http://uri.interlex.org/base/' + resp['ilx'],
-             curie=resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:'),
+             curie=self._fix_fragment(resp['ilx']),
              label=resp['label'],
              labels=tuple(),
              # abbrev=None,  # TODO
@@ -457,6 +463,8 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 pass
             elif ontid.prefix == 'ILXTEMP':
                 ontid = 'tmp_' + ontid.suffix
+            elif ontid.prefix == 'ILX.CDE':
+                ontid = 'cde_' + ontid.suffix
             else:
                 ontid = 'ilx_' + ontid.suffix
             return ontid
@@ -562,7 +570,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         elif term:
             resp: list = self.ilx_cli.query_elastic(term=term, size=limit)
         else:
-            return
+            pass  # querying on iri or curie through ilx cli is ok
 
         if not resp:
             return
@@ -580,7 +588,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 _iri = iri
 
             if curie is None:
-                _curie = resp['ilx'].replace('ilx_', 'ILX:').replace('tmp_', 'TMP:')
+                _curie = self._fix_fragment(resp['ilx'])
             else:
                 _curie = curie
 
@@ -635,12 +643,19 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             p = 'rdfs:subClassOf'
         elif resp['type'] in ('annotation', 'relationship'):
             p = 'rdfs:subPropertyOf'
+        elif resp['type'] in ('cde', 'fde', 'pde', 'TermSet'):
+            # none of these have a meaningful subClassOf relation,
+            # though it may be present in the interface
+            # XXX TODO for cde the modelling is incorrect, but the
+            # edge represents what is probably a partOf relationship
+            # or something similar
+            p = 'meaningless-superclass'
         else:
             raise NotImplementedError(f'how to sub thing of {resp["type"]}?')
 
         out = {p:tuple()}
         for blob_id in resp['superclasses']:
-            i = self.OntId(blob_id['ilx'].replace('ilx_', 'ILX:'))
+            i = self.OntId(self._fix_fragment(blob_id['ilx']))
             out[p] += i,
 
         return out
