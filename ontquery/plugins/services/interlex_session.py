@@ -13,6 +13,9 @@ from pyontutils.utils import Async, deferred
 from ontquery import exceptions as exc
 
 
+__maintainer_email__ = 'tsincomb@ucsd.edu'
+
+
 class InterlexSession:
     """ Boiler plate for SciCrunch server responses. """
 
@@ -79,7 +82,7 @@ class InterlexSession:
         """
         if self.key is None:
             raise exc.NoApiKeyError
-        
+
         data = data or {}
         data.update({'key': self.key})
         data = json.dumps(data)  # Incase backend is missing this step.
@@ -96,7 +99,8 @@ class InterlexSession:
         :param resp: Server response from request.
         """
         if resp.status_code == 401:
-            raise self.IncorrectAPIKeyError(f'api_key given is incorrect for url {resp.url}')
+            raise self.IncorrectAPIKeyError(
+                f'api_key given is incorrect for url {resp.url}')
         resp.text
         # request crashed :: proper server response first
         try:
@@ -104,16 +108,18 @@ class InterlexSession:
                 raise self.ServerMessage(resp.json()['errormsg'])
             # request crashed :: server lacked response so we created our own
             if resp.status_code >= 400:
-                msg = (f"\nERROR CODE: [{resp.status_code}]"
+                msg = (
+                    f"\nERROR CODE: [{resp.status_code}]"
                     f"\nSERVER RESPONSE: [{resp.txt}]"
                     f"\nURL: {resp.url}")
                 raise self.ServerMessage(msg)
             if resp.status_code >= 500:
-                raise self.ServerMessage(f'\nERROR CODE: [{resp.status_code}]'
-                                        f'\nIf this keeps happening please email tsincomb@ucsd.edu to help fix the issue.')
+                raise self.ServerMessage(
+                    f'\nERROR CODE: [{resp.status_code}]'
+                    f'\nIf this keeps happening please email '
+                    f'{__maintainer_email__} to help fix the issue.')
         except Exception as error:
-            print(error.args)
-            raise self.ServerMessage(resp.text)
+            raise self.ServerMessage(resp.text) from error
 
     def _get(self, endpoint: str, params: dict = None) -> Response:
         """ Quick GET for InterLex.

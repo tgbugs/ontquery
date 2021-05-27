@@ -179,7 +179,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def get_entity(self, ilx_id: str, **kwargs) -> dict:
         try:
             resp = self.ilx_cli.get_entity(ilx_id)
-        except requests.exceptions.HTTPError as e:
+        except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
             log.debug(e)
             return
 
@@ -204,7 +204,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def get_entity_from_curie(self, curie: str, **kwargs) -> dict:
         try:
             resp = self.ilx_cli.get_entity_from_curie(curie)
-        except requests.exceptions.HTTPError as e:
+        except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
             log.debug(e)
             return
 
@@ -568,23 +568,33 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if resp is None and curie:
             try:
                 resp: dict = self.ilx_cli.get_entity_from_curie(curie)
-            except requests.exceptions.HTTPError as e:
+            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+                log.debug(e)
                 resp = None
 
             if resp is None or resp['id'] is None:  # FIXME should error before we have to check this
                 # sometimes a remote curie does not match ours
                 try:
                     resp: dict = self.ilx_cli.get_entity_from_curie(self.OntId(iri).curie)
-                except requests.exceptions.HTTPError as e:
+                except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+                    log.debug(e)
                     return
 
                 if resp['id'] is None:
                     return
 
         elif label:
-            resp: list = self.ilx_cli.query_elastic(label=label, size=limit)
+            try:
+                resp: list = self.ilx_cli.query_elastic(label=label, size=limit)
+            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+                log.debug(e)
+                resp = None
         elif term:
-            resp: list = self.ilx_cli.query_elastic(term=term, size=limit)
+            try:
+                resp: list = self.ilx_cli.query_elastic(term=term, size=limit)
+            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+                log.debug(e)
+                resp = None
         else:
             pass  # querying on iri or curie through ilx cli is ok
 
