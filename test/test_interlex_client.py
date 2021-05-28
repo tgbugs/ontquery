@@ -193,7 +193,7 @@ class Test(unittest.TestCase):
         # TODO: commented out key/vals can be used for services test later
         entity = {
             'label': random_label,
-            'type': 'cde',
+            'type': 'term',
             'definition': 'Part of the central nervous system',
             'comment': 'Cannot live without it',
             # 'subThingOf': 'http://uri.interlex.org/base/ilx_0108124',  # ILX ID for Organ
@@ -351,9 +351,9 @@ class Test(unittest.TestCase):
                 },
             ]
         }
-        start_time = time.time()
+        # start_time = time.time()
         added_entity_data = ilx_cli.add_entity(**entity.copy())
-        print("--- %s seconds ---" % (time.time() - start_time))
+        # print("--- %s seconds ---" % (time.time() - start_time))
 
         # Check if None doesnt replace existing data
         # updated_entity_data = ilx_cli.update_entity(ilx_id=added_entity_data['ilx'])
@@ -381,10 +381,10 @@ class Test(unittest.TestCase):
                 'iri': f'http://fake.org/{ex_id}',
             }],
         }
-        start_time = time.time()
+        # start_time = time.time()
         updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-        print("==>", updated_entity_data['existing_ids'])
-        print("--- %s seconds ---" % (time.time() - start_time))
+        # print("==>", updated_entity_data['existing_ids'])
+        # print("--- %s seconds ---" % (time.time() - start_time))
         assert updated_entity_data['label'] == label
         assert updated_entity_data['definition'] == definition
         assert updated_entity_data['type'] == type
@@ -458,87 +458,6 @@ class Test(unittest.TestCase):
         merged_entity = ilx_cli.merge_and_replace_entity(from_ilx_id=old_entity_ilx, to_ilx_id=new_entity_ilx)
         assert merged_entity['label'] == new_entity['label']
         assert merged_entity['ilx'] == new_entity_ilx
-
-
-    def test_pde(self):
-        entity = {
-            'label': rando_str(),
-            'type': 'pde',  # broken at the moment NEEDS PDE HARDCODED
-            'synonyms': 'original_synonym',
-        }
-        added_entity_data = ilx_cli.add_entity(**entity.copy())
-
-        label = 'troy_test_term'
-        superclass = 'ilx_0101434'
-        definition = rando_str()
-        comment = rando_str()
-        synonym = rando_str()
-
-        update_entity_data = {
-            'ilx_id': added_entity_data['ilx'],
-            'label': label,
-            'definition': definition,
-            'comment': comment,
-            'superclass': superclass,
-            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
-            # should delete new synonym before it was even added to avoid endless synonyms
-            'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
-        }
-
-        updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-
-        assert updated_entity_data['label'] == label
-        assert updated_entity_data['definition'] == definition
-        assert updated_entity_data['type'] == 'pde'
-        assert updated_entity_data['comment'] == comment
-        assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
-        # test if random synonym was added
-        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
-        # test if dupclicates weren't created
-        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
-        assert updated_entity_data['ilx'].startswith('pde_')
-        assert updated_entity_data['existing_ids'][0]['curie'].startswith('PDE:')
-        assert updated_entity_data['existing_ids'][0]['iri'].rsplit('/', 1)[-1].startswith('pde_')
-    
-    def test_cde(self):
-        entity = {
-            'label': rando_str(),
-            'type': 'cde',  # broken at the moment NEEDS PDE HARDCODED
-            'synonyms': 'original_synonym',
-        }
-        added_entity_data = ilx_cli.add_entity(**entity.copy())
-
-        label = 'troy_test_term'
-        superclass = 'ilx_0101434'
-        definition = rando_str()
-        comment = rando_str()
-        synonym = rando_str()
-
-        update_entity_data = {
-            'ilx_id': added_entity_data['ilx'],
-            'label': label,
-            'definition': definition,
-            'comment': comment,
-            'superclass': superclass,
-            'add_synonyms': ['original_synonym', 'test', synonym, 'test'],
-            # should delete new synonym before it was even added to avoid endless synonyms
-            'delete_synonyms': ['original_synonym', {'literal': synonym, 'type': None}],
-        }
-
-        updated_entity_data = ilx_cli.update_entity(**update_entity_data.copy())
-        
-        assert updated_entity_data['label'] == label
-        assert updated_entity_data['definition'] == definition
-        assert updated_entity_data['type'] == 'cde'
-        assert updated_entity_data['comment'] == comment
-        assert updated_entity_data['superclass'].rsplit('/', 1)[-1] == superclass.rsplit('/', 1)[-1]
-        # test if random synonym was added
-        assert synonym not in [d['literal'] for d in updated_entity_data['synonyms']]
-        # test if dupclicates weren't created
-        assert [d['literal'] for d in updated_entity_data['synonyms']].count('test') == 1
-        assert updated_entity_data['ilx'].startswith('cde_')
-        assert updated_entity_data['existing_ids'][0]['curie'].startswith('CDE:')
-        assert updated_entity_data['existing_ids'][0]['iri'].rsplit('/', 1)[-1].startswith('cde_')
     
     def test_empty_update(self):
         entity = {
@@ -578,8 +497,7 @@ class Test(unittest.TestCase):
                         'entity2_ilx': entity2_resp['ilx']}  # "1,2-Dibromo chemical" ILX ID
         # Add relationship row
         relationship_resp = ilx_cli.add_relationship(**relationship)
-        print(relationship_resp)
-        print(entity1_resp)
+
         assert relationship_resp['term1_ilx'] == relationship['entity1_ilx']
         assert relationship_resp['relationship_term_ilx'] == relationship['relationship_ilx']
         assert relationship_resp['term2_ilx'] == relationship['entity2_ilx']
