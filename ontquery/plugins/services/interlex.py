@@ -607,7 +607,12 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         # next version of the alt resolver up and running with
         # since iirc it can resolve curies
         for resp in resps:
-            _ilx = 'http://uri.interlex.org/base/' + resp['ilx']
+            _frag = resp['ilx']
+            if _frag is None:
+                log.warning(resp)
+                continue
+
+            _ilx = 'http://uri.interlex.org/base/' + _frag
             if iri is None:
                 _iri = _ilx
             else:
