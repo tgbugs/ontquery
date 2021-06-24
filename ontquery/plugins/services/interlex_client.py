@@ -29,8 +29,7 @@ class InterLexClient(InterlexSession):
         forgiving with it only hitting 3 minimum.
     """
 
-    class Error(Exception):
-        """Script could not complete."""
+    Error = InterlexSession.Error
 
     class SuperClassDoesNotExistError(Error):
         """The superclass listed does not exist!"""
