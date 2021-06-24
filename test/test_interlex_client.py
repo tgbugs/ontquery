@@ -258,19 +258,20 @@ class Test(unittest.TestCase):
         type_change_entity_ilx = added_entity_data['ilx']
 
         ### EXISTS WITH FORCE
-        force_entity = deepcopy(entity)
-        force_entity['type'] = 'TermSet'
-        force_entity['force'] = 'force'
-        added_entity_data = ilx_cli.add_entity(**deepcopy(force_entity))
-        assert added_entity_data['ilx'] != type_change_entity_ilx
-        assert added_entity_data['label'] == entity['label']
-        assert added_entity_data['type'] == force_entity['type']
-        assert added_entity_data['definition'] == entity['definition']
-        assert added_entity_data['comment'] == entity['comment']
-        #assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
-        assert added_entity_data['superclass'] == entity['superclass']
-        assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
-        assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]['literal']
+        if str(ilx_cli.user_info['role']) == '2':
+            force_entity = deepcopy(entity)
+            force_entity['type'] = 'TermSet'
+            force_entity['force'] = 'force'
+            added_entity_data = ilx_cli.add_entity(**deepcopy(force_entity))
+            assert added_entity_data['ilx'] != type_change_entity_ilx
+            assert added_entity_data['label'] == entity['label']
+            assert added_entity_data['type'] == force_entity['type']
+            assert added_entity_data['definition'] == entity['definition']
+            assert added_entity_data['comment'] == entity['comment']
+            #assert added_entity_data['superclasses'][0]['ilx'] == entity['subThingOf'].replace('http://uri.interlex.org/base/', '')
+            assert added_entity_data['superclass'] == entity['superclass']
+            assert added_entity_data['synonyms'][0]['literal'] == entity['synonyms'][0]
+            assert added_entity_data['synonyms'][1]['literal'] == entity['synonyms'][1]['literal']
 
     def test_add_entity_minimum(self):
         random_label = 'test_' + id_generator(size=12)
