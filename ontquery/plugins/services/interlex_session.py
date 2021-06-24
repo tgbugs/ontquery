@@ -73,7 +73,8 @@ class InterlexSession:
         # self.session.mount('http://', adapter)
         # self.session.mount('https://', adapter)
         # Validate API key & get User ID #
-        self.user_id = self._get('user/info').json()['data']['id']
+        self.user_info = self._get('user/info').json()['data']
+        self.user_id = self.user_info['id']
 
     def __prepare_data(self, data: dict) -> str:
         """ Makes sure request parameters are correct type & contain API key.
