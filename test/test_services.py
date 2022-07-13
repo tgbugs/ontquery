@@ -99,6 +99,12 @@ class _TestIlx(ServiceBase):
         assert t.curie == curie, t
 
     @skipif_not_dev
+    def test_wrong_label(self):
+        t = self.OntTerm('ILX:0110092')
+        l = t.label
+        assert 'II' in l
+
+    @skipif_not_dev
     def test_no_label(self):
         t = self.OntTerm('NLX:60355')
         try:

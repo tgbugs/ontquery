@@ -793,6 +793,11 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             for qr in qrs:
                 #print(tc.ltgreen(str(qr)))
                 # FIXME still last one wins behavior
+                if curie or iri:
+                    si, siai = str(qr.iri), str(ia_iri)
+                    if si != siai:
+                        continue
+
                 n = {k:v for k, v in qr.items()
                      if k not in toskip
                      and v is not None}

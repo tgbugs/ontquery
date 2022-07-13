@@ -148,6 +148,7 @@ class Id:
         # we leave out the explicit retrieve
         raise NotImplementedError
 
+
 class LocalId(Id):
     """ Local identifier without the context to globalize it
         It is usually ok to skip using this class and just
