@@ -678,7 +678,8 @@ class InterLexClient(InterlexSession):
         :param synonyms: Alternate names of the label.
         :param existing_ids: Alternate/source ontological iri/curies. Can only be one preferred ID.
         """
-        if any([True if curie.lower().startswith(prefix) else False for prefix in ['tmp_', 'tmp:', 'ilx_', 'ilx:']]):
+        if any([True if curie.lower().startswith(prefix) else False for prefix in
+                ['tmp_', 'tmp:', 'ilx_', 'ilx:']]):
             entity = self.get_entity(curie)
         else:
             entity = self.get_entity_from_curie(curie)

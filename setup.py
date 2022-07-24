@@ -49,7 +49,7 @@ if RELEASE:
 
 services_require = ['orthauth>=0.0.14',
                     'pyontutils>=0.1.27',
-                    'rdflib>=5.0.0',
+                    'rdflib>=6.0.0',
                     'requests',]
 tests_require = ['pytest'] + services_require
 try:
@@ -70,6 +70,10 @@ try:
             'Programming Language :: Python :: 3.7',
             'Programming Language :: Python :: 3.8',
             'Programming Language :: Python :: 3.9',
+            'Programming Language :: Python :: 3.10',
+            'Programming Language :: Python :: 3.11',
+            'Programming Language :: Python :: Implementation :: CPython',
+            'Programming Language :: Python :: Implementation :: PyPy',
             'Operating System :: POSIX :: Linux',
             'Operating System :: MacOS :: MacOS X',
             'Operating System :: Microsoft :: Windows',
