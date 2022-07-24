@@ -61,7 +61,9 @@ class InterlexSession:
         # Setup Retries #
         self.session = requests.Session()
         self.session.auth = auth  # legacy; InterLex no longer needs this.
-        self.session.headers.update({'Content-type': 'application/json'})
+        self.session.headers.update({
+            'Content-Type': 'application/json', # retained in the event that the server is dumb
+            'Accept': 'application/json',})
         # retry = Retry(
         #     total=retries,
         #     read=retries,

@@ -723,7 +723,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             return o
 
         if curie:
-            if curie.startswith('ILX:') and iri:
+            if iri and 'uri.interlex.org' in iri:
                 # FIXME hack, can replace once the new resolver is up
                 url = iri.replace('uri.interlex.org', self.host_port)
             else:

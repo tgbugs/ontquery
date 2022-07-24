@@ -415,7 +415,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         if prefix in namespaces:
             return namespaces[prefix] + suffix
         else:
-            raise cls.UnknownPrefixError(f'Unknown curie prefix: {prefix} for {prefix}:{suffix}')
+            raise cls.UnknownPrefixError(
+                f'Unknown curie prefix: {prefix} for {prefix}:{suffix}')
 
     @property
     def quoted(self):
