@@ -212,11 +212,14 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         #kwargs['search'] = search
         #supported = sorted(self.QueryResult(kwargs))
         if all_classes:
-            for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
-                if isinstance(iri, rdflib.URIRef):  # no BNodes
-                    yield from self.by_ident(iri, None, kwargs,  # actually query is done here
-                                             predicates=predicates,
-                                             depth=depth - 1)
+            for type in (rdflib.OWL.Class,
+                         rdflib.OWL.AnnotationProperty,
+                         rdflib.OWL.ObjectProperty):
+                for iri in self.graph[:rdflib.RDF.type:type]:
+                    if isinstance(iri, rdflib.URIRef):  # no BNodes
+                        yield from self.by_ident(iri, None, kwargs,  # actually query is done here
+                                                 predicates=predicates,
+                                                 depth=depth - 1)
         elif iri is not None or curie is not None:
             yield from self.by_ident(iri, curie, kwargs,
                                      predicates=predicates,
