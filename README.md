@@ -13,7 +13,7 @@ other applications that need to reduce their dependnecies. For this use case pac
 as a dependency in their package requirements without any special changes e.g. `ontquery>=0.0.6`.  
 
 The second use case enables remote services via a plugin infrastructure.
-To install this version you should install or require using the [pip extras syntax](https://packaging.python.org/tutorials/installing-packages/#installing-setuptools-extras) e.g. `pip install ontquery[services]>=0.6.0`.
+To install this version you should install or require using the [pip extras syntax](https://packaging.python.org/tutorials/installing-packages/#installing-setuptools-extras) e.g. `pip install "ontquery[services]"`.
 
 # SciCrunch api key
 If you don't have your own SciGraph instance you will need a SciCunch API key in order to run the demos (e.g. `python __init__.py`).
