@@ -27,15 +27,16 @@ See https://github.com/tgbugs/ontquery/blob/db8cad7463704bce9010651c3744452aa537
 
 # SciGraphRemote Usage
 ```python
-from ontquery import OntQuery, SciGraphRemote, OntTerm, OntCuries
-from ontquery.plugins.namespaces import CURIE_MAP
+from ontquery import OntQuery, OntTerm, OntCuries
+from ontquery.plugins.namespaces.nifstd import CURIE_MAP
+from ontquery.plugins.services.scigraph import SciGraphRemote
 
 curies = OntCuries(CURIE_MAP)
 query = OntQuery(SciGraphRemote())
 OntTerm.query = query
 ```
 ```python
-query('mouse')
+list(query('mouse'))
 ```
 3 potential matches are shown:
 ```python

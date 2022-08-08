@@ -24,6 +24,7 @@ if RELEASE:
     sys.argv.remove('--release')
 
     namespaces = Path('ontquery/plugins/namespaces/nifstd.py')
+    namespaces__init__ = Path('ontquery/plugins/namespaces/__init__.py')
     scigraph_client = 'ontquery/plugins/services/scigraph_client.py'
 
     # namespaces
@@ -38,6 +39,9 @@ if RELEASE:
 
         with open(namespaces, 'wt') as f:
             f.writelines(lines)
+
+        with open(namespaces__init__, 'wt') as f:
+            f.write('')
 
     # scigraph_client
     if not Path(scigraph_client).exists():
