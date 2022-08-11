@@ -806,7 +806,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            return self.QueryResult(kwargs, **qrd)
+            return self.QueryResult(kwargs, **qrd)  # XXX if this has no graph something went wrong
 
     def _dev_query_rest(self):
         if True:

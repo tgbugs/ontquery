@@ -112,8 +112,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 o = o.toPython()
 
             #elif p == rdflib.RDF.type and o == owl.Class:
-            elif p == rdflib.RDF.type and o in (owl.Class, owl.ObjectProperty,
-                                                owl.DatatypeProperty, owl.AnnotationProperty):
+            elif p == rdflib.RDF.type:  # XXX do not filter on type at this point
                 if 'type' not in out:
                     out['type'] = o  # FIXME preferred type ...
                 else:
@@ -212,14 +211,11 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         #kwargs['search'] = search
         #supported = sorted(self.QueryResult(kwargs))
         if all_classes:
-            for type in (rdflib.OWL.Class,
-                         rdflib.OWL.AnnotationProperty,
-                         rdflib.OWL.ObjectProperty):
-                for iri in self.graph[:rdflib.RDF.type:type]:
-                    if isinstance(iri, rdflib.URIRef):  # no BNodes
-                        yield from self.by_ident(iri, None, kwargs,  # actually query is done here
-                                                 predicates=predicates,
-                                                 depth=depth - 1)
+            for iri, type in self.graph[:rdflib.RDF.type:]:
+                if isinstance(iri, rdflib.URIRef):  # no BNodes
+                    yield from self.by_ident(iri, None, kwargs,  # actually query is done here
+                                             predicates=predicates,
+                                             depth=depth - 1)
         elif iri is not None or curie is not None:
             yield from self.by_ident(iri, curie, kwargs,
                                      predicates=predicates,
