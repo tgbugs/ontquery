@@ -32,7 +32,7 @@ from ontquery.plugins.namespaces.nifstd import CURIE_MAP
 from ontquery.plugins.services.scigraph import SciGraphRemote
 
 curies = OntCuries(CURIE_MAP)
-query = OntQuery(SciGraphRemote())
+query = OntQuery(SciGraphRemote(), instrumented=OntTerm)
 OntTerm.query = query
 ```
 ```python
