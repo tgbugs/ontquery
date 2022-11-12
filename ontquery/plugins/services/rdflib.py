@@ -138,7 +138,14 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     # FIXME these OntIds also do not derive from rdflib... sigh
 
                 c = self.OntId(p).curie
-                append_preds(out, c, o)
+
+                if p == rdflib.RDFS.subClassOf:
+                    # include all subClassOf axioms in addition to any direct parent
+                    __gen = self.graph.transitive_objects(o.u, rdflib.RDFS.subClassOf)
+                    for parent in __gen:
+                        append_preds(out, c, self.OntId(parent))
+                else:
+                    append_preds(out, c, o)
 
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
