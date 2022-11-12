@@ -142,6 +142,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 if p == rdflib.RDFS.subClassOf:
                     # include all subClassOf axioms in addition to any direct parent
                     __gen = self.graph.transitive_objects(o.u, rdflib.RDFS.subClassOf)
+                    if c not in out['predicates']:
+                        # XXX ONCE AND FOR ALL avoid heterogenous types
+                        out['predicates'][c] = tuple()
+
                     for parent in __gen:
                         append_preds(out, c, self.OntId(parent))
                 else:
