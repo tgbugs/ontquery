@@ -141,12 +141,14 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
                 if p == rdflib.RDFS.subClassOf:
                     # include all subClassOf axioms in addition to any direct parent
+                    # FIXME this is bad because we cannot distinguish multiple direct
+                    # axioms from a chain of parents
                     __gen = self.graph.transitive_objects(o.u, rdflib.RDFS.subClassOf)
                     if c not in out['predicates']:
                         # XXX ONCE AND FOR ALL avoid heterogenous types
                         out['predicates'][c] = tuple()
 
-                    for parent in __gen:
+                    for parent, _ in zip(__gen, range(depth)):
                         append_preds(out, c, self.OntId(parent))
                 else:
                     append_preds(out, c, o)
@@ -160,7 +162,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     else:
                         out[c] += o,
                 else:
-                    out[c] = o
+                    if c == 'synonyms':  # FIXME generalize probably
+                        out[c] = o,
+                    else:
+                        out[c] = o
 
             if p in predicates and depth:
                 # FIXME traverse restrictions on transitive properties
