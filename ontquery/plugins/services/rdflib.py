@@ -143,7 +143,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     # include all subClassOf axioms in addition to any direct parent
                     # FIXME this is bad because we cannot distinguish multiple direct
                     # axioms from a chain of parents
-                    __gen = self.graph.transitive_objects(o.u, rdflib.RDFS.subClassOf)
+                    __gen = self.graph.transitive_objects(rdflib.URIRef(o.iri), rdflib.RDFS.subClassOf)
                     if c not in out['predicates']:
                         # XXX ONCE AND FOR ALL avoid heterogenous types
                         out['predicates'][c] = tuple()
