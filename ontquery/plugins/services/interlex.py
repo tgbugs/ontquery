@@ -516,7 +516,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return bool(self.port)
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
-              prefix=tuple(), exclude_prefix=tuple(), limit=10, **_):
+              prefix=tuple(), exclude_prefix=tuple(), limit=10, depth=1, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
             oiri = self.OntId(iri=iri)
@@ -530,13 +530,13 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             iri = self.OntId(curie).iri
 
         if self._is_dev_endpoint:
-            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth)
             if res is not None:
                 yield res
 
         elif hasattr(self, 'ilx_cli'):
             if not self.api_first and (iri or curie):
-                res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+                res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth)
                 if res is not None:
                     yield res
                     return
@@ -553,7 +553,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             yield from res
 
         else:  # can only get by iri directly and it must be an ilx id
-            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth)
             if res is not None:
                 yield res
 
@@ -691,7 +691,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         return out
 
-    def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
+    def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
             with requests.Session() as s:
                 s.headers.update(headers)
@@ -772,7 +772,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         if True:
             #qrs = rdll.query(label=label, predicates=predicates, all_classes=True)  # label=label issue?
-            qrs = rdll.query(predicates=predicates, all_classes=True)
+            qrs = rdll.query(predicates=predicates, all_classes=True, depth=depth)
             qrd = {'predicates': {}}  # FIXME iri can be none?
             toskip = 'predicates',
             if curie is None and iri is None:

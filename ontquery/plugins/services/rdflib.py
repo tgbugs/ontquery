@@ -80,7 +80,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def predicates(self):
         yield from sorted(set(self.graph.predicates()))
 
-    def by_ident(self, iri, curie, kwargs, predicates=tuple(), depth=1):
+    def by_ident(self, iri, curie, kwargs, predicates=tuple(), depth=1, _pseen=tuple()):
         def append_preds(out, c, o):
             if c not in out['predicates']:
                 out['predicates'][c] = o  # curie to be consistent with OntTerm behavior
@@ -88,6 +88,26 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 out['predicates'][c] = out['predicates'][c], o
             else:
                 out['predicates'][c] += o,
+
+        def mergepreds(this_preds, prev_preds):
+            if not prev_preds:
+                return this_preds
+            else:
+                npreds = {**this_preds}
+                for k, v in prev_preds.items():
+                    if k in npreds:
+                        if isinstance(v, tuple):
+                            if isinstance(npreds[k], tuple):
+                                npreds[k] = v + npreds[k]
+                            else:
+                                npreds[k] = v + (npreds[k],)
+                        else:
+                            if isinstance(npreds[k], tuple):
+                                npreds[k] = (v,) + npreds[k]
+                            else:
+                                npreds[k] = v, npreds[k]
+
+                return npreds
 
         predicates = tuple(rdflib.URIRef(p.iri)
                            # FIXME tricky here because we don't actually know the type
@@ -97,12 +117,13 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                            p for p in predicates)
         out = {'predicates':{}}
         identifier = self.OntId(curie=curie, iri=iri)
-        gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
+        gen = self.graph.predicate_objects(rdflib.URIRef(identifier.iri))
         out['curie'] = identifier.curie
         out['iri'] = identifier.iri
         o = None
         owlClass = None
         owl = rdflib.OWL
+
         for p, o in gen:
             if isinstance(o, rdflib.BNode):
                 continue
@@ -130,6 +151,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
             if p == owl.deprecated and o:
                 out['deprecated'] = True
 
+            _o_already_done = False  # FIXME not quite right, also _out
             if pn is None:
                 # TODO translation and support for query result structure
                 # FIXME lists instead of klobbering results with mulitple predicates
@@ -138,18 +160,8 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     # FIXME these OntIds also do not derive from rdflib... sigh
 
                 c = self.OntId(p).curie
-
-                if p == rdflib.RDFS.subClassOf:
-                    # include all subClassOf axioms in addition to any direct parent
-                    # FIXME this is bad because we cannot distinguish multiple direct
-                    # axioms from a chain of parents
-                    __gen = self.graph.transitive_objects(rdflib.URIRef(o.iri), rdflib.RDFS.subClassOf)
-                    if c not in out['predicates']:
-                        # XXX ONCE AND FOR ALL avoid heterogenous types
-                        out['predicates'][c] = tuple()
-
-                    for parent, _ in zip(__gen, range(depth)):
-                        append_preds(out, c, self.OntId(parent))
+                if c in _pseen and o in _pseen[c]:
+                    _o_already_done = True
                 else:
                     append_preds(out, c, o)
 
@@ -167,11 +179,11 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     else:
                         out[c] = o
 
-            if p in predicates and depth:
+            if p in predicates and depth > 0 and not _o_already_done:
                 # FIXME traverse restrictions on transitive properties
                 # to match scigraph behavior
                 try:
-                    spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1))
+                    spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1, _pseen=mergepreds(out['predicates'], _pseen)))
                     log.debug(f'{spout}')
                     if c in spout.predicates:
                         _objs = spout.predicates[c]

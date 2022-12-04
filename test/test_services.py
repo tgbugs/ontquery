@@ -143,6 +143,15 @@ class _TestIlx(ServiceBase):
         qr = self.remote.add_pde(f'test pde {uuid4()}')
         print(qr)
 
+    @skipif_no_api_key
+    def test_multi_sco(self):
+        term = self.OntTerm('ILX:0793561')
+        sco1 = term('rdfs:subClassOf', depth=1)
+        scon = term('rdfs:subClassOf', depth=99)
+        assert len(sco1) == 1
+        assert len(sco1) < len(scon)  # that we get parents
+        assert len(set(scon)) == len(scon)  # that we get them only once
+
 
 if 'CI' not in os.environ:  # production uri resolver doesn't have all the required features yet
     beta = 'https://test3.scicrunch.org/api/1/'
@@ -177,6 +186,20 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
 
 class TestRdflib(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('rdflib')(test_graph)
+
+    def test_depth(self):
+        t = self.OntTerm('UBERON:0000955')
+        o1 = t('rdfs:subClassOf', depth=1)
+        o2 = t('rdfs:subClassOf', depth=2)
+        on = t('rdfs:subClassOf', depth=99)
+        assert len(o1) == 1
+        assert len(o2) == 2
+        assert len(on) == len(t.predicates['rdfs:subClassOf'])
+
+    def test_cycle(self):
+        t = self.OntTerm('TEMP:cycle-1')
+        oops = t('rdfs:subClassOf', depth=99)
+        assert len(oops) == 3, 'oh no'
 
 
 @skipif_no_net

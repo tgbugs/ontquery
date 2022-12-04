@@ -34,12 +34,19 @@ suffixes = (
 test_graph = rdflib.Graph()
 triples = (('UBERON:0000955', 'rdf:type', 'owl:Class'),
            ('UBERON:0000955', 'rdfs:label', 'brain'),
-           ('UBERON:0000955', 'rdfs:subClassOf', 'owl:Thing'),
+           ('UBERON:0000955', 'rdfs:subClassOf', 'UBERON:0000062'),
+           ('UBERON:0000062', 'rdfs:subClassOf', 'UBERON:0010000'),
+           ('UBERON:0010000', 'rdfs:subClassOf', 'UBERON:0000467'),
+           ('UBERON:0000467', 'rdfs:subClassOf', 'UBERON:0000465'),
+           ('UBERON:0000465', 'rdfs:subClassOf', 'UBERON:0001062'),
            ('BIRNLEX:796', 'rdf:type', 'owl:Class'),
            ('BIRNLEX:796', 'rdfs:label', 'Brain'),
            ('BIRNLEX:796', 'definition:', 'Gray mushy thing in the nogin.'),
            ('BIRNLEX:796', 'NIFRID:synonym', 'biocpu'),
            ('BIRNLEX:796', 'NIFRID:synonym', 'thinkthink'),
+           ('TEMP:cycle-1', 'rdfs:subClassOf', 'TEMP:cycle-2'),
+           ('TEMP:cycle-2', 'rdfs:subClassOf', 'TEMP:cycle-3'),
+           ('TEMP:cycle-3', 'rdfs:subClassOf', 'TEMP:cycle-1'),
 )
 
 for proto_t in triples:
