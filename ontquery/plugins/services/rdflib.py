@@ -147,6 +147,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
             elif p == rdflib.RDFS.subClassOf:
                 owlClass = True
+                # cardinality n > 1 fix
+                c = self.OntId(p).curie
+                if c not in out['predicates']:
+                    out['predicates'][c] = tuple()  # force tuple
 
             if p == owl.deprecated and o:
                 out['deprecated'] = True
@@ -183,7 +187,11 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 # FIXME traverse restrictions on transitive properties
                 # to match scigraph behavior
                 try:
-                    spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1, _pseen=mergepreds(out['predicates'], _pseen)))
+                    spout = next(self.by_ident(
+                        o, None, {},
+                        predicates=(p,),
+                        depth=depth - 1,
+                        _pseen=mergepreds(out['predicates'], _pseen)))
                     log.debug(f'{spout}')
                     if c in spout.predicates:
                         _objs = spout.predicates[c]
