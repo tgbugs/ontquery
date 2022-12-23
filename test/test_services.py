@@ -144,7 +144,12 @@ class _TestIlx(ServiceBase):
         print(qr)
 
     @skipif_no_api_key
+    @pytest.mark.skip(reason='interlex api is not ready')
     def test_multi_sco(self):
+        # XXX this requires that interlex server alt be running with
+        # interlex.dump.MysqlExport._term_triples(include_supers=True)
+        # which has been prototyped, but the api is not stable so we
+        # skip this for now
         term = self.OntTerm('ILX:0793561')
         sco1 = term('rdfs:subClassOf', depth=1)
         scon = term('rdfs:subClassOf', depth=99)
