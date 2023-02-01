@@ -55,7 +55,7 @@ def insert_strie(strie, trie, value):
 
 
 def get_longest_namespace(trie, value):
-    for key in trie:
+    for key in trie.keys():
         if value.startswith(key):
             out = get_longest_namespace(trie[key], value)
             if out is None:
@@ -65,7 +65,7 @@ def get_longest_namespace(trie, value):
 
 
 def get_namespaces(trie, value):
-    for key in trie:
+    for key in trie.keys():
         if value.startswith(key):
             yield key
             for ns in get_namespaces(trie[key], value):
