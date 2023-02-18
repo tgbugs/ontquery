@@ -3,7 +3,6 @@ import json
 from typing import Optional, Union, List, Tuple, Any
 
 from rdflib import URIRef
-from requests import Response
 
 from . import deco
 from .interlex_session import InterlexSession

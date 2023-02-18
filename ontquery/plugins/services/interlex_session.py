@@ -3,11 +3,6 @@ import re
 import json
 from typing import Callable, List, Tuple
 
-import requests
-from requests import Response
-from requests.adapters import HTTPAdapter
-from requests.packages.urllib3.util.retry import Retry
-
 from pyontutils.utils import Async, deferred
 
 from ontquery import exceptions as exc
@@ -59,6 +54,7 @@ class InterlexSession:
         self.api = api
 
         # Setup Retries #
+        import requests
         self.session = requests.Session()
         self.session.auth = auth  # legacy; InterLex no longer needs this.
         self.session.headers.update({
@@ -91,7 +87,7 @@ class InterlexSession:
         data = json.dumps(data)  # Incase backend is missing this step.
         return data
 
-    def __check_response(self, resp: Response) -> None:
+    def __check_response(self, resp) -> None:
         """ Pass, log or break based on response code.
 
             200  : LOG   : If req was a duplicate from the API key
@@ -124,7 +120,7 @@ class InterlexSession:
         except Exception as error:
             raise self.ServerMessage(resp.text) from error
 
-    def _get(self, endpoint: str, params: dict = None) -> Response:
+    def _get(self, endpoint: str, params: dict = None):
         """ Quick GET for InterLex.
 
         :param str endpoint: tail of endpoint (ie term/add).
@@ -140,7 +136,7 @@ class InterlexSession:
         self.__check_response(resp)
         return resp
 
-    def _post(self, endpoint: str, data: dict = None) -> Response:
+    def _post(self, endpoint: str, data: dict = None):
         """ Quick POST for InterLex.
 
         :param str endpoint: tail of endpoint (ie term/add).

@@ -1,7 +1,6 @@
 from typing import Union, List, Dict
 
 import rdflib
-import requests
 
 import ontquery as oq
 import ontquery.exceptions as exc
@@ -31,7 +30,6 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                  **kwargs):
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
-
         self.OntId = OntId
         self.apiEndpoint = apiEndpoint
         self.api_first = api_first
@@ -48,7 +46,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         self.RDF = rdflib.RDF
         self.OWL = rdflib.OWL
         self.URIRef = rdflib.URIRef
-        # self.curies = requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
+        # self.curies = self._requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
         # here we see that the original model for curies doesn't quite hold up
         # we need to accept local curies, but we also have to have them
         # probably best to let the user populate their curies from interlex
@@ -69,6 +67,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         )
 
     def setup(self, **kwargs):
+        import requests
+        self._requests = requests
+
         oq.OntCuries({'TMP': 'http://uri.interlex.org/base/tmp_'})
 
         if self.apiEndpoint is not None:
@@ -179,7 +180,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def get_entity(self, ilx_id: str, **kwargs) -> dict:
         try:
             resp = self.ilx_cli.get_entity(ilx_id)
-        except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+        except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
             log.debug(e)
             return
 
@@ -204,7 +205,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def get_entity_from_curie(self, curie: str, **kwargs) -> dict:
         try:
             resp = self.ilx_cli.get_entity_from_curie(curie)
-        except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+        except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
             log.debug(e)
             return
 
@@ -568,7 +569,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if resp is None and curie:
             try:
                 resp: dict = self.ilx_cli.get_entity_from_curie(curie)
-            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+            except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                 log.debug(e)
                 resp = None
 
@@ -576,7 +577,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 # sometimes a remote curie does not match ours
                 try:
                     resp: dict = self.ilx_cli.get_entity_from_curie(self.OntId(iri).curie)
-                except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+                except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                     log.debug(e)
                     return
 
@@ -586,13 +587,13 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         elif label:
             try:
                 resp: list = self.ilx_cli.query_elastic(label=label, size=limit)
-            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+            except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                 log.debug(e)
                 resp = None
         elif term:
             try:
                 resp: list = self.ilx_cli.query_elastic(term=term, size=limit)
-            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+            except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                 log.debug(e)
                 resp = None
         else:
@@ -693,7 +694,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
-            with requests.Session() as s:
+            with self._requests.Session() as s:
                 s.headers.update(headers)
                 resp = s.get(url, allow_redirects=False)
                 while resp.is_redirect and resp.status_code < 400:  # FIXME redirect loop issue

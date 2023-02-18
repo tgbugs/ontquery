@@ -1,15 +1,7 @@
-import requests
 import ontquery as oq
 from ontquery.utils import cullNone, one_or_many, log, bunch, red
 from ontquery.services import OntService
 from . import deco, auth
-
-try:
-    from pyontutils import scigraph
-except ModuleNotFoundError:
-    from . import scigraph_client as scigraph
-    deco.standalone_scigraph_api(scigraph.restService)
-    deco.scigraph_api_key(scigraph.restService)
 
 
 class SciGraphRemote(OntService):  # incomplete and not configureable yet
@@ -17,10 +9,6 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     verbose = False
     known_inverses = ('', ''),
     def __init__(self, apiEndpoint=None, OntId=oq.OntId):  # apiEndpoint=None -> default from pyontutils.devconfig
-        try:
-            requests
-        except NameError:
-            raise ModuleNotFoundError('You need to install requests to use this service') from requests_missing
         self.apiEndpoint = apiEndpoint
         self.OntId = OntId
         super().__init__()
@@ -45,15 +33,27 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
     def predicates(self):
         yield from self._predicates
 
-    def setup(self, **kwargs):
+    def _import_stuff(self):
+        import requests
+        self._requests = requests
+        try:
+            from pyontutils import scigraph
+        except ModuleNotFoundError:
+            from . import scigraph_client as scigraph
+            deco.standalone_scigraph_api(scigraph.restService)
+            deco.scigraph_api_key(scigraph.restService)
 
-        self.sgv = scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
+        self._scigraph = scigraph
+
+    def setup(self, **kwargs):
+        self._import_stuff()
+        self.sgv = self._scigraph.Vocabulary(cache=self.cache, verbose=self.verbose,
                                        basePath=self.apiEndpoint, safe_cache=True)
-        self.sgg = scigraph.Graph(cache=self.cache, verbose=self.verbose,
+        self.sgg = self._scigraph.Graph(cache=self.cache, verbose=self.verbose,
                                   basePath=self.apiEndpoint)
-        self.sgc = scigraph.Cypher(cache=self.cache, verbose=self.verbose,
+        self.sgc = self._scigraph.Cypher(cache=self.cache, verbose=self.verbose,
                                    basePath=self.apiEndpoint)
-        self.sgd = scigraph.Dynamic(cache=self.cache, verbose=self.verbose,
+        self.sgd = self._scigraph.Dynamic(cache=self.cache, verbose=self.verbose,
                                     basePath=self.apiEndpoint)
         self.curies = type('LocalCuries', (oq.OntCuries,), {})
         self._remote_curies = type('RemoteCuries', (oq.OntCuries.new(),), {})
@@ -376,7 +376,8 @@ class SciCrunchRemote(SciGraphRemote):
         super().__init__(apiEndpoint=apiEndpoint, OntId=OntId)
 
     def setup(self, **kwargs):
-        if scigraph.restService.api_key is None and self.apiEndpoint == self.defaultEndpoint:
+        self._import_stuff()
+        if self._scigraph.restService.api_key is None and self.apiEndpoint == self.defaultEndpoint:
             raise ValueError('You have not set an API key for the SciCrunch API!')
 
         super().setup(**kwargs)
@@ -400,7 +401,7 @@ class SciCrunchRemote(SciGraphRemote):
                 super().__init__(**term)
             def __call__(self):
                 if not self.__done:
-                    resp = requests.post(post_url, data=self)  # TODO
+                    resp = self._requests.post(post_url, data=self)  # TODO
                     self.__done = True
                     # TODO handle terms already requested but not in this session
                 else:

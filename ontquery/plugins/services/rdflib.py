@@ -1,5 +1,4 @@
 import rdflib
-import requests
 import ontquery as oq
 import ontquery.exceptions as exc
 from ontquery.utils import log, red
@@ -286,6 +285,7 @@ class StaticIrisRemote(rdflibLocal):
     """ Create a Local from a remote by fetching the content at that iri """
     persistent_cache = False  # TODO useful for nwb usecase
     def __init__(self, *iris, OntId=oq.OntId):
+        import requests
         self.graph = rdflib.ConjunctiveGraph()
         for iri in iris:
             # TODO filetype detection from interlex
