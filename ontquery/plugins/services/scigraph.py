@@ -35,7 +35,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
 
     def _import_stuff(self):
         import requests
-        self._requests = requests
+        self.__class__._requests = requests
         try:
             from pyontutils import scigraph
         except ModuleNotFoundError:
@@ -43,7 +43,7 @@ class SciGraphRemote(OntService):  # incomplete and not configureable yet
             deco.standalone_scigraph_api(scigraph.restService)
             deco.scigraph_api_key(scigraph.restService)
 
-        self._scigraph = scigraph
+        self.__class__._scigraph = scigraph
 
     def setup(self, **kwargs):
         self._import_stuff()

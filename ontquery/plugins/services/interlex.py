@@ -68,7 +68,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
     def setup(self, **kwargs):
         import requests
-        self._requests = requests
+        self.__class__._requests = requests
 
         oq.OntCuries({'TMP': 'http://uri.interlex.org/base/tmp_'})
 
