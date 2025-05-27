@@ -99,20 +99,29 @@ class _TestIlx(ServiceBase):
         assert t.curie == curie, t
 
     @skipif_not_dev
+    def test_wrong_label(self):
+        t = self.OntTerm('ILX:0110092')
+        l = t.label
+        assert 'II' in l
+
+    @skipif_not_dev
     def test_no_label(self):
         t = self.OntTerm('NLX:60355')
         try:
-            ser = t._graph.serialize(format='nifttl').decode()
+            ser = t._graph.serialize(format='nifttl')
         except rdflib.plugin.PluginException:  # if pyontutils is absent
-            ser = t._graph.serialize(format='turtle').decode()
+            ser = t._graph.serialize(format='turtle')
 
         assert t.label, ser
 
     @skipif_not_dev
     def test_query_ot(self):
         """ This was an issue with incorrectly setting curie and iri in InterLexRemote.query """
-        term = next(self.OntTerm.query(label='deep'))
-        assert term, 'oops?'
+        try:
+            term = next(self.OntTerm.query(label='deep'))
+            assert term, 'oops?'
+        except StopIteration:
+            pytest.skip('term not in db')
 
     @skipif_not_dev
     def test_z_bad_curie(self):
@@ -133,6 +142,20 @@ class _TestIlx(ServiceBase):
     def test_add_pde(self):
         qr = self.remote.add_pde(f'test pde {uuid4()}')
         print(qr)
+
+    @skipif_no_api_key
+    @pytest.mark.skip(reason='interlex api is not ready')
+    def test_multi_sco(self):
+        # XXX this requires that interlex server alt be running with
+        # interlex.dump.MysqlExport._term_triples(include_supers=True)
+        # which has been prototyped, but the api is not stable so we
+        # skip this for now
+        term = self.OntTerm('ILX:0793561')
+        sco1 = term('rdfs:subClassOf', depth=1)
+        scon = term('rdfs:subClassOf', depth=99)
+        assert len(sco1) == 1
+        assert len(sco1) < len(scon)  # that we get parents
+        assert len(set(scon)) == len(scon)  # that we get them only once
 
 
 if 'CI' not in os.environ:  # production uri resolver doesn't have all the required features yet
@@ -168,6 +191,20 @@ class TestSciGraph(ServiceBase, unittest.TestCase):
 
 class TestRdflib(ServiceBase, unittest.TestCase):
     remote = oq.plugin.get('rdflib')(test_graph)
+
+    def test_depth(self):
+        t = self.OntTerm('UBERON:0000955')
+        o1 = t('rdfs:subClassOf', depth=1)
+        o2 = t('rdfs:subClassOf', depth=2)
+        on = t('rdfs:subClassOf', depth=99)
+        assert len(o1) == 1
+        assert len(o2) == 2
+        assert len(on) == len(t.predicates['rdfs:subClassOf'])
+
+    def test_cycle(self):
+        t = self.OntTerm('TEMP:cycle-1')
+        oops = t('rdfs:subClassOf', depth=99)
+        assert len(oops) == 3, 'oh no'
 
 
 @skipif_no_net

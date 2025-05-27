@@ -1,5 +1,4 @@
 import rdflib
-import requests
 import ontquery as oq
 import ontquery.exceptions as exc
 from ontquery.utils import log, red
@@ -80,7 +79,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
     def predicates(self):
         yield from sorted(set(self.graph.predicates()))
 
-    def by_ident(self, iri, curie, kwargs, predicates=tuple(), depth=1):
+    def by_ident(self, iri, curie, kwargs, predicates=tuple(), depth=1, _pseen=tuple()):
         def append_preds(out, c, o):
             if c not in out['predicates']:
                 out['predicates'][c] = o  # curie to be consistent with OntTerm behavior
@@ -88,6 +87,26 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 out['predicates'][c] = out['predicates'][c], o
             else:
                 out['predicates'][c] += o,
+
+        def mergepreds(this_preds, prev_preds):
+            if not prev_preds:
+                return this_preds
+            else:
+                npreds = {**this_preds}
+                for k, v in prev_preds.items():
+                    if k in npreds:
+                        if isinstance(v, tuple):
+                            if isinstance(npreds[k], tuple):
+                                npreds[k] = v + npreds[k]
+                            else:
+                                npreds[k] = v + (npreds[k],)
+                        else:
+                            if isinstance(npreds[k], tuple):
+                                npreds[k] = (v,) + npreds[k]
+                            else:
+                                npreds[k] = v, npreds[k]
+
+                return npreds
 
         predicates = tuple(rdflib.URIRef(p.iri)
                            # FIXME tricky here because we don't actually know the type
@@ -97,12 +116,13 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                            p for p in predicates)
         out = {'predicates':{}}
         identifier = self.OntId(curie=curie, iri=iri)
-        gen = self.graph.predicate_objects(rdflib.URIRef(identifier))
+        gen = self.graph.predicate_objects(rdflib.URIRef(identifier.iri))
         out['curie'] = identifier.curie
         out['iri'] = identifier.iri
         o = None
         owlClass = None
         owl = rdflib.OWL
+
         for p, o in gen:
             if isinstance(o, rdflib.BNode):
                 continue
@@ -112,8 +132,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                 o = o.toPython()
 
             #elif p == rdflib.RDF.type and o == owl.Class:
-            elif p == rdflib.RDF.type and o in (owl.Class, owl.ObjectProperty,
-                                                owl.DatatypeProperty, owl.AnnotationProperty):
+            elif p == rdflib.RDF.type:  # XXX do not filter on type at this point
                 if 'type' not in out:
                     out['type'] = o  # FIXME preferred type ...
                 else:
@@ -127,10 +146,15 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
 
             elif p == rdflib.RDFS.subClassOf:
                 owlClass = True
+                # cardinality n > 1 fix
+                c = self.OntId(p).curie
+                if c not in out['predicates']:
+                    out['predicates'][c] = tuple()  # force tuple
 
             if p == owl.deprecated and o:
                 out['deprecated'] = True
 
+            _o_already_done = False  # FIXME not quite right, also _out
             if pn is None:
                 # TODO translation and support for query result structure
                 # FIXME lists instead of klobbering results with mulitple predicates
@@ -139,7 +163,10 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     # FIXME these OntIds also do not derive from rdflib... sigh
 
                 c = self.OntId(p).curie
-                append_preds(out, c, o)
+                if c in _pseen and o in _pseen[c]:
+                    _o_already_done = True
+                else:
+                    append_preds(out, c, o)
 
                 #print(red.format('WARNING:'), 'untranslated predicate', p)
             else:
@@ -150,13 +177,20 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
                     else:
                         out[c] += o,
                 else:
-                    out[c] = o
+                    if c == 'synonyms':  # FIXME generalize probably
+                        out[c] = o,
+                    else:
+                        out[c] = o
 
-            if p in predicates and depth:
+            if p in predicates and depth > 0 and not _o_already_done:
                 # FIXME traverse restrictions on transitive properties
                 # to match scigraph behavior
                 try:
-                    spout = next(self.by_ident(o, None, {}, predicates=(p,), depth=depth - 1))
+                    spout = next(self.by_ident(
+                        o, None, {},
+                        predicates=(p,),
+                        depth=depth - 1,
+                        _pseen=mergepreds(out['predicates'], _pseen)))
                     log.debug(f'{spout}')
                     if c in spout.predicates:
                         _objs = spout.predicates[c]
@@ -212,7 +246,7 @@ class rdflibLocal(OntService):  # reccomended for local default implementation
         #kwargs['search'] = search
         #supported = sorted(self.QueryResult(kwargs))
         if all_classes:
-            for iri in self.graph[:rdflib.RDF.type:rdflib.OWL.Class]:
+            for iri, type in self.graph[:rdflib.RDF.type:]:
                 if isinstance(iri, rdflib.URIRef):  # no BNodes
                     yield from self.by_ident(iri, None, kwargs,  # actually query is done here
                                              predicates=predicates,
@@ -251,6 +285,7 @@ class StaticIrisRemote(rdflibLocal):
     """ Create a Local from a remote by fetching the content at that iri """
     persistent_cache = False  # TODO useful for nwb usecase
     def __init__(self, *iris, OntId=oq.OntId):
+        import requests
         self.graph = rdflib.ConjunctiveGraph()
         for iri in iris:
             # TODO filetype detection from interlex

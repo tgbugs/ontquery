@@ -148,6 +148,7 @@ class Id:
         # we leave out the explicit retrieve
         raise NotImplementedError
 
+
 class LocalId(Id):
     """ Local identifier without the context to globalize it
         It is usually ok to skip using this class and just
@@ -320,7 +321,16 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
             iri_ps = cls._make_iri(prefix, suffix)
 
         if curie_or_iri is not None:
-            if (curie_or_iri.startswith('http://') or
+            _is_iri = False
+            if isinstance(curie_or_iri, OntId):
+                # we can't make any assumptions about whether the
+                # source context for an OntId subclass carries the
+                # same local convetions, so we normalize to iri here
+                curie_or_iri = curie_or_iri.iri
+                _is_iri = True
+
+            if (_is_iri or
+                curie_or_iri.startswith('http://') or
                 curie_or_iri.startswith('https://') or
                 curie_or_iri.startswith('file://')):
                 iri_ci = curie_or_iri
@@ -341,6 +351,11 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         if curie is not None and curie != iri:
             prefix, suffix = curie.split(':', 1)
             iri_c = cls._make_iri(prefix, suffix)
+
+        if isinstance(iri, OntId):
+            # we can't assume anything about the context that
+            # an OntId carries with it, so we convert here
+            iri = iri.iri
 
         iris = iri_ps, iri_ci, iri_c, iri
         unique_iris = set(i for i in iris if i is not None)
@@ -414,7 +429,8 @@ class OntId(Identifier, str):  # TODO all terms singletons to prevent nastyness
         if prefix in namespaces:
             return namespaces[prefix] + suffix
         else:
-            raise cls.UnknownPrefixError(f'Unknown curie prefix: {prefix} for {prefix}:{suffix}')
+            raise cls.UnknownPrefixError(
+                f'Unknown curie prefix: {prefix} for {prefix}:{suffix}')
 
     @property
     def quoted(self):
@@ -783,7 +799,7 @@ class OntTerm(InstrumentedIdentifier, OntId):
         else:
             predicates = (predicate,) + predicates  # ensure at least one
 
-        results_gen = self.query(iri=self, predicates=predicates, depth=depth,
+        results_gen = self.query(iri=self, predicates=predicates, depth=depth,  # XXX observe passing OntTerm as iri here
                                  direction=direction, include_supers=include_supers)
         out = {}
         for result in results_gen:  # FIXME should only be one?!

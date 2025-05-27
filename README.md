@@ -1,6 +1,6 @@
 # ontquery
 [![PyPI version](https://badge.fury.io/py/ontquery.svg)](https://pypi.org/project/ontquery/)
-[![Build Status](https://travis-ci.org/tgbugs/ontquery.svg?branch=master)](https://travis-ci.org/tgbugs/ontquery)
+[![Build Status](https://travis-ci.com/tgbugs/ontquery.svg?branch=master)](https://travis-ci.com/tgbugs/ontquery)
 [![Coverage Status](https://coveralls.io/repos/github/tgbugs/ontquery/badge.svg?branch=master)](https://coveralls.io/github/tgbugs/ontquery?branch=master)
 
 a framework querying ontology terms
@@ -13,7 +13,7 @@ other applications that need to reduce their dependnecies. For this use case pac
 as a dependency in their package requirements without any special changes e.g. `ontquery>=0.0.6`.  
 
 The second use case enables remote services via a plugin infrastructure.
-To install this version you should install or require using the [pip extras syntax](https://packaging.python.org/tutorials/installing-packages/#installing-setuptools-extras) e.g. `pip install ontquery[services]>=0.6.0`.
+To install this version you should install or require using the [pip extras syntax](https://packaging.python.org/tutorials/installing-packages/#installing-setuptools-extras) e.g. `pip install "ontquery[services]"`.
 
 # SciCrunch api key
 If you don't have your own SciGraph instance you will need a SciCunch API key in order to run the demos (e.g. `python __init__.py`).
@@ -27,15 +27,16 @@ See https://github.com/tgbugs/ontquery/blob/db8cad7463704bce9010651c3744452aa537
 
 # SciGraphRemote Usage
 ```python
-from ontquery import OntQuery, SciGraphRemote, OntTerm, OntCuries
-from ontquery.plugins.namespaces import CURIE_MAP
+from ontquery import OntQuery, OntTerm, OntCuries
+from ontquery.plugins.namespaces.nifstd import CURIE_MAP
+from ontquery.plugins.services.scigraph import SciGraphRemote
 
 curies = OntCuries(CURIE_MAP)
-query = OntQuery(SciGraphRemote())
+query = OntQuery(SciGraphRemote(), instrumented=OntTerm)
 OntTerm.query = query
 ```
 ```python
-query('mouse')
+list(query('mouse'))
 ```
 3 potential matches are shown:
 ```python

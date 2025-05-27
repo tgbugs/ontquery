@@ -1,7 +1,6 @@
 from typing import Union, List, Dict
 
 import rdflib
-import requests
 
 import ontquery as oq
 import ontquery.exceptions as exc
@@ -31,7 +30,6 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                  **kwargs):
         """ user_curies is a local curie mapping from prefix to a uri
             This usually is a full http://uri.interlex.org/base/ilx_1234567 identifier """
-
         self.OntId = OntId
         self.apiEndpoint = apiEndpoint
         self.api_first = api_first
@@ -48,7 +46,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         self.RDF = rdflib.RDF
         self.OWL = rdflib.OWL
         self.URIRef = rdflib.URIRef
-        # self.curies = requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
+        # self.curies = self._requests.get(f'http://{self.host}:{self.port}/base/curies').json()  # FIXME TODO
         # here we see that the original model for curies doesn't quite hold up
         # we need to accept local curies, but we also have to have them
         # probably best to let the user populate their curies from interlex
@@ -69,6 +67,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         )
 
     def setup(self, **kwargs):
+        import requests
+        self.__class__._requests = requests
+
         oq.OntCuries({'TMP': 'http://uri.interlex.org/base/tmp_'})
 
         if self.apiEndpoint is not None:
@@ -179,7 +180,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def get_entity(self, ilx_id: str, **kwargs) -> dict:
         try:
             resp = self.ilx_cli.get_entity(ilx_id)
-        except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+        except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
             log.debug(e)
             return
 
@@ -204,7 +205,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
     def get_entity_from_curie(self, curie: str, **kwargs) -> dict:
         try:
             resp = self.ilx_cli.get_entity_from_curie(curie)
-        except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+        except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
             log.debug(e)
             return
 
@@ -516,7 +517,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         return bool(self.port)
 
     def query(self, iri=None, curie=None, label=None, term=None, predicates=tuple(),
-              prefix=tuple(), exclude_prefix=tuple(), limit=10, **_):
+              prefix=tuple(), exclude_prefix=tuple(), limit=10, depth=1, **_):
         kwargs = cullNone(iri=iri, curie=curie, label=label, term=term, predicates=predicates)
         if iri:
             oiri = self.OntId(iri=iri)
@@ -530,13 +531,13 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             iri = self.OntId(curie).iri
 
         if self._is_dev_endpoint:
-            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth)
             if res is not None:
                 yield res
 
         elif hasattr(self, 'ilx_cli'):
             if not self.api_first and (iri or curie):
-                res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+                res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth)
                 if res is not None:
                     yield res
                     return
@@ -553,7 +554,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             yield from res
 
         else:  # can only get by iri directly and it must be an ilx id
-            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix)
+            res = self._dev_query(kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth)
             if res is not None:
                 yield res
 
@@ -568,7 +569,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         if resp is None and curie:
             try:
                 resp: dict = self.ilx_cli.get_entity_from_curie(curie)
-            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+            except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                 log.debug(e)
                 resp = None
 
@@ -576,7 +577,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
                 # sometimes a remote curie does not match ours
                 try:
                     resp: dict = self.ilx_cli.get_entity_from_curie(self.OntId(iri).curie)
-                except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+                except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                     log.debug(e)
                     return
 
@@ -586,13 +587,13 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         elif label:
             try:
                 resp: list = self.ilx_cli.query_elastic(label=label, size=limit)
-            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+            except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                 log.debug(e)
                 resp = None
         elif term:
             try:
                 resp: list = self.ilx_cli.query_elastic(term=term, size=limit)
-            except (requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
+            except (self._requests.exceptions.HTTPError, self.ilx_cli.Error) as e:
                 log.debug(e)
                 resp = None
         else:
@@ -691,9 +692,9 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         return out
 
-    def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix):
+    def _dev_query(self, kwargs, iri, curie, label, predicates, prefix, exclude_prefix, depth):
         def get(url, headers={'Accept':'application/n-triples'}):  # FIXME extremely slow?
-            with requests.Session() as s:
+            with self._requests.Session() as s:
                 s.headers.update(headers)
                 resp = s.get(url, allow_redirects=False)
                 while resp.is_redirect and resp.status_code < 400:  # FIXME redirect loop issue
@@ -723,7 +724,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             return o
 
         if curie:
-            if curie.startswith('ILX:') and iri:
+            if iri and 'uri.interlex.org' in iri:
                 # FIXME hack, can replace once the new resolver is up
                 url = iri.replace('uri.interlex.org', self.host_port)
             else:
@@ -772,7 +773,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
         if True:
             #qrs = rdll.query(label=label, predicates=predicates, all_classes=True)  # label=label issue?
-            qrs = rdll.query(predicates=predicates, all_classes=True)
+            qrs = rdll.query(predicates=predicates, all_classes=True, depth=depth)
             qrd = {'predicates': {}}  # FIXME iri can be none?
             toskip = 'predicates',
             if curie is None and iri is None:
@@ -793,6 +794,11 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
             for qr in qrs:
                 #print(tc.ltgreen(str(qr)))
                 # FIXME still last one wins behavior
+                if curie or iri:
+                    si, siai = str(qr.iri), str(ia_iri)
+                    if si != siai:
+                        continue
+
                 n = {k:v for k, v in qr.items()
                      if k not in toskip
                      and v is not None}
@@ -801,7 +807,7 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
 
             qrd['source'] = self
             #print(tc.ltyellow(str(qrd)))
-            return self.QueryResult(kwargs, **qrd)
+            return self.QueryResult(kwargs, **qrd)  # XXX if this has no graph something went wrong
 
     def _dev_query_rest(self):
         if True:

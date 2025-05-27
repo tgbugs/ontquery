@@ -46,6 +46,16 @@ class TestOntId(unittest.TestCase):
             noid = copy.deepcopy(oid)
             assert oid == oid
 
+    def test_type_recursion(self):
+        bads = []
+        for term in self.terms_to_test:
+            # note we aren't testing inst vs uninst right now
+            nt = self.class_to_test(term, iri=term, curie=term)
+            if term != nt:
+                bads.append((term, nt))
+
+        assert not bads, 'oh no'
+
 
 class TestOntTerm(TestOntId):
     class_to_test = oq.OntTerm
