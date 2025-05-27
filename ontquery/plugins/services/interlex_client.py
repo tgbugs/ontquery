@@ -1090,3 +1090,7 @@ class InterLexClient(InterlexSession):
 
     def upsert_entity(tid):
         return self._post(f'/term/elastic/upsert/{tid}')
+    
+    def entity_tree(self, ilx_id: str, edges: list, direction: str = 'up') -> dict:
+        ilx_id = self.get_ilx_fragment(ilx_id)
+        return self._get(f"term/subtree/{ilx_id}?direction={direction}&edges={','.join(edges)}").json()['data']
