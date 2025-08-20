@@ -741,8 +741,11 @@ class InterLexRemote(_InterLexSharedCache, OntService):  # note to self
         else:
             resp = get(url)
             if not resp.ok:
-                self._graph_cache[url] = None
+                if resp.status_code < 500:  # > 500 server broken don't cache None
+                    self._graph_cache[url] = None
+
                 return None
+
             ttl = resp.content
             if ttl.startswith(b'<!DOCTYPE HTML PUBLIC'):
                 return None  # FIXME disambiguation multi results page
